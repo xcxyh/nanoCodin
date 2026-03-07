@@ -12,7 +12,7 @@ A minimal but production-quality single-agent coding assistant built with:
 - Node.js 20+
 - npm
 
-## Install
+## Local Development
 
 ```bash
 npm install
@@ -54,6 +54,79 @@ npm run dev
 ```
 
 Then type a task in the console UI and press Enter.
+
+## Install as npm CLI (for end users)
+
+After this package is published to npm, users can install and run:
+
+```bash
+npm install -g nano-codin
+nano-codin
+```
+
+Or run without global install:
+
+```bash
+npx nano-codin
+```
+
+Before running, set environment variables in your shell (recommended):
+
+```bash
+export MODEL_PROVIDER=openai
+export OPENAI_API_KEY=your_key
+export OPENAI_MODEL=gpt-4o-mini
+# optional:
+# export OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
+```
+
+You can also create a local `.env` file in your working directory with the same variables.
+
+## Publish to npm (for maintainers)
+
+1. Login and verify package name:
+
+```bash
+npm login
+npm view nano-codin
+```
+
+2. Build and validate:
+
+```bash
+npm run typecheck
+npm run build
+npm pack
+```
+
+3. Bump version (auto commit + git tag):
+
+```bash
+npm run release:patch
+# or:
+# npm run release:minor
+# npm run release:major
+```
+
+4. Push commit and tag:
+
+```bash
+git push
+git push --tags
+```
+
+5. Publish:
+
+```bash
+npm publish --access public
+```
+
+Notes:
+- `prepublishOnly` already runs `typecheck` + `build`.
+- `preversion` runs `typecheck` + `build` + `npm pack --dry-run`.
+- CLI command is `nano-codin` (configured via `package.json` `bin`).
+- Prompt templates are copied to `dist/prompts` during build.
+- Update [`CHANGELOG.md`](/Users/xiongmac/code/nanoCodin/CHANGELOG.md) before each release.
 
 ## Architecture
 
