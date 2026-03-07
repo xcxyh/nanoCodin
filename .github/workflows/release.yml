@@ -1,0 +1,79 @@
+name: Release Publish
+
+on:
+  push:
+    branches:
+      - "release/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Determine next version
+        id: semver
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          echo "release branch: ${BRANCH}"
+
+          if [[ "${BRANCH}" =~ ^release/(patch|minor|major)$ ]]; then
+            BUMP="${BASH_REMATCH[1]}"
+            NEW_VERSION=$(npm version "${BUMP}" --no-git-tag-version)
+          elif [[ "${BRANCH}" =~ ^release/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            TARGET="${BASH_REMATCH[1]}"
+            NEW_VERSION=$(npm version "${TARGET}" --no-git-tag-version)
+          else
+            echo "Invalid release branch name: ${BRANCH}"
+            echo "Use release/patch | release/minor | release/major | release/vX.Y.Z"
+            exit 1
+          fi
+
+          echo "version=${NEW_VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and tag release
+        env:
+          VERSION: ${{ steps.semver.outputs.version }}
+        run: |
+          git add package.json package-lock.json
+          git commit -m "chore(release): v${VERSION} [skip release]"
+          git tag -a "v${VERSION}" -m "Release v${VERSION}"
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+      - name: Push commit and tag
+        run: git push origin HEAD:${GITHUB_REF_NAME} --follow-tags

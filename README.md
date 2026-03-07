@@ -135,6 +135,47 @@ Release safeguards:
 
 Update `CHANGELOG.md` before publishing.
 
+## Automated Release (GitHub Actions)
+
+This repo includes an automated release workflow at:
+
+- `.github/workflows/release.yml`
+
+### What it does
+
+When you push a `release/*` branch, it will:
+
+1. Install dependencies
+2. Bump version (`package.json` + `package-lock.json`)
+3. Run `typecheck` and `build`
+4. Commit release changes and create git tag
+5. Publish to npm
+6. Push release commit and tag back to remote
+
+### Branch naming conventions
+
+- `release/patch` -> `npm version patch`
+- `release/minor` -> `npm version minor`
+- `release/major` -> `npm version major`
+- `release/vX.Y.Z` -> exact version (for example `release/v1.2.0`)
+
+### Required GitHub settings
+
+1. Repository secret:
+   - `NPM_TOKEN`: npm automation token with publish permission
+2. Workflow permissions:
+   - `contents: write` (already declared in workflow)
+3. Ensure Actions can push commits/tags to `release/*` branches
+
+### Example
+
+```bash
+git checkout -b release/minor
+git push -u origin release/minor
+```
+
+After push, GitHub Actions will publish the new version automatically.
+
 ## Troubleshooting
 
 If `npm install` is slow or hangs in CN networks:
@@ -160,4 +201,4 @@ npm install --fetch-retries=0 --fetch-timeout=15000 --verbose
 
 ## License
 
-MIT (see `LICENSE`).
+GPL-3.0 (see `LICENSE`).
