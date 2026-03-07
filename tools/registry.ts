@@ -10,17 +10,17 @@ import { todoTool } from "./planning/todo.js";
 import { bashTool } from "./shell/bash.js";
 
 export class ToolRegistry {
-  private readonly toolMap: Map<string, Tool>;
+  private readonly toolMap: Map<string, Tool<any>>;
 
-  constructor(tools: Tool[]) {
+  constructor(tools: Tool<any>[]) {
     this.toolMap = new Map(tools.map((tool) => [tool.name, tool]));
   }
 
-  list(): Tool[] {
+  list(): Tool<any>[] {
     return [...this.toolMap.values()];
   }
 
-  getToolByName(name: string): Tool | undefined {
+  getToolByName(name: string): Tool<any> | undefined {
     return this.toolMap.get(name);
   }
 

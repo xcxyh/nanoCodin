@@ -46,7 +46,7 @@ function main() {
 
   const graph = new CodingAgentGraph(model, tools, toolContext, 12);
 
-  render(<ConsoleApp graph={graph} />);
+  render(React.createElement(ConsoleApp, { graph }));
 }
 
 main();

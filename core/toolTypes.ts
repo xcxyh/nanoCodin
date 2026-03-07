@@ -20,7 +20,7 @@ export interface ToolResult {
   output: string;
 }
 
-export interface Tool<TInput = unknown> {
+export interface Tool<TInput = any> {
   name: string;
   description: string;
   schema: z.ZodType<TInput>;

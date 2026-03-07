@@ -94,3 +94,29 @@ index.ts
 - No persistence (todo is in-memory per session)
 - Step-level streaming in UI (not token streaming)
 - Prompt output is format-constrained for ReAct parsing
+
+## npm install Troubleshooting (CN Network)
+
+If `npm install` appears stuck, it is usually DNS/network retries to `registry.npmjs.org`.
+This repo includes a local `.npmrc` using `https://registry.npmmirror.com` for better stability.
+
+Quick checks:
+
+```bash
+npm config get registry
+nslookup registry.npmjs.org
+```
+
+If needed, force the mirror again:
+
+```bash
+npm config set registry https://registry.npmmirror.com
+npm cache clean --force
+npm install
+```
+
+To fail fast instead of waiting for long retries:
+
+```bash
+npm install --fetch-retries=0 --fetch-timeout=15000 --verbose
+```
