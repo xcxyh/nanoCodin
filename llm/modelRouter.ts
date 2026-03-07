@@ -11,6 +11,53 @@ function toPrompt(messages: Message[]): string {
   return messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
 }
 
+function formatProviderError(
+  provider: "openai" | "anthropic",
+  modelName: string,
+  baseURL: string | undefined,
+  error: unknown
+): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  const statusCode = typeof error === "object" && error !== null && "statusCode" in error
+    ? String((error as { statusCode?: unknown }).statusCode ?? "")
+    : "";
+  const responseBody = typeof error === "object" && error !== null && "responseBody" in error
+    ? String((error as { responseBody?: unknown }).responseBody ?? "")
+    : "";
+
+  const parts = [
+    `LLM request failed for provider=${provider}`,
+    `model=${modelName}`,
+    `baseURL=${baseURL ?? "(default)"}`,
+    statusCode ? `status=${statusCode}` : "",
+    `message=${message}`,
+    responseBody ? `response=${responseBody}` : "",
+    "Hint: check API key, model name, and base URL path."
+  ].filter(Boolean);
+
+  return new Error(parts.join(" | "));
+}
+
+function normalizeAnthropicBaseURL(baseURL: string): string {
+  const trimmed = baseURL.replace(/\/+$/, "");
+  if (trimmed.endsWith("/v1")) {
+    return trimmed;
+  }
+  return `${trimmed}/v1`;
+}
+
+function isNotFoundError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const maybeStatus = "statusCode" in error ? (error as { statusCode?: unknown }).statusCode : undefined;
+  if (maybeStatus === 404 || maybeStatus === "404") {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /not found/i.test(message);
+}
+
 class OpenAIProvider implements ModelProvider {
   private readonly modelName: string;
 
@@ -25,15 +72,19 @@ class OpenAIProvider implements ModelProvider {
     }
 
     const baseURL = process.env.OPENAI_BASE_URL;
-    const openai = createOpenAI({ apiKey, baseURL });
-    const modelFactory = openai(this.modelName);
+    try {
+      const openai = createOpenAI({ apiKey, baseURL });
+      const modelFactory = openai(this.modelName);
 
-    const { text } = await generateText({
-      model: modelFactory,
-      prompt: toPrompt(messages)
-    });
+      const { text } = await generateText({
+        model: modelFactory,
+        prompt: toPrompt(messages)
+      });
 
-    return { text };
+      return { text };
+    } catch (error) {
+      throw formatProviderError("openai", this.modelName, baseURL, error);
+    }
   }
 }
 
@@ -51,15 +102,33 @@ class AnthropicProvider implements ModelProvider {
     }
 
     const baseURL = process.env.ANTHROPIC_BASE_URL;
-    const anthropic = createAnthropic({ apiKey, baseURL });
-    const modelFactory = anthropic(this.modelName);
+    try {
+      const anthropic = createAnthropic({ apiKey, baseURL });
+      const modelFactory = anthropic(this.modelName);
 
-    const { text } = await generateText({
-      model: modelFactory,
-      prompt: toPrompt(messages)
-    });
+      const { text } = await generateText({
+        model: modelFactory,
+        prompt: toPrompt(messages)
+      });
 
-    return { text };
+      return { text };
+    } catch (error) {
+      if (baseURL && isNotFoundError(error) && !baseURL.replace(/\/+$/, "").endsWith("/v1")) {
+        const fallbackBaseURL = normalizeAnthropicBaseURL(baseURL);
+        try {
+          const anthropic = createAnthropic({ apiKey, baseURL: fallbackBaseURL });
+          const modelFactory = anthropic(this.modelName);
+          const { text } = await generateText({
+            model: modelFactory,
+            prompt: toPrompt(messages)
+          });
+          return { text };
+        } catch (retryError) {
+          throw formatProviderError("anthropic", this.modelName, fallbackBaseURL, retryError);
+        }
+      }
+      throw formatProviderError("anthropic", this.modelName, baseURL, error);
+    }
   }
 }
 

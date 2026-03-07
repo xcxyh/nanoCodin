@@ -87,14 +87,30 @@ export class CodingAgentGraph {
       };
     }
 
-    const messages = await buildAgentMessages(
-      state.messages,
-      state.intermediate_steps,
-      this.tools.formatToolsForPrompt()
-    );
+    let parsed: ReturnType<typeof parseAgentResponse>;
+    let responseText = "";
+    try {
+      const messages = await buildAgentMessages(
+        state.messages,
+        state.intermediate_steps,
+        this.tools.formatToolsForPrompt()
+      );
+      const response = await this.model.generate(messages);
+      responseText = response.text;
+      parsed = parseAgentResponse(responseText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const finalAnswer = `Agent failed before selecting action: ${message}`;
+      this.onEvent?.({ type: "error", error: finalAnswer });
+      return {
+        finalAnswer,
+        pending_action: null,
+        stepCount: state.stepCount + 1,
+        intermediate_steps: [...state.intermediate_steps, { thought: "LLM call failed." }],
+        messages: [{ role: "assistant", content: finalAnswer }]
+      };
+    }
 
-    const response = await this.model.generate(messages);
-    const parsed = parseAgentResponse(response.text);
     const actionName = parsed.action.toLowerCase();
 
     this.onEvent?.({ type: "thought", thought: parsed.thought });
@@ -102,7 +118,7 @@ export class CodingAgentGraph {
     if (actionName === "final") {
       const answer = typeof parsed.actionInput.answer === "string"
         ? parsed.actionInput.answer
-        : response.text;
+        : responseText;
 
       this.onEvent?.({ type: "final", answer });
       return {
@@ -133,11 +149,31 @@ export class CodingAgentGraph {
       return {};
     }
 
-    const result = await this.tools.execute(
-      state.pending_action.name,
-      state.pending_action.input,
-      this.toolContext
-    );
+    let result;
+    try {
+      result = await this.tools.execute(
+        state.pending_action.name,
+        state.pending_action.input,
+        this.toolContext
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const observation = `ERROR: Tool execution threw exception: ${message}`;
+      this.onEvent?.({ type: "observation", observation });
+
+      const latestStep = state.intermediate_steps[state.intermediate_steps.length - 1];
+      const updatedStep: AgentStep = {
+        thought: latestStep?.thought ?? "",
+        action: state.pending_action,
+        observation
+      };
+
+      return {
+        messages: [{ role: "tool", name: state.pending_action.name, content: observation }],
+        pending_action: null,
+        intermediate_steps: [...state.intermediate_steps.slice(0, -1), updatedStep]
+      };
+    }
 
     const observation = `${result.ok ? "OK" : "ERROR"}: ${result.output}`;
     this.onEvent?.({ type: "observation", observation });
