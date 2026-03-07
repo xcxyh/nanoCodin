@@ -9,9 +9,11 @@ import type { ToolContext } from "./core/toolTypes.js";
 import { createDefaultToolRegistry } from "./tools/registry.js";
 import { ConsoleApp } from "./ui/consoleApp.js";
 
-function loadDotEnv(filePath: string) {
+function buildRuntimeEnv(filePath: string): NodeJS.ProcessEnv {
+  const runtimeEnv: NodeJS.ProcessEnv = { ...process.env };
+
   if (!existsSync(filePath)) {
-    return;
+    return runtimeEnv;
   }
 
   const text = readFileSync(filePath, "utf8");
@@ -28,14 +30,16 @@ function loadDotEnv(filePath: string) {
 
     const key = line.slice(0, eqIndex).trim();
     const value = line.slice(eqIndex + 1).trim();
-    if (!(key in process.env)) {
-      process.env[key] = value;
+    if (!(key in runtimeEnv)) {
+      runtimeEnv[key] = value;
     }
   }
+
+  return runtimeEnv;
 }
 
 function main() {
-  loadDotEnv(path.resolve(process.cwd(), ".env"));
+  Object.assign(process.env, buildRuntimeEnv(path.resolve(process.cwd(), ".env")));
 
   const model = createModelProviderFromEnv();
   const tools = createDefaultToolRegistry();

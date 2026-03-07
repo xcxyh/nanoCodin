@@ -35,7 +35,7 @@ npx nano-codin
 ### Local development
 
 ```bash
-git clone <your-repo-url>
+git clone git@github.com:xcxyh/nanoCodin.git
 cd nanoCodin
 npm install
 npm run dev
@@ -43,7 +43,85 @@ npm run dev
 
 ## Configuration
 
-Set environment variables in your shell, or create a `.env` file in the working directory where you run `nano-codin`.
+`nano-codin` always reads from `process.env`.
+`.env` is optional: if a `.env` file exists in your current working directory, it only fills keys that are missing from system environment variables (it does not override existing shell env vars).
+
+You can configure either way:
+
+1. System environment variables (no `.env` required)
+2. A `.env` file in the directory where you run `nano-codin`
+
+### How to set environment variables
+
+Temporary (current terminal session only):
+
+macOS/Linux (zsh/bash):
+
+```bash
+export MODEL_PROVIDER=openai
+export OPENAI_API_KEY=your_key
+export OPENAI_MODEL=gpt-4o-mini
+nano-codin
+```
+
+Windows PowerShell:
+
+```powershell
+$env:MODEL_PROVIDER="openai"
+$env:OPENAI_API_KEY="your_key"
+$env:OPENAI_MODEL="gpt-4o-mini"
+nano-codin
+```
+
+Windows CMD:
+
+```bat
+set MODEL_PROVIDER=openai
+set OPENAI_API_KEY=your_key
+set OPENAI_MODEL=gpt-4o-mini
+nano-codin
+```
+
+Persistent (auto-loaded for future terminals):
+
+macOS/Linux (zsh):
+
+```bash
+echo 'export MODEL_PROVIDER=openai' >> ~/.zshrc
+echo 'export OPENAI_API_KEY=your_key' >> ~/.zshrc
+echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.zshrc
+source ~/.zshrc
+```
+
+macOS/Linux (bash):
+
+```bash
+echo 'export MODEL_PROVIDER=openai' >> ~/.bashrc
+echo 'export OPENAI_API_KEY=your_key' >> ~/.bashrc
+echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Example: system environment variables (recommended for CI/server)
+
+```bash
+export MODEL_PROVIDER=openai
+export OPENAI_API_KEY=your_key
+export OPENAI_MODEL=gpt-4o-mini
+# optional:
+# export OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
+nano-codin
+```
+
+### Example: `.env` file (local development)
+
+```dotenv
+MODEL_PROVIDER=openai
+OPENAI_API_KEY=your_key
+OPENAI_MODEL=gpt-4o-mini
+# optional:
+# OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
+```
 
 ### OpenAI-compatible
 
