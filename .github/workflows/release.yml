@@ -95,7 +95,7 @@ jobs:
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: npm publish --access public --registry=https://registry.npmjs.org
 
       - name: Push commit and tag
         run: git push origin HEAD:${GITHUB_REF_NAME} --follow-tags
