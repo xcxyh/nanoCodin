@@ -2,7 +2,7 @@ import { mkdir, copyFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = process.cwd();
-const srcDir = path.join(root, 'prompts');
+const srcDir = path.join(root, 'src', 'prompts');
 const outDir = path.join(root, 'dist', 'prompts');
 
 await mkdir(outDir, { recursive: true });
