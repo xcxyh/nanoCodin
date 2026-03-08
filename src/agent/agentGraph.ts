@@ -4,6 +4,7 @@ import type { ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { buildAgentMessages, parseAgentResponse, type AgentEvent } from "./reactLoop.js";
 import type { ToolRegistry } from "../tools/registry.js";
+import { createLangSmithRunnableConfig } from "../observability/langsmith.js";
 
 const AgentStateAnnotation = Annotation.Root({
   messages: Annotation<Message[]>({
@@ -62,13 +63,24 @@ export class CodingAgentGraph {
 
   async run(options: RunOptions): Promise<{ finalAnswer: string; steps: AgentStep[] }> {
     this.onEvent = options.onEvent;
-    const result = await this.graph.invoke({
+    const input = {
       messages: options.messages,
       intermediate_steps: [],
       pending_action: null,
       finalAnswer: null,
       stepCount: 0
+    };
+
+    const runnableConfig = createLangSmithRunnableConfig("coding-agent-run", {
+      cwd: this.toolContext.cwd,
+      maxSteps: this.maxSteps,
+      initialMessageCount: options.messages.length
     });
+
+    const result = runnableConfig
+      ? await this.graph.invoke(input, runnableConfig)
+      : await this.graph.invoke(input);
+
     this.onEvent = undefined;
 
     return {

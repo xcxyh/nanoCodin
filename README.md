@@ -149,6 +149,23 @@ Optional shared override:
 MODEL_NAME=...
 ```
 
+### LangSmith Tracing (Optional)
+
+Enable LangSmith tracing for LangGraph runs:
+
+```bash
+export LANGSMITH_TRACING=true
+export LANGSMITH_API_KEY=lsv2_xxx
+export LANGSMITH_PROJECT=nano-codin
+# optional:
+# export LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+```
+
+Notes:
+
+- Tracing is enabled only when both `LANGSMITH_TRACING=true` and an API key (`LANGSMITH_API_KEY` or `LANGCHAIN_API_KEY`) are set.
+- The agent sends LangGraph run metadata (`cwd`, `maxSteps`, `initialMessageCount`) with each traced run.
+
 ## Usage
 
 Run `nano-codin`, type a coding task, then press Enter.
