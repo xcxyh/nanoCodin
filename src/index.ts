@@ -9,6 +9,14 @@ import type { ToolContext } from "./core/toolTypes.js";
 import { createDefaultToolRegistry } from "./tools/registry.js";
 import { ConsoleApp } from "./ui/consoleApp.js";
 
+function parsePositiveIntEnv(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function buildRuntimeEnv(filePath: string): NodeJS.ProcessEnv {
   const runtimeEnv: NodeJS.ProcessEnv = { ...process.env };
 
@@ -43,13 +51,15 @@ function main() {
 
   const model = createModelProviderFromEnv();
   const tools = createDefaultToolRegistry();
+  const maxSteps = parsePositiveIntEnv(process.env.AGENT_MAX_STEPS, 12);
+  const recursionLimit = parsePositiveIntEnv(process.env.AGENT_RECURSION_LIMIT, maxSteps * 2 + 8);
 
   const toolContext: ToolContext = {
     cwd: process.cwd(),
     todos: { items: [] }
   };
 
-  const graph = new CodingAgentGraph(model, tools, toolContext, 12);
+  const graph = new CodingAgentGraph(model, tools, toolContext, maxSteps, recursionLimit);
 
   render(React.createElement(ConsoleApp, { graph }));
 }

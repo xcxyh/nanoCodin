@@ -1,4 +1,5 @@
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
+import type { RunnableConfig } from "@langchain/core/runnables";
 import type { AgentStep, Message, ToolCall } from "../core/messageTypes.js";
 import type { ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
@@ -39,13 +40,19 @@ export interface RunOptions {
 export class CodingAgentGraph {
   private readonly graph;
   private onEvent?: (event: AgentEvent) => void;
+  private readonly maxSteps: number;
+  private readonly recursionLimit: number;
 
   constructor(
     private readonly model: ModelProvider,
     private readonly tools: ToolRegistry,
     private readonly toolContext: ToolContext,
-    private readonly maxSteps: number = 12
+    maxSteps: number = 12,
+    recursionLimit?: number
   ) {
+    this.maxSteps = maxSteps;
+    this.recursionLimit = Math.max(recursionLimit ?? (maxSteps * 2 + 8), maxSteps + 2);
+
     const graphBuilder = new StateGraph(AgentStateAnnotation)
       .addNode("agent", this.agentNode.bind(this))
       .addNode("tools", this.toolsNode.bind(this))
@@ -74,12 +81,15 @@ export class CodingAgentGraph {
     const runnableConfig = createLangSmithRunnableConfig("coding-agent-run", {
       cwd: this.toolContext.cwd,
       maxSteps: this.maxSteps,
+      recursionLimit: this.recursionLimit,
       initialMessageCount: options.messages.length
     });
 
-    const result = runnableConfig
-      ? await this.graph.invoke(input, runnableConfig)
-      : await this.graph.invoke(input);
+    const invocationConfig: RunnableConfig = runnableConfig
+      ? { ...runnableConfig, recursionLimit: this.recursionLimit }
+      : { recursionLimit: this.recursionLimit };
+
+    const result = await this.graph.invoke(input, invocationConfig);
 
     this.onEvent = undefined;
 

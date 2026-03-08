@@ -149,6 +149,18 @@ Optional shared override:
 MODEL_NAME=...
 ```
 
+Optional runtime controls:
+
+```bash
+AGENT_MAX_STEPS=12
+AGENT_RECURSION_LIMIT=32
+```
+
+Notes:
+
+- `AGENT_MAX_STEPS` controls the ReAct loop stop condition.
+- `AGENT_RECURSION_LIMIT` controls LangGraph recursion guard. Default is derived from `AGENT_MAX_STEPS`.
+
 ### LangSmith Tracing (Optional)
 
 Enable LangSmith tracing for LangGraph runs:
