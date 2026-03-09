@@ -68,7 +68,7 @@ export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
     phaseLimits: {
       discover: 5,
       plan: 2,
-      executeVerify: 7
+      executeVerify: 10
     },
     verifyRequiredKeywords: ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"],
     compression: {

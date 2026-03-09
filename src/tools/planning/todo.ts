@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Tool, TodoItem } from "../../core/toolTypes.js";
 
 const schema = z.object({
-  operation: z.enum(["create_todo_list", "update_todo_item", "mark_complete"]),
+  operation: z.enum(["create_todo_list", "update_todo_item", "mark_complete"]).optional(),
   items: z.array(z.string()).optional(),
   id: z.string().optional(),
   content: z.string().optional()
@@ -25,7 +25,21 @@ export const todoTool: Tool<Input> = {
   description: "Manage in-memory todo list for planning",
   schema,
   execute: async (input, context) => {
-    if (input.operation === "create_todo_list") {
+    // Tolerant inference for partial model outputs:
+    // - {} -> show current todos
+    // - items -> create_todo_list
+    // - id + content -> update_todo_item
+    // - id -> mark_complete
+    const inferredOperation = input.operation
+      ?? (input.items ? "create_todo_list" : undefined)
+      ?? (input.id && input.content ? "update_todo_item" : undefined)
+      ?? (input.id ? "mark_complete" : undefined);
+
+    if (!inferredOperation) {
+      return { ok: true, output: renderTodos(context.todos.items) };
+    }
+
+    if (inferredOperation === "create_todo_list") {
       const items = input.items ?? [];
       context.todos.items = items.map((content) => ({
         id: randomUUID().slice(0, 8),
@@ -35,7 +49,7 @@ export const todoTool: Tool<Input> = {
       return { ok: true, output: renderTodos(context.todos.items) };
     }
 
-    if (input.operation === "update_todo_item") {
+    if (inferredOperation === "update_todo_item") {
       if (!input.id || !input.content) {
         return { ok: false, output: "update_todo_item requires id and content." };
       }

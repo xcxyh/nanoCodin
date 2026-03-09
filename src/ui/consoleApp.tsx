@@ -24,6 +24,8 @@ interface LogEntry {
   summary?: string;
   hiddenLineCount?: number;
   ephemeral?: boolean;
+  collapsed?: boolean;
+  sourceTool?: string;
 }
 
 const BRAND_COLOR = "#38bdf8";
@@ -61,6 +63,7 @@ interface UiState {
   thinkingVisible: boolean;
   thinkingTick: number;
   seq: number;
+  pendingToolName: string | null;
 }
 
 type UiAction =
@@ -72,7 +75,8 @@ type UiAction =
   | { type: "append_observation"; text: string }
   | { type: "append_final"; text: string }
   | { type: "append_error"; text: string }
-  | { type: "thinking_tick" };
+  | { type: "thinking_tick" }
+  | { type: "toggle_latest_observation" };
 
 const SEPARATOR = "────────────────────────────────────────────────────────";
 
@@ -105,7 +109,7 @@ function appendLog(
   state: UiState,
   kind: LogKind,
   text: string,
-  options?: { summary?: string; hiddenLineCount?: number; ephemeral?: boolean }
+  options?: { summary?: string; hiddenLineCount?: number; ephemeral?: boolean; collapsed?: boolean; sourceTool?: string }
 ): UiState {
   const entry: LogEntry = {
     id: nextLogId(state.seq),
@@ -113,7 +117,9 @@ function appendLog(
     text,
     summary: options?.summary,
     hiddenLineCount: options?.hiddenLineCount,
-    ephemeral: options?.ephemeral
+    ephemeral: options?.ephemeral,
+    collapsed: options?.collapsed,
+    sourceTool: options?.sourceTool
   };
   return {
     ...state,
@@ -127,17 +133,19 @@ const initialUiState: UiState = {
   busy: false,
   thinkingVisible: false,
   thinkingTick: 0,
-  seq: 0
+  seq: 0,
+  pendingToolName: null
 };
 
 function uiReducer(state: UiState, action: UiAction): UiState {
   if (action.type === "task_start") {
-    let next = {
+    let next: UiState = {
       ...state,
       busy: true,
       thinkingVisible: false,
       thinkingTick: 0,
-      logs: clearThinkingPlaceholder(state.logs)
+      logs: clearThinkingPlaceholder(state.logs),
+      pendingToolName: null
     };
     next = appendLog(next, "meta", SEPARATOR);
     next = appendLog(next, "user", action.task);
@@ -145,24 +153,26 @@ function uiReducer(state: UiState, action: UiAction): UiState {
   }
 
   if (action.type === "task_success") {
-    let next = {
+    let next: UiState = {
       ...state,
       busy: false,
       thinkingVisible: false,
       thinkingTick: 0,
-      logs: clearThinkingPlaceholder(state.logs)
+      logs: clearThinkingPlaceholder(state.logs),
+      pendingToolName: null
     };
     next = appendLog(next, "meta", `Completed in ${action.stepCount} step(s).`);
     return next;
   }
 
   if (action.type === "task_failure") {
-    let next = {
+    let next: UiState = {
       ...state,
       busy: false,
       thinkingVisible: false,
       thinkingTick: 0,
-      logs: clearThinkingPlaceholder(state.logs)
+      logs: clearThinkingPlaceholder(state.logs),
+      pendingToolName: null
     };
     next = appendLog(next, "error", `Execution failed: ${action.message}`);
     return next;
@@ -175,50 +185,59 @@ function uiReducer(state: UiState, action: UiAction): UiState {
     }
     return {
       ...next,
-      thinkingVisible: true
+      thinkingVisible: true,
+      pendingToolName: action.name
     };
   }
 
   if (action.type === "append_thought") {
-    const cleared = {
+    const cleared: UiState = {
       ...state,
       logs: clearThinkingPlaceholder(state.logs),
       thinkingVisible: false,
-      thinkingTick: 0
+      thinkingTick: 0,
+      pendingToolName: null
     };
     return appendLog(cleared, "thought", action.text);
   }
 
   if (action.type === "append_observation") {
     const folded = summarizeObservation(action.text);
-    const cleared = {
+    const sourceTool = state.pendingToolName;
+    const shouldCollapse = sourceTool !== "todo";
+    const cleared: UiState = {
       ...state,
       logs: clearThinkingPlaceholder(state.logs),
       thinkingVisible: false,
-      thinkingTick: 0
+      thinkingTick: 0,
+      pendingToolName: null
     };
     return appendLog(cleared, "observation", action.text, {
       summary: folded.summary,
-      hiddenLineCount: folded.hiddenLineCount
+      hiddenLineCount: folded.hiddenLineCount,
+      collapsed: shouldCollapse,
+      sourceTool: sourceTool ?? undefined
     });
   }
 
   if (action.type === "append_final") {
-    const cleared = {
+    const cleared: UiState = {
       ...state,
       logs: clearThinkingPlaceholder(state.logs),
       thinkingVisible: false,
-      thinkingTick: 0
+      thinkingTick: 0,
+      pendingToolName: null
     };
     return appendLog(cleared, "final", action.text);
   }
 
   if (action.type === "append_error") {
-    const cleared = {
+    const cleared: UiState = {
       ...state,
       logs: clearThinkingPlaceholder(state.logs),
       thinkingVisible: false,
-      thinkingTick: 0
+      thinkingTick: 0,
+      pendingToolName: null
     };
     return appendLog(cleared, "error", action.text);
   }
@@ -231,6 +250,24 @@ function uiReducer(state: UiState, action: UiAction): UiState {
       ...state,
       thinkingTick: (state.thinkingTick + 1) % 3
     };
+  }
+
+  if (action.type === "toggle_latest_observation") {
+    const logs = [...state.logs];
+    for (let i = logs.length - 1; i >= 0; i -= 1) {
+      const entry = logs[i];
+      if (entry.kind === "observation" && (entry.hiddenLineCount ?? 0) > 0 && entry.sourceTool !== "todo") {
+        logs[i] = {
+          ...entry,
+          collapsed: !entry.collapsed
+        };
+        return {
+          ...state,
+          logs
+        };
+      }
+    }
+    return state;
   }
 
   return state;
@@ -262,7 +299,25 @@ function renderLogEntry(entry: LogEntry, thinkingTick: number): React.ReactNode 
   }
 
   if (entry.kind === "observation") {
+    const lines = entry.text.split("\n");
     const suffix = (entry.hiddenLineCount ?? 0) > 0 ? ` ... (${entry.hiddenLineCount} more lines)` : "";
+    if (!entry.collapsed) {
+      return (
+        <Box key={entry.id} flexDirection="column" marginBottom={0}>
+          <Text color={formatLogColor(entry.kind)}>
+            {formatLogPrefix(entry.kind)}
+            {"  "}
+            {lines[0] ?? "(empty output)"}
+          </Text>
+          {lines.slice(1).map((line, lineIdx) => (
+            <Text key={`${entry.id}-expanded-${lineIdx + 1}`} color={formatLogColor(entry.kind)}>
+              {"   "}
+              {line}
+            </Text>
+          ))}
+        </Box>
+      );
+    }
     return (
       <Box key={entry.id} flexDirection="column" marginBottom={0}>
         <Text color={formatLogColor(entry.kind)}>
@@ -303,7 +358,7 @@ export function ConsoleApp({ graph }: Props) {
     if (uiState.busy) {
       return "Nano Codin is reasoning...";
     }
-    return "Type a coding task and press Enter. Ctrl+C to exit.";
+    return "Type a coding task and press Enter. Press E to expand/collapse latest output. Ctrl+C to exit.";
   }, [uiState.busy]);
 
   useEffect(() => {
@@ -323,6 +378,11 @@ export function ConsoleApp({ graph }: Props) {
     }
 
     if (uiState.busy) {
+      return;
+    }
+
+    if (!key.ctrl && !key.meta && (char === "e" || char === "E")) {
+      dispatch({ type: "toggle_latest_observation" });
       return;
     }
 

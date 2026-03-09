@@ -4,9 +4,9 @@ recursion_limit = 32
 verify_required_keywords = ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"]
 
 [agent.phase_limits]
-discover = 5
-plan = 2
-execute_verify = 7
+discover = 6
+plan = 5
+execute_verify = 20
 
 [sandbox]
 default_policy = "ask"

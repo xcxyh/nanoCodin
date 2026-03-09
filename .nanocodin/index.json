@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773070182576,
+  "generatedAt": 1773070652259,
   "entries": [
     {
       "path": ".env",
@@ -593,6 +593,7 @@
         "schema",
         "renderTodos",
         "todoTool",
+        "inferredOperation",
         "items",
         "item"
       ],
@@ -602,7 +603,7 @@
         "../../core/toolTypes.js"
       ],
       "summary": "todo.ts exports/defines schema, renderTodos, todoTool....",
-      "mtimeMs": 1772896182942
+      "mtimeMs": 1773070570238
     },
     {
       "path": "src/tools/registry.ts",
@@ -683,7 +684,7 @@
         "../core/messageTypes.js"
       ],
       "summary": "consoleApp.tsx exports/defines Props, LogEntry, BRAND_COLOR....",
-      "mtimeMs": 1773069757994
+      "mtimeMs": 1773070450491
     },
     {
       "path": "tsconfig.json",
@@ -699,7 +700,7 @@
       "symbols": [],
       "imports": [],
       "summary": "index.json source file.",
-      "mtimeMs": 1773070031435
+      "mtimeMs": 1773070500563
     }
   ]
 }

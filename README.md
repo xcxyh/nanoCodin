@@ -191,7 +191,7 @@ verify_required_keywords = ["fix", "bug", "implement", "refactor", "测试", "�
 [agent.phase_limits]
 discover = 5
 plan = 2
-execute_verify = 7
+execute_verify = 10
 
 [sandbox]
 default_policy = "ask"
