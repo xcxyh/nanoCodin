@@ -88,7 +88,7 @@ function parseTomlValue(raw: string): unknown {
   return value;
 }
 
-function parseFlatToml(text: string): Record<string, unknown> {
+export function parseFlatToml(text: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   let section = "";
   for (const rawLine of text.split(/\r?\n/)) {
@@ -136,7 +136,7 @@ function parseAgentsGuidelines(filePath: string): string[] {
   return guidelines.slice(0, 40);
 }
 
-function applyValue(config: ResolvedRuntimeConfig, key: string, value: unknown): void {
+export function applyValue(config: ResolvedRuntimeConfig, key: string, value: unknown): void {
   if (key === "agent.max_steps" && typeof value === "number") {
     config.agent.maxSteps = Math.max(1, Math.floor(value));
   } else if (key === "agent.recursion_limit" && typeof value === "number") {
@@ -249,4 +249,3 @@ export function loadRuntimeConfig(cwd: string): ResolvedRuntimeConfigResult {
     }
   };
 }
-

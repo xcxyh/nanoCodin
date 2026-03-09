@@ -10,44 +10,44 @@
  |_| \_|\__,_|_| |_|\___/      \____\___/ \__,_|_|_| |_|
 ```
 
-Nano Codin is a TypeScript-based coding agent CLI with a minimal, production-oriented architecture.
-It uses a ReAct loop (Thought -> Action -> Observation), LangGraph orchestration, tool execution, and a terminal UI.
+Nano Codin 是一个基于 TypeScript 的 Coding Agent CLI，采用简洁且面向生产的架构。
+它使用 ReAct 循环（Thought -> Action -> Observation）、LangGraph 编排、工具执行以及终端 UI。
 
-## Highlights
+## 核心特性
 
-- ReAct single-agent loop built on LangGraph
-- Pluggable tool registry (`fs`, `edit`, `shell`, `planning`)
-- Repo index cache with `repo_index_query` for faster repo understanding
-- Sandbox policy (`allow|ask|deny`) for shell tool execution
-- Phase-aware loop (`discover -> plan -> execute -> verify -> finalize`)
-- Single-step error recovery loop for common failures
-- Token-threshold context compression with structured working memory
-- Provider routing for OpenAI-compatible and Anthropic-compatible APIs
-- Custom provider base URLs via environment variables
-- Ink-powered terminal UI with step-by-step agent output
-- npm-distributable CLI (`nano-codin`)
+- 基于 LangGraph 的 ReAct 单代理循环
+- 可插拔工具注册表（`fs`、`edit`、`shell`、`planning`）
+- 通过 `repo_index_query` 仓库索引缓存提升仓库理解速度
+- 为 shell 工具执行提供沙箱策略（`allow|ask|deny`）
+- 阶段感知循环（`discover -> plan -> execute -> verify -> finalize`）
+- 面向常见失败场景的单步错误恢复
+- 基于 Token 阈值的上下文压缩与结构化工作记忆
+- 支持 OpenAI 兼容与 Anthropic 兼容 API 的 Provider 路由
+- 支持通过环境变量自定义 Provider Base URL
+- 基于 Ink 的终端 UI，逐步展示 Agent 输出
+- 可通过 npm 分发的 CLI（`nano-codin`）
 
-## Requirements
+## 环境要求
 
 - Node.js 20+
 - npm 9+
 
-## Install
+## 安装
 
-### Global install
+### 全局安装
 
 ```bash
 npm install -g nano-codin
 nano-codin
 ```
 
-### One-off run
+### 一次性运行
 
 ```bash
 npx nano-codin
 ```
 
-### Local development
+### 本地开发
 
 ```bash
 git clone git@github.com:xcxyh/nanoCodin.git
@@ -56,21 +56,21 @@ npm install
 npm run dev
 ```
 
-## Configuration
+## 配置
 
-`nano-codin` always reads from `process.env`.
-`.env` is optional: if a `.env` file exists in your current working directory, it only fills keys that are missing from system environment variables (it does not override existing shell env vars).
+`nano-codin` 始终从 `process.env` 读取配置。
+`.env` 是可选的：如果当前工作目录存在 `.env`，它只会补齐系统环境变量中缺失的键（不会覆盖已有 shell 环境变量）。
 
-You can configure either way:
+可使用以下任一方式配置：
 
-1. System environment variables (no `.env` required)
-2. A `.env` file in the directory where you run `nano-codin`
+1. 系统环境变量（不需要 `.env`）
+2. 在运行 `nano-codin` 的目录创建 `.env` 文件
 
-### How to set environment variables
+### 如何设置环境变量
 
-Temporary (current terminal session only):
+临时设置（仅当前终端会话生效）：
 
-macOS/Linux (zsh/bash):
+macOS/Linux（zsh/bash）：
 
 ```bash
 export MODEL_PROVIDER=openai
@@ -79,7 +79,7 @@ export OPENAI_MODEL=gpt-4o-mini
 nano-codin
 ```
 
-Windows PowerShell:
+Windows PowerShell：
 
 ```powershell
 $env:MODEL_PROVIDER="openai"
@@ -88,7 +88,7 @@ $env:OPENAI_MODEL="gpt-4o-mini"
 nano-codin
 ```
 
-Windows CMD:
+Windows CMD：
 
 ```bat
 set MODEL_PROVIDER=openai
@@ -97,9 +97,9 @@ set OPENAI_MODEL=gpt-4o-mini
 nano-codin
 ```
 
-Persistent (auto-loaded for future terminals):
+持久设置（后续终端自动加载）：
 
-macOS/Linux (zsh):
+macOS/Linux（zsh）：
 
 ```bash
 echo 'export MODEL_PROVIDER=openai' >> ~/.zshrc
@@ -108,7 +108,7 @@ echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-macOS/Linux (bash):
+macOS/Linux（bash）：
 
 ```bash
 echo 'export MODEL_PROVIDER=openai' >> ~/.bashrc
@@ -117,7 +117,7 @@ echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-### Example: system environment variables (recommended for CI/server)
+### 示例：系统环境变量（推荐 CI/Server）
 
 ```bash
 export MODEL_PROVIDER=openai
@@ -128,7 +128,7 @@ export OPENAI_MODEL=gpt-4o-mini
 nano-codin
 ```
 
-### Example: `.env` file (local development)
+### 示例：`.env` 文件（本地开发）
 
 ```dotenv
 MODEL_PROVIDER=openai
@@ -158,39 +158,39 @@ ANTHROPIC_MODEL=claude-3-5-haiku-latest
 # ANTHROPIC_BASE_URL=https://your-anthropic-compatible-endpoint/v1
 ```
 
-Optional shared override:
+可选共享覆盖：
 
 ```bash
 MODEL_NAME=...
 ```
 
-Optional runtime controls:
+可选运行时控制：
 
 ```bash
 AGENT_MAX_STEPS=12
 AGENT_RECURSION_LIMIT=32
 ```
 
-Notes:
+说明：
 
-- `AGENT_MAX_STEPS` controls the ReAct loop stop condition.
-- `AGENT_RECURSION_LIMIT` controls LangGraph recursion guard. Default is derived from `AGENT_MAX_STEPS`.
+- `AGENT_MAX_STEPS` 控制 ReAct 循环停止条件。
+- `AGENT_RECURSION_LIMIT` 控制 LangGraph 递归保护，默认值由 `AGENT_MAX_STEPS` 推导。
 
-### Project Personalization (`AGENTS.md` + `.nanocodin`)
+### 项目个性化（`AGENTS.md` + `.nanocodin`）
 
-Supported files in working directory:
+工作目录支持以下文件：
 
-- `AGENTS.md` (behavior constraints and collaboration preferences)
-- `.nanocodin/config.toml` (runtime controls for agent/sandbox/index/recovery/compression)
-- `.nanocodin/index.json` (auto-generated repo index cache)
-- `.nanocodin/memory.md` (optional)
-- `.nanocodin/context.md` (optional)
+- `AGENTS.md`（行为约束与协作偏好）
+- `.nanocodin/config.toml`（agent/sandbox/index/recovery/compression 运行时控制）
+- `.nanocodin/index.json`（自动生成的仓库索引缓存）
+- `.nanocodin/memory.md`（可选）
+- `.nanocodin/context.md`（可选）
 
-Precedence:
+优先级：
 
-- CLI flags > `.nanocodin/config.toml` > `AGENTS.md` (guidelines only) > env > defaults
+- CLI flags > `.nanocodin/config.toml` > `AGENTS.md`（仅指南）> env > defaults
 
-Example `.nanocodin/config.toml`:
+示例 `.nanocodin/config.toml`：
 
 ```toml
 [agent]
@@ -228,9 +228,9 @@ retain_recent_ratio = 0.6
 context_token_budget = 6000
 ```
 
-### LangSmith Tracing (Optional)
+### LangSmith Tracing（可选）
 
-Enable LangSmith tracing for LangGraph runs:
+为 LangGraph 运行开启 LangSmith tracing：
 
 ```bash
 export LANGSMITH_TRACING=true
@@ -240,22 +240,22 @@ export LANGSMITH_PROJECT=nano-codin
 # export LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 ```
 
-Notes:
+说明：
 
-- Tracing is enabled only when both `LANGSMITH_TRACING=true` and an API key (`LANGSMITH_API_KEY` or `LANGCHAIN_API_KEY`) are set.
-- The agent sends LangGraph run metadata (`cwd`, `maxSteps`, `initialMessageCount`) with each traced run.
+- 仅当同时设置 `LANGSMITH_TRACING=true` 且提供 API key（`LANGSMITH_API_KEY` 或 `LANGCHAIN_API_KEY`）时，才会开启 tracing。
+- Agent 会在每次 traced run 中上报 LangGraph 元数据（`cwd`、`maxSteps`、`initialMessageCount`）。
 
-## Usage
+## 使用方式
 
-Run `nano-codin`, type a coding task, then press Enter.
+运行 `nano-codin`，输入编码任务后按 Enter。
 
-Example prompts:
+示例提示词：
 
 - `Create an Express hello-world server in ./examples/server.ts`
 - `Find where tool parsing happens and explain the flow`
 - `Replace all TODO comments in src with FIXME comments`
 
-## Project Structure
+## 项目结构
 
 ```text
 src/
@@ -284,7 +284,7 @@ scripts/
   copy-prompts.mjs
 ```
 
-## Development
+## 开发命令
 
 ```bash
 npm run dev
@@ -293,7 +293,7 @@ npm run build
 npm run start
 ```
 
-## Release (Maintainers)
+## 发布（维护者）
 
 ```bash
 npm run release:patch   # or release:minor / release:major
@@ -302,57 +302,57 @@ git push --tags
 npm publish --access public
 ```
 
-Release safeguards:
+发布保护：
 
-- `preversion`: runs typecheck + build + `npm pack --dry-run`
-- `prepublishOnly`: runs typecheck + build
+- `preversion`：运行 typecheck + build + `npm pack --dry-run`
+- `prepublishOnly`：运行 typecheck + build
 
-Update `CHANGELOG.md` before publishing.
+发布前请更新 `CHANGELOG.md`。
 
-## Automated Release (GitHub Actions)
+## 自动化发布（GitHub Actions）
 
-This repo includes an automated release workflow at:
+本仓库提供自动化发布工作流：
 
 - `.github/workflows/release.yml`
 
-### What it does
+### 作用
 
-When you push a `release/*` branch, it will:
+当你推送 `release/*` 分支时，它会：
 
-1. Install dependencies
-2. Bump version (`package.json` + `package-lock.json`)
-3. Run `typecheck` and `build`
-4. Commit release changes and create git tag
-5. Publish to npm
-6. Push release commit and tag back to remote
+1. 安装依赖
+2. 更新版本（`package.json` + `package-lock.json`）
+3. 执行 `typecheck` 和 `build`
+4. 提交发布变更并创建 git tag
+5. 发布到 npm
+6. 将发布提交和 tag 推回远端
 
-### Branch naming conventions
+### 分支命名规范
 
 - `release/patch` -> `npm version patch`
 - `release/minor` -> `npm version minor`
 - `release/major` -> `npm version major`
-- `release/vX.Y.Z` -> exact version (for example `release/v1.2.0`)
+- `release/vX.Y.Z` -> 指定精确版本（例如 `release/v1.2.0`）
 
-### Required GitHub settings
+### 必需的 GitHub 设置
 
-1. Repository secret:
-   - `NPM_TOKEN`: npm automation token with publish permission
-2. Workflow permissions:
-   - `contents: write` (already declared in workflow)
-3. Ensure Actions can push commits/tags to `release/*` branches
+1. 仓库密钥：
+   - `NPM_TOKEN`：具备发布权限的 npm automation token
+2. 工作流权限：
+   - `contents: write`（已在 workflow 中声明）
+3. 确保 Actions 可以向 `release/*` 分支推送提交和 tag
 
-### Example
+### 示例
 
 ```bash
 git checkout -b release/minor
 git push -u origin release/minor
 ```
 
-After push, GitHub Actions will publish the new version automatically.
+推送后，GitHub Actions 会自动发布新版本。
 
-## Troubleshooting
+## 故障排查
 
-If `npm install` is slow or hangs in CN networks:
+如果在中国网络环境中 `npm install` 很慢或卡住：
 
 ```bash
 npm config set registry https://registry.npmmirror.com
@@ -360,19 +360,19 @@ npm cache clean --force
 npm install
 ```
 
-To fail fast during diagnosis:
+诊断时快速失败：
 
 ```bash
 npm install --fetch-retries=0 --fetch-timeout=15000 --verbose
 ```
 
-## Contributing
+## 贡献指南
 
-1. Fork and create a feature branch
-2. Keep changes focused and typed
-3. Run `npm run typecheck` and `npm run build`
-4. Open a PR with clear scope and test notes
+1. Fork 并创建功能分支
+2. 保持改动聚焦并具备类型约束
+3. 运行 `npm run typecheck` 和 `npm run build`
+4. 提交范围清晰、包含测试说明的 PR
 
-## License
+## 许可证
 
-GPL-3.0 (see `LICENSE`).
+GPL-3.0（见 `LICENSE`）。

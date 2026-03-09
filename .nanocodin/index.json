@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773070652259,
+  "generatedAt": 1773073761896,
   "entries": [
     {
       "path": ".env",
@@ -25,7 +25,7 @@
       "symbols": [],
       "imports": [],
       "summary": ".gitignore source file.",
-      "mtimeMs": 1773068110916
+      "mtimeMs": 1773073019808
     },
     {
       "path": ".nanocodin/config.toml",
@@ -49,7 +49,7 @@
       "symbols": [],
       "imports": [],
       "summary": "CHANGELOG.md source file.",
-      "mtimeMs": 1773069430344
+      "mtimeMs": 1773073110339
     },
     {
       "path": "LICENSE",
@@ -65,7 +65,7 @@
       "symbols": [],
       "imports": [],
       "summary": "README.md source file.",
-      "mtimeMs": 1773068810819
+      "mtimeMs": 1773073734539
     },
     {
       "path": "package-lock.json",
@@ -73,7 +73,7 @@
       "symbols": [],
       "imports": [],
       "summary": "package-lock.json source file.",
-      "mtimeMs": 1773068122492
+      "mtimeMs": 1773073757489
     },
     {
       "path": "package.json",
@@ -81,7 +81,7 @@
       "symbols": [],
       "imports": [],
       "summary": "package.json source file.",
-      "mtimeMs": 1772900206202
+      "mtimeMs": 1773071829607
     },
     {
       "path": "scripts/copy-prompts.mjs",
@@ -190,7 +190,7 @@
       ],
       "imports": [],
       "summary": "runtimeConfig.ts exports/defines SandboxPolicyDecision, PhaseLimits, ContextCompressionConfig....",
-      "mtimeMs": 1773068801628
+      "mtimeMs": 1773070736130
     },
     {
       "path": "src/core/toolTypes.ts",
@@ -235,6 +235,7 @@
       "imports": [
         "node:fs",
         "node:path",
+        "node:url",
         "ink",
         "react",
         "./agent/agentGraph.js",
@@ -246,7 +247,7 @@
         "./services/repoIndexer.js"
       ],
       "summary": "index.ts exports/defines parsePositiveIntEnv, parsed, buildRuntimeEnv....",
-      "mtimeMs": 1773014521916
+      "mtimeMs": 1773071446637
     },
     {
       "path": "src/llm/modelRouter.ts",
@@ -362,7 +363,7 @@
         "node:path"
       ],
       "summary": "configLoader.ts exports/defines CliOverrides, parsePositiveInt, parsed....",
-      "mtimeMs": 1773014284278
+      "mtimeMs": 1773071438996
     },
     {
       "path": "src/services/recoveryEngine.ts",
@@ -657,7 +658,7 @@
         "../../core/runtimeConfig.js"
       ],
       "summary": "bash.ts exports/defines schema, cutTail, marker....",
-      "mtimeMs": 1773014556307
+      "mtimeMs": 1773071439010
     },
     {
       "path": "src/ui/consoleApp.tsx",
@@ -700,7 +701,183 @@
       "symbols": [],
       "imports": [],
       "summary": "index.json source file.",
-      "mtimeMs": 1773070500563
+      "mtimeMs": 1773070652259
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "lang": "yml",
+      "symbols": [],
+      "imports": [],
+      "summary": "ci.yml source file.",
+      "mtimeMs": 1773071974715
+    },
+    {
+      "path": "README.zh-CN.md",
+      "lang": "md",
+      "symbols": [],
+      "imports": [],
+      "summary": "README.zh-CN.md source file.",
+      "mtimeMs": 1773073741292
+    },
+    {
+      "path": "tests/fixtures/runtime.ts",
+      "lang": "ts",
+      "symbols": [
+        "cloneConfig",
+        "createRepoIndexStub",
+        "createToolContext"
+      ],
+      "imports": [
+        "../../src/core/runtimeConfig.js",
+        "../../src/core/toolTypes.js"
+      ],
+      "summary": "runtime.ts exports/defines cloneConfig, createRepoIndexStub, createToolContext.",
+      "mtimeMs": 1773071845340
+    },
+    {
+      "path": "tests/integration/agentGraphVerify.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "AlwaysFinalModel",
+        "context",
+        "graph",
+        "result"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/agent/agentGraph.js",
+        "../../src/tools/registry.js",
+        "../../src/llm/modelRouter.js",
+        "../fixtures/runtime.js"
+      ],
+      "summary": "agentGraphVerify.test.ts exports/defines AlwaysFinalModel, context, graph....",
+      "mtimeMs": 1773071937765
+    },
+    {
+      "path": "tests/integration/configLoader.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "originalArgv",
+        "originalEnv",
+        "cwd",
+        "loaded"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:os",
+        "node:path",
+        "vitest",
+        "../../src/services/configLoader.js"
+      ],
+      "summary": "configLoader.test.ts exports/defines originalArgv, originalEnv, cwd....",
+      "mtimeMs": 1773072096268
+    },
+    {
+      "path": "tests/integration/toolRegistry.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "registry",
+        "result"
+      ],
+      "imports": [
+        "vitest",
+        "zod",
+        "../../src/tools/registry.js",
+        "../fixtures/runtime.js"
+      ],
+      "summary": "toolRegistry.test.ts exports/defines registry, result.",
+      "mtimeMs": 1773071928480
+    },
+    {
+      "path": "tests/smoke/index.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "hoisted",
+        "originalEnv",
+        "cwd",
+        "envPath",
+        "env"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:os",
+        "node:path",
+        "vitest",
+        "../../src/core/runtimeConfig.js"
+      ],
+      "summary": "index.test.ts exports/defines hoisted, originalEnv, cwd....",
+      "mtimeMs": 1773072077784
+    },
+    {
+      "path": "tests/unit/bashPolicy.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "context"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/tools/shell/bash.js",
+        "../fixtures/runtime.js"
+      ],
+      "summary": "bashPolicy.test.ts exports/defines context.",
+      "mtimeMs": 1773071877536
+    },
+    {
+      "path": "tests/unit/configLoaderParser.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "cloneConfig",
+        "parsed",
+        "config"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/core/runtimeConfig.js",
+        "../../src/services/configLoader.js"
+      ],
+      "summary": "configLoaderParser.test.ts exports/defines cloneConfig, parsed, config.",
+      "mtimeMs": 1773071901408
+    },
+    {
+      "path": "tests/unit/reactLoop.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "parsed"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/agent/reactLoop.js"
+      ],
+      "summary": "reactLoop.test.ts exports/defines parsed.",
+      "mtimeMs": 1773071856348
+    },
+    {
+      "path": "tests/unit/recoveryEngine.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "engine",
+        "attempt",
+        "sig",
+        "fdAttempt",
+        "batAttempt",
+        "disabled"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/services/recoveryEngine.js"
+      ],
+      "summary": "recoveryEngine.test.ts exports/defines engine, attempt, sig....",
+      "mtimeMs": 1773072088867
+    },
+    {
+      "path": "vitest.config.ts",
+      "lang": "ts",
+      "symbols": [],
+      "imports": [
+        "vitest/config"
+      ],
+      "summary": "vitest.config.ts imports vitest/config.",
+      "mtimeMs": 1773072044847
     }
   ]
 }

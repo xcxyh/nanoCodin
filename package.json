@@ -20,6 +20,10 @@
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json && node scripts/copy-prompts.mjs",
     "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "verify": "npm run typecheck && npm run test && npm run test:coverage",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run typecheck && npm run build",
     "preversion": "npm run typecheck && npm run build && npm pack --dry-run",
@@ -41,7 +45,9 @@
   "devDependencies": {
     "@types/node": "^22.13.5",
     "@types/react": "^18.3.18",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
   }
 }

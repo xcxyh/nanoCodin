@@ -14,6 +14,9 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 - Recovery engine with single-step auto-retry for common failures and dedupe window control.
 - Context compression manager with structured working memory and token-threshold trigger.
 - `.nanocodin/config.toml.example` template and README personalization documentation.
+- Automated test stack based on Vitest with coverage thresholds and new scripts: `test`, `test:watch`, `test:coverage`, `verify`.
+- New test suites across `tests/unit`, `tests/integration`, and `tests/smoke`, plus shared fixtures under `tests/fixtures`.
+- New CI workflow `.github/workflows/ci.yml` to enforce `typecheck + test + coverage` on PRs and pushes to main branches.
 
 ### Changed
 - `bash` tool upgraded to policy-driven sandbox (`allow|ask|deny`) with structured output fields (`exit_code`, `stdout_tail`, `stderr_tail`, `duration_ms`, `policy_decision`) and in-memory command logs.
@@ -23,6 +26,9 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 - Console UI refactored to reducer-based architecture with clear separation of state/event mapping/render helpers.
 - Observation logs in console now default to one-line collapsed summaries with omitted line counts.
 - Console now shows in-log `Thinking...` loading placeholder (animated dots) during model reasoning windows.
+- `index.ts` now exports `main`, `buildRuntimeEnv`, and `parsePositiveIntEnv`, with direct-run guard to support smoke testing without auto-start on import.
+- `configLoader` and `bash` policy helpers now export selected pure functions for unit testing without changing runtime behavior.
+- Contributing docs now require `npm run verify`; `coverage/` is ignored in git.
 
 ### Fixed
 - Tool parsing now handles inline JSON in `Action` lines (e.g. `Action: tree {"path":"src"}`) and HTML-escaped JSON payloads.

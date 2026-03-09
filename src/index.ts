@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { render } from "ink";
 import React from "react";
 import { CodingAgentGraph } from "./agent/agentGraph.js";
@@ -11,7 +12,7 @@ import { ConsoleApp } from "./ui/consoleApp.js";
 import { loadRuntimeConfig } from "./services/configLoader.js";
 import { RepoIndexer } from "./services/repoIndexer.js";
 
-function parsePositiveIntEnv(value: string | undefined, fallback: number): number {
+export function parsePositiveIntEnv(value: string | undefined, fallback: number): number {
   if (!value) {
     return fallback;
   }
@@ -19,7 +20,7 @@ function parsePositiveIntEnv(value: string | undefined, fallback: number): numbe
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function buildRuntimeEnv(filePath: string): NodeJS.ProcessEnv {
+export function buildRuntimeEnv(filePath: string): NodeJS.ProcessEnv {
   const runtimeEnv: NodeJS.ProcessEnv = { ...process.env };
 
   if (!existsSync(filePath)) {
@@ -48,7 +49,7 @@ function buildRuntimeEnv(filePath: string): NodeJS.ProcessEnv {
   return runtimeEnv;
 }
 
-function main() {
+export function main() {
   Object.assign(process.env, buildRuntimeEnv(path.resolve(process.cwd(), ".env")));
 
   const runtime = loadRuntimeConfig(process.cwd());
@@ -73,4 +74,10 @@ function main() {
   });
 }
 
-main();
+const isDirectExecution = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isDirectExecution) {
+  main();
+}

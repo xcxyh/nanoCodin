@@ -20,11 +20,11 @@ function cutTail(text: string, maxBytes: number): string {
   return `${marker}${truncated}`;
 }
 
-function isWriteCommand(command: string): boolean {
+export function isWriteCommand(command: string): boolean {
   return /\b(echo|tee|sed\s+-i|perl\s+-i|mv|cp|touch|mkdir|rmdir|rm|git\s+add|git\s+commit)\b/i.test(command);
 }
 
-function decidePolicy(command: string, context: Parameters<Tool<Input>["execute"]>[1]): SandboxPolicyDecision {
+export function decidePolicy(command: string, context: Parameters<Tool<Input>["execute"]>[1]): SandboxPolicyDecision {
   const { sandbox } = context.runtimeConfig;
   const normalized = command.trim();
 
