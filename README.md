@@ -7,6 +7,11 @@ It uses a ReAct loop (Thought -> Action -> Observation), LangGraph orchestration
 
 - ReAct single-agent loop built on LangGraph
 - Pluggable tool registry (`fs`, `edit`, `shell`, `planning`)
+- Repo index cache with `repo_index_query` for faster repo understanding
+- Sandbox policy (`allow|ask|deny`) for shell tool execution
+- Phase-aware loop (`discover -> plan -> execute -> verify -> finalize`)
+- Single-step error recovery loop for common failures
+- Token-threshold context compression with structured working memory
 - Provider routing for OpenAI-compatible and Anthropic-compatible APIs
 - Custom provider base URLs via environment variables
 - Ink-powered terminal UI with step-by-step agent output
@@ -161,6 +166,58 @@ Notes:
 - `AGENT_MAX_STEPS` controls the ReAct loop stop condition.
 - `AGENT_RECURSION_LIMIT` controls LangGraph recursion guard. Default is derived from `AGENT_MAX_STEPS`.
 
+### Project Personalization (`AGENTS.md` + `.nanocodin`)
+
+Supported files in working directory:
+
+- `AGENTS.md` (behavior constraints and collaboration preferences)
+- `.nanocodin/config.toml` (runtime controls for agent/sandbox/index/recovery/compression)
+- `.nanocodin/index.json` (auto-generated repo index cache)
+- `.nanocodin/memory.md` (optional)
+- `.nanocodin/context.md` (optional)
+
+Precedence:
+
+- CLI flags > `.nanocodin/config.toml` > `AGENTS.md` (guidelines only) > env > defaults
+
+Example `.nanocodin/config.toml`:
+
+```toml
+[agent]
+max_steps = 12
+recursion_limit = 32
+verify_required_keywords = ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"]
+
+[agent.phase_limits]
+discover = 3
+plan = 2
+execute_verify = 7
+
+[sandbox]
+default_policy = "ask"
+timeout_ms = 15000
+max_output_bytes = 8192
+ask_prefixes = ["npm install", "git commit", "git push", "curl "]
+allow_prefixes = ["ls", "cat", "grep", "rg", "npm run typecheck", "npm run build"]
+deny_patterns = ["rm -rf /", "shutdown", "reboot", "mkfs", "dd if="]
+
+[repo_index]
+enabled = true
+max_bytes = 5000000
+ignore = [".git", "node_modules", "dist", ".next", "coverage"]
+
+[recovery]
+enabled = true
+max_retry_per_step = 1
+dedupe_window_steps = 2
+
+[compression]
+enabled = true
+token_threshold_ratio = 0.7
+retain_recent_ratio = 0.6
+context_token_budget = 6000
+```
+
 ### LangSmith Tracing (Optional)
 
 Enable LangSmith tracing for LangGraph runs:
@@ -205,7 +262,7 @@ src/
     react.hbs
     templateEngine.ts
   tools/
-    fs/{ls,tree,grep}.ts
+    fs/{ls,tree,grep,repo_index_query}.ts
     edit/{view,create,str_replace,insert}.ts
     shell/bash.ts
     planning/todo.ts

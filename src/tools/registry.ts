@@ -5,6 +5,7 @@ import { strReplaceTool } from "./edit/str_replace.js";
 import { viewTool } from "./edit/view.js";
 import { grepTool } from "./fs/grep.js";
 import { lsTool } from "./fs/ls.js";
+import { repoIndexQueryTool } from "./fs/repo_index_query.js";
 import { treeTool } from "./fs/tree.js";
 import { todoTool } from "./planning/todo.js";
 import { bashTool } from "./shell/bash.js";
@@ -53,6 +54,7 @@ export function createDefaultToolRegistry(): ToolRegistry {
     lsTool,
     treeTool,
     grepTool,
+    repoIndexQueryTool,
     viewTool,
     createTool,
     strReplaceTool,

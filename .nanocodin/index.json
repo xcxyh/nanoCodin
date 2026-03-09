@@ -1,0 +1,694 @@
+{
+  "generatedAt": 1773068129083,
+  "entries": [
+    {
+      "path": ".env",
+      "lang": "unknown",
+      "symbols": [],
+      "imports": [],
+      "summary": ".env source file.",
+      "mtimeMs": 1772940085296
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "lang": "yml",
+      "symbols": [],
+      "imports": [
+        "./package.json"
+      ],
+      "summary": "release.yml imports ./package.json.",
+      "mtimeMs": 1772925838587
+    },
+    {
+      "path": ".gitignore",
+      "lang": "unknown",
+      "symbols": [],
+      "imports": [],
+      "summary": ".gitignore source file.",
+      "mtimeMs": 1773068110916
+    },
+    {
+      "path": ".nanocodin/config.toml",
+      "lang": "toml",
+      "symbols": [],
+      "imports": [],
+      "summary": "config.toml source file.",
+      "mtimeMs": 1773068072056
+    },
+    {
+      "path": ".npmrc",
+      "lang": "unknown",
+      "symbols": [],
+      "imports": [],
+      "summary": ".npmrc source file.",
+      "mtimeMs": 1772896182936
+    },
+    {
+      "path": "CHANGELOG.md",
+      "lang": "md",
+      "symbols": [],
+      "imports": [],
+      "summary": "CHANGELOG.md source file.",
+      "mtimeMs": 1772896182936
+    },
+    {
+      "path": "LICENSE",
+      "lang": "unknown",
+      "symbols": [],
+      "imports": [],
+      "summary": "LICENSE source file.",
+      "mtimeMs": 1772896283914
+    },
+    {
+      "path": "README.md",
+      "lang": "md",
+      "symbols": [],
+      "imports": [],
+      "summary": "README.md source file.",
+      "mtimeMs": 1773014591511
+    },
+    {
+      "path": "package-lock.json",
+      "lang": "json",
+      "symbols": [],
+      "imports": [],
+      "summary": "package-lock.json source file.",
+      "mtimeMs": 1773068122492
+    },
+    {
+      "path": "package.json",
+      "lang": "json",
+      "symbols": [],
+      "imports": [],
+      "summary": "package.json source file.",
+      "mtimeMs": 1772900206202
+    },
+    {
+      "path": "scripts/copy-prompts.mjs",
+      "lang": "mjs",
+      "symbols": [
+        "root",
+        "srcDir",
+        "outDir",
+        "entries"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:path"
+      ],
+      "summary": "copy-prompts.mjs exports/defines root, srcDir, outDir....",
+      "mtimeMs": 1772900209264
+    },
+    {
+      "path": "src/agent/agentGraph.ts",
+      "lang": "ts",
+      "symbols": [
+        "AgentStateAnnotation",
+        "RunOptions",
+        "CodingAgentGraph",
+        "graphBuilder",
+        "input",
+        "runnableConfig",
+        "result",
+        "finalAnswer",
+        "compressed",
+        "messages",
+        "response",
+        "message"
+      ],
+      "imports": [
+        "@langchain/langgraph",
+        "@langchain/core/runnables",
+        "../core/messageTypes.js",
+        "../core/toolTypes.js",
+        "../llm/modelRouter.js",
+        "./reactLoop.js",
+        "../tools/registry.js",
+        "../observability/langsmith.js",
+        "../services/compressionManager.js",
+        "../services/recoveryEngine.js"
+      ],
+      "summary": "agentGraph.ts exports/defines AgentStateAnnotation, RunOptions, CodingAgentGraph....",
+      "mtimeMs": 1773014510495
+    },
+    {
+      "path": "src/agent/reactLoop.ts",
+      "lang": "ts",
+      "symbols": [
+        "ParsedAgentOutput",
+        "ReActRuntime",
+        "AgentPhase",
+        "AgentEvent",
+        "extractField",
+        "match",
+        "parseAgentResponse",
+        "thought",
+        "action",
+        "inputRaw",
+        "formatConversation",
+        "formatTrajectory"
+      ],
+      "imports": [
+        "../core/messageTypes.js",
+        "../core/toolTypes.js",
+        "../llm/modelRouter.js",
+        "../prompts/templateEngine.js",
+        "../tools/registry.js"
+      ],
+      "summary": "reactLoop.ts exports/defines ParsedAgentOutput, ReActRuntime, AgentPhase....",
+      "mtimeMs": 1773014547672
+    },
+    {
+      "path": "src/core/messageTypes.ts",
+      "lang": "ts",
+      "symbols": [
+        "Role",
+        "Message",
+        "ToolCall",
+        "AgentStep",
+        "ModelResponse"
+      ],
+      "imports": [],
+      "summary": "messageTypes.ts exports/defines Role, Message, ToolCall....",
+      "mtimeMs": 1773014443309
+    },
+    {
+      "path": "src/core/runtimeConfig.ts",
+      "lang": "ts",
+      "symbols": [
+        "SandboxPolicyDecision",
+        "PhaseLimits",
+        "ContextCompressionConfig",
+        "AgentConfig",
+        "SandboxConfig",
+        "RepoIndexConfig",
+        "RecoveryConfig",
+        "ResolvedRuntimeConfig",
+        "RuntimeConfigSources",
+        "ResolvedRuntimeConfigResult",
+        "DEFAULT_RUNTIME_CONFIG"
+      ],
+      "imports": [],
+      "summary": "runtimeConfig.ts exports/defines SandboxPolicyDecision, PhaseLimits, ContextCompressionConfig....",
+      "mtimeMs": 1773014225126
+    },
+    {
+      "path": "src/core/toolTypes.ts",
+      "lang": "ts",
+      "symbols": [
+        "RepoIndexEntry",
+        "RepoIndexSnapshot",
+        "RepoIndexQuery",
+        "RepoIndexProvider",
+        "CommandExecutionLog",
+        "WorkingMemory",
+        "TodoItem",
+        "TodoState",
+        "ToolContext",
+        "ToolResult",
+        "Tool"
+      ],
+      "imports": [
+        "zod",
+        "./runtimeConfig.js"
+      ],
+      "summary": "toolTypes.ts exports/defines RepoIndexEntry, RepoIndexSnapshot, RepoIndexQuery....",
+      "mtimeMs": 1773014233299
+    },
+    {
+      "path": "src/index.ts",
+      "lang": "ts",
+      "symbols": [
+        "parsePositiveIntEnv",
+        "parsed",
+        "buildRuntimeEnv",
+        "text",
+        "line",
+        "eqIndex",
+        "key",
+        "value",
+        "main",
+        "runtime",
+        "model",
+        "repoIndexer"
+      ],
+      "imports": [
+        "node:fs",
+        "node:path",
+        "ink",
+        "react",
+        "./agent/agentGraph.js",
+        "./llm/modelRouter.js",
+        "./core/toolTypes.js",
+        "./tools/registry.js",
+        "./ui/consoleApp.js",
+        "./services/configLoader.js",
+        "./services/repoIndexer.js"
+      ],
+      "summary": "index.ts exports/defines parsePositiveIntEnv, parsed, buildRuntimeEnv....",
+      "mtimeMs": 1773014521916
+    },
+    {
+      "path": "src/llm/modelRouter.ts",
+      "lang": "ts",
+      "symbols": [
+        "ModelProvider",
+        "toPrompt",
+        "formatProviderError",
+        "message",
+        "statusCode",
+        "responseBody",
+        "parts",
+        "normalizeAnthropicBaseURL",
+        "trimmed",
+        "isNotFoundError",
+        "maybeStatus",
+        "OpenAIProvider"
+      ],
+      "imports": [
+        "@ai-sdk/anthropic",
+        "@ai-sdk/openai",
+        "ai",
+        "../core/messageTypes.js"
+      ],
+      "summary": "modelRouter.ts exports/defines ModelProvider, toPrompt, formatProviderError....",
+      "mtimeMs": 1772896182938
+    },
+    {
+      "path": "src/observability/langsmith.ts",
+      "lang": "ts",
+      "symbols": [
+        "isTruthy",
+        "normalized",
+        "isLangSmithTracingEnabled",
+        "hasLangSmithApiKey",
+        "createLangSmithRunnableConfig",
+        "projectName",
+        "tracer"
+      ],
+      "imports": [
+        "@langchain/core/runnables",
+        "@langchain/core/tracers/tracer_langchain"
+      ],
+      "summary": "langsmith.ts exports/defines isTruthy, normalized, isLangSmithTracingEnabled....",
+      "mtimeMs": 1772938395961
+    },
+    {
+      "path": "src/prompts/templateEngine.ts",
+      "lang": "ts",
+      "symbols": [
+        "PROMPT_DIR",
+        "cache",
+        "loadTemplate",
+        "filePath",
+        "source",
+        "compiled",
+        "renderTemplate",
+        "template"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:url",
+        "node:path",
+        "handlebars"
+      ],
+      "summary": "templateEngine.ts exports/defines PROMPT_DIR, cache, loadTemplate....",
+      "mtimeMs": 1772896182940
+    },
+    {
+      "path": "src/services/compressionManager.ts",
+      "lang": "ts",
+      "symbols": [
+        "CompressionResult",
+        "estimateTokens",
+        "extractTouchedFiles",
+        "files",
+        "input",
+        "pathValue",
+        "compressCommandObservation",
+        "lines",
+        "head",
+        "tail",
+        "errorLines",
+        "buildWorkingMemory"
+      ],
+      "imports": [
+        "../core/messageTypes.js",
+        "../core/runtimeConfig.js",
+        "../core/toolTypes.js"
+      ],
+      "summary": "compressionManager.ts exports/defines CompressionResult, estimateTokens, extractTouchedFiles....",
+      "mtimeMs": 1773014349532
+    },
+    {
+      "path": "src/services/configLoader.ts",
+      "lang": "ts",
+      "symbols": [
+        "CliOverrides",
+        "parsePositiveInt",
+        "parsed",
+        "parseRatio",
+        "parseCliOverrides",
+        "arg",
+        "list",
+        "cloneDefaultConfig",
+        "parseTomlValue",
+        "value",
+        "body",
+        "num"
+      ],
+      "imports": [
+        "node:fs",
+        "node:path"
+      ],
+      "summary": "configLoader.ts exports/defines CliOverrides, parsePositiveInt, parsed....",
+      "mtimeMs": 1773014284278
+    },
+    {
+      "path": "src/services/recoveryEngine.ts",
+      "lang": "ts",
+      "symbols": [
+        "RecoveryErrorType",
+        "RecoveryAttempt",
+        "classifyError",
+        "lower",
+        "sanitizeInput",
+        "source",
+        "num",
+        "recoverCommandNotFound",
+        "cmd",
+        "RecoveryEngine",
+        "type",
+        "input"
+      ],
+      "imports": [
+        "node:path",
+        "../core/messageTypes.js",
+        "../core/runtimeConfig.js"
+      ],
+      "summary": "recoveryEngine.ts exports/defines RecoveryErrorType, RecoveryAttempt, classifyError....",
+      "mtimeMs": 1773014370826
+    },
+    {
+      "path": "src/services/repoIndexer.ts",
+      "lang": "ts",
+      "symbols": [
+        "PersistedRepoIndex",
+        "TEXT_EXTENSIONS",
+        "detectLanguage",
+        "ext",
+        "scorePath",
+        "extractTopSymbols",
+        "symbols",
+        "patterns",
+        "match",
+        "extractImports",
+        "out",
+        "importMatch"
+      ],
+      "imports": [
+        "node:fs",
+        "node:fs/promises",
+        "node:path",
+        "../core/runtimeConfig.js",
+        "../core/toolTypes.js"
+      ],
+      "summary": "repoIndexer.ts exports/defines PersistedRepoIndex, TEXT_EXTENSIONS, detectLanguage....",
+      "mtimeMs": 1773014329513
+    },
+    {
+      "path": "src/tools/edit/create.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "createTool",
+        "target"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:fs",
+        "node:path",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "create.ts exports/defines schema, createTool, target.",
+      "mtimeMs": 1772896182940
+    },
+    {
+      "path": "src/tools/edit/insert.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "insertTool",
+        "target",
+        "content",
+        "lines",
+        "index"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:path",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "insert.ts exports/defines schema, insertTool, target....",
+      "mtimeMs": 1772896182940
+    },
+    {
+      "path": "src/tools/edit/str_replace.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "strReplaceTool",
+        "target",
+        "original",
+        "occurrences",
+        "updated"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:path",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "str_replace.ts exports/defines schema, strReplaceTool, target....",
+      "mtimeMs": 1772896182941
+    },
+    {
+      "path": "src/tools/edit/view.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "viewTool",
+        "target",
+        "content",
+        "lines",
+        "start",
+        "end",
+        "selected",
+        "numbered"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:path",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "view.ts exports/defines schema, viewTool, target....",
+      "mtimeMs": 1772896182941
+    },
+    {
+      "path": "src/tools/fs/grep.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "IGNORED",
+        "Hit",
+        "collectFiles",
+        "entries",
+        "full",
+        "grepTool",
+        "root",
+        "maxResults",
+        "files",
+        "matchedFiles",
+        "lines"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:path",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "grep.ts exports/defines schema, IGNORED, Hit....",
+      "mtimeMs": 1772896182941
+    },
+    {
+      "path": "src/tools/fs/ls.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "lsTool",
+        "target",
+        "entries",
+        "lines"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:path",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "ls.ts exports/defines schema, lsTool, target....",
+      "mtimeMs": 1772896182941
+    },
+    {
+      "path": "src/tools/fs/repo_index_query.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "repoIndexQueryTool",
+        "snapshot",
+        "hits",
+        "lines",
+        "symbols"
+      ],
+      "imports": [
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "repo_index_query.ts exports/defines schema, repoIndexQueryTool, snapshot....",
+      "mtimeMs": 1773014379806
+    },
+    {
+      "path": "src/tools/fs/tree.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "IGNORED",
+        "walk",
+        "entries",
+        "visible",
+        "entry",
+        "last",
+        "connector",
+        "line",
+        "childPrefix",
+        "childLines",
+        "treeTool"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:path",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "tree.ts exports/defines schema, IGNORED, walk....",
+      "mtimeMs": 1772896182942
+    },
+    {
+      "path": "src/tools/planning/todo.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "renderTodos",
+        "todoTool",
+        "items",
+        "item"
+      ],
+      "imports": [
+        "node:crypto",
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "todo.ts exports/defines schema, renderTodos, todoTool....",
+      "mtimeMs": 1772896182942
+    },
+    {
+      "path": "src/tools/registry.ts",
+      "lang": "ts",
+      "symbols": [
+        "ToolRegistry",
+        "tool",
+        "parsed",
+        "createDefaultToolRegistry"
+      ],
+      "imports": [
+        "../core/toolTypes.js",
+        "./edit/create.js",
+        "./edit/insert.js",
+        "./edit/str_replace.js",
+        "./edit/view.js",
+        "./fs/grep.js",
+        "./fs/ls.js",
+        "./fs/repo_index_query.js",
+        "./fs/tree.js",
+        "./planning/todo.js",
+        "./shell/bash.js"
+      ],
+      "summary": "registry.ts exports/defines ToolRegistry, tool, parsed....",
+      "mtimeMs": 1773014383524
+    },
+    {
+      "path": "src/tools/shell/bash.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "cutTail",
+        "marker",
+        "sliceBytes",
+        "truncated",
+        "isWriteCommand",
+        "decidePolicy",
+        "normalized",
+        "bashTool",
+        "startedAt",
+        "policyDecision",
+        "output"
+      ],
+      "imports": [
+        "execa",
+        "zod",
+        "../../core/toolTypes.js",
+        "../../core/runtimeConfig.js"
+      ],
+      "summary": "bash.ts exports/defines schema, cutTail, marker....",
+      "mtimeMs": 1773014556307
+    },
+    {
+      "path": "src/ui/consoleApp.tsx",
+      "lang": "tsx",
+      "symbols": [
+        "Props",
+        "LogEntry",
+        "BRAND_COLOR",
+        "BANNER_LINES",
+        "formatLogPrefix",
+        "formatLogColor",
+        "ConsoleApp",
+        "hint",
+        "task",
+        "runTask",
+        "result",
+        "message"
+      ],
+      "imports": [
+        "react",
+        "ink",
+        "../agent/reactLoop.js",
+        "../agent/agentGraph.js",
+        "../core/messageTypes.js"
+      ],
+      "summary": "consoleApp.tsx exports/defines Props, LogEntry, BRAND_COLOR....",
+      "mtimeMs": 1772896182943
+    },
+    {
+      "path": "tsconfig.json",
+      "lang": "json",
+      "symbols": [],
+      "imports": [],
+      "summary": "tsconfig.json source file.",
+      "mtimeMs": 1772900203367
+    }
+  ]
+}

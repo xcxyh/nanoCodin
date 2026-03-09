@@ -5,6 +5,15 @@ You can use tools to explore and edit the codebase.
 Available tools:
 {{tools}}
 
+Project AGENTS guidelines (if present):
+{{#if agentsGuidelines}}
+{{#each agentsGuidelines}}
+- {{this}}
+{{/each}}
+{{else}}
+- (none)
+{{/if}}
+
 Output format (strict):
 Thought: <your reasoning in 1-2 sentences>
 Action: <tool name or final>
@@ -15,3 +24,5 @@ Rules:
 - If you choose a tool, Action must be a valid tool name and Action Input must match its schema.
 - If task is complete, use Action: final and Action Input: {"answer":"..."}.
 - Never omit Thought, Action, or Action Input.
+- Prefer `repo_index_query` before broad file scans.
+- Before mutating files, create a todo plan with <= 3 items using the todo tool.

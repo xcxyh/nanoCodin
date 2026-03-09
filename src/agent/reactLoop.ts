@@ -17,6 +17,8 @@ export interface ReActRuntime {
   maxSteps: number;
 }
 
+export type AgentPhase = "discover" | "plan" | "execute" | "verify" | "finalize";
+
 export type AgentEvent =
   | { type: "thought"; thought: string }
   | { type: "action"; action: ToolCall }
@@ -70,10 +72,26 @@ function formatTrajectory(steps: AgentStep[]): string {
 }
 
 export async function buildAgentMessages(messages: Message[], steps: AgentStep[], toolsDescription: string): Promise<Message[]> {
-  const systemPrompt = await renderTemplate("system", { tools: toolsDescription });
+  return buildAgentMessagesWithContext(messages, steps, toolsDescription, "discover", null, []);
+}
+
+export async function buildAgentMessagesWithContext(
+  messages: Message[],
+  steps: AgentStep[],
+  toolsDescription: string,
+  phase: AgentPhase,
+  workingMemory: string | null,
+  agentsGuidelines: string[]
+): Promise<Message[]> {
+  const systemPrompt = await renderTemplate("system", {
+    tools: toolsDescription,
+    agentsGuidelines
+  });
   const reactPrompt = await renderTemplate("react", {
     conversation: formatConversation(messages),
-    trajectory: formatTrajectory(steps)
+    trajectory: formatTrajectory(steps),
+    phase,
+    workingMemory: workingMemory ?? "(none)"
   });
 
   return [

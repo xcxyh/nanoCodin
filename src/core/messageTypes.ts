@@ -15,6 +15,7 @@ export interface AgentStep {
   thought: string;
   action?: ToolCall;
   observation?: string;
+  phase?: "discover" | "plan" | "execute" | "verify" | "finalize";
 }
 
 export interface ModelResponse {

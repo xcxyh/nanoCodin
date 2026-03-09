@@ -8,6 +8,8 @@ import { createModelProviderFromEnv } from "./llm/modelRouter.js";
 import type { ToolContext } from "./core/toolTypes.js";
 import { createDefaultToolRegistry } from "./tools/registry.js";
 import { ConsoleApp } from "./ui/consoleApp.js";
+import { loadRuntimeConfig } from "./services/configLoader.js";
+import { RepoIndexer } from "./services/repoIndexer.js";
 
 function parsePositiveIntEnv(value: string | undefined, fallback: number): number {
   if (!value) {
@@ -49,19 +51,26 @@ function buildRuntimeEnv(filePath: string): NodeJS.ProcessEnv {
 function main() {
   Object.assign(process.env, buildRuntimeEnv(path.resolve(process.cwd(), ".env")));
 
+  const runtime = loadRuntimeConfig(process.cwd());
   const model = createModelProviderFromEnv();
+  const repoIndexer = new RepoIndexer(process.cwd(), runtime.config.repoIndex);
   const tools = createDefaultToolRegistry();
-  const maxSteps = parsePositiveIntEnv(process.env.AGENT_MAX_STEPS, 12);
-  const recursionLimit = parsePositiveIntEnv(process.env.AGENT_RECURSION_LIMIT, maxSteps * 2 + 8);
+  const maxSteps = runtime.config.agent.maxSteps ?? parsePositiveIntEnv(process.env.AGENT_MAX_STEPS, 12);
+  const recursionLimit = runtime.config.agent.recursionLimit ?? parsePositiveIntEnv(process.env.AGENT_RECURSION_LIMIT, maxSteps * 2 + 8);
 
   const toolContext: ToolContext = {
     cwd: process.cwd(),
-    todos: { items: [] }
+    todos: { items: [] },
+    runtimeConfig: runtime.config,
+    repoIndex: repoIndexer,
+    commandLogs: [],
+    workingMemory: null
   };
 
-  const graph = new CodingAgentGraph(model, tools, toolContext, maxSteps, recursionLimit);
-
-  render(React.createElement(ConsoleApp, { graph }));
+  void repoIndexer.init().catch(() => undefined).finally(() => {
+    const graph = new CodingAgentGraph(model, tools, toolContext, maxSteps, recursionLimit);
+    render(React.createElement(ConsoleApp, { graph }));
+  });
 }
 
 main();
