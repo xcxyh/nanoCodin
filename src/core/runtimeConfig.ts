@@ -66,7 +66,7 @@ export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
     maxSteps: 12,
     recursionLimit: 32,
     phaseLimits: {
-      discover: 3,
+      discover: 5,
       plan: 2,
       executeVerify: 7
     },
@@ -140,4 +140,3 @@ export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
   },
   agentsGuidelines: []
 };
-

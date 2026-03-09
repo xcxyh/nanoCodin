@@ -32,12 +32,35 @@ export class ToolRegistry {
   }
 
   async execute(name: string, rawInput: unknown, context: ToolContext): Promise<ToolResult> {
-    const tool = this.getToolByName(name);
+    const normalizedName = name.trim();
+    let tool = this.getToolByName(normalizedName);
+    let resolvedInput: unknown = rawInput;
+
+    if (!tool) {
+      const decodedName = normalizedName
+        .replace(/&quot;/g, "\"")
+        .replace(/&#34;/g, "\"")
+        .replace(/&apos;/g, "'")
+        .replace(/&#39;/g, "'");
+      const inlineMatch = decodedName.match(/^([a-zA-Z0-9_:-]+)\s+(\{[\s\S]*\})$/);
+      if (inlineMatch) {
+        const candidate = inlineMatch[1];
+        tool = this.getToolByName(candidate);
+        if (tool) {
+          try {
+            resolvedInput = JSON.parse(inlineMatch[2]);
+          } catch {
+            resolvedInput = rawInput;
+          }
+        }
+      }
+    }
+
     if (!tool) {
       return { ok: false, output: `Unknown tool: ${name}` };
     }
 
-    const parsed = tool.schema.safeParse(rawInput);
+    const parsed = tool.schema.safeParse(resolvedInput);
     if (!parsed.success) {
       return {
         ok: false,

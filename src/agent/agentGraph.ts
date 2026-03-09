@@ -227,7 +227,7 @@ export class CodingAgentGraph {
 
     this.onEvent?.({ type: "action", action: pendingAction });
 
-    const nextPhase = this.inferPhase(state.phase, pendingAction);
+    const nextPhase = this.inferPhase(state, pendingAction);
     const phaseVisits = this.bumpPhaseVisit(state.phaseVisits, nextPhase);
     if (!this.withinPhaseBudget(phaseVisits)) {
       const finalAnswer = this.buildPhaseBudgetFailure(phaseVisits);
@@ -239,12 +239,18 @@ export class CodingAgentGraph {
       };
     }
 
+    const plannerHint = this.buildPlannerHintIfNeeded(state, nextPhase, pendingAction);
+    if (plannerHint) {
+      this.onEvent?.({ type: "observation", observation: plannerHint });
+    }
+
     return {
       pending_action: pendingAction,
       phase: nextPhase,
       phaseVisits,
       stepCount: state.stepCount + 1,
       stepRecoveryCount: 0,
+      messages: plannerHint ? [{ role: "tool", name: "planner_hint", content: `HINT: ${plannerHint}` }] : [],
       intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, action: pendingAction, phase: nextPhase }]
     };
   }
@@ -345,18 +351,37 @@ export class CodingAgentGraph {
     return this.toolContext.runtimeConfig.agent.verifyRequiredKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
-  private inferPhase(current: AgentPhase, action: ToolCall): AgentPhase {
+  private inferPhase(state: AgentGraphState, action: ToolCall): AgentPhase {
     const actionName = action.name.toLowerCase();
     if (actionName === "todo") {
       return "plan";
     }
-    if (actionName === "repo_index_query" || actionName === "tree" || actionName === "ls" || actionName === "grep" || actionName === "view") {
-      return current === "plan" ? "execute" : "discover";
+    if (actionName === "grep" || actionName === "view") {
+      return "execute";
+    }
+    if (actionName === "repo_index_query" || actionName === "tree" || actionName === "ls") {
+      return (state.phaseVisits.discover ?? 0) === 0 ? "discover" : "execute";
     }
     if (this.isVerificationAction(action)) {
       return "verify";
     }
     return "execute";
+  }
+
+  private buildPlannerHintIfNeeded(state: AgentGraphState, nextPhase: AgentPhase, action: ToolCall): string | null {
+    if (action.name === "todo") {
+      return null;
+    }
+    if (nextPhase !== "discover") {
+      return null;
+    }
+    if (this.toolContext.todos.items.length > 0) {
+      return null;
+    }
+    if ((state.phaseVisits.discover ?? 0) < 2) {
+      return null;
+    }
+    return "Consider creating a todo plan with 1-3 items before further exploration.";
   }
 
   private isVerificationAction(action: ToolCall): boolean {

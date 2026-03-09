@@ -31,10 +31,34 @@ function extractField(text: string, field: string): string | null {
   return match ? match[1].trim() : null;
 }
 
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&quot;/g, "\"")
+    .replace(/&#34;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function splitActionAndInlineInput(actionRaw: string): { action: string; inlineInput: string | null } {
+  const normalized = decodeHtmlEntities(actionRaw).replace(/^`+|`+$/g, "").trim();
+  const jsonStart = normalized.search(/\s+\{/);
+  if (jsonStart === -1) {
+    return { action: normalized, inlineInput: null };
+  }
+  const action = normalized.slice(0, jsonStart).trim();
+  const inlineInput = normalized.slice(jsonStart).trim();
+  return { action, inlineInput: inlineInput.startsWith("{") ? inlineInput : null };
+}
+
 export function parseAgentResponse(text: string): ParsedAgentOutput {
   const thought = extractField(text, "Thought") ?? "No explicit thought provided.";
-  const action = extractField(text, "Action") ?? "final";
-  const inputRaw = extractField(text, "Action Input") ?? JSON.stringify({ answer: text });
+  const actionRaw = extractField(text, "Action") ?? "final";
+  const { action, inlineInput } = splitActionAndInlineInput(actionRaw);
+  const explicitInput = extractField(text, "Action Input");
+  const inputRaw = decodeHtmlEntities(explicitInput ?? inlineInput ?? JSON.stringify({ answer: text }));
 
   let actionInput: Record<string, unknown>;
   try {

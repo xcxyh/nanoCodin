@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773068129083,
+  "generatedAt": 1773068581128,
   "entries": [
     {
       "path": ".env",
@@ -141,12 +141,12 @@
         "AgentEvent",
         "extractField",
         "match",
-        "parseAgentResponse",
-        "thought",
+        "decodeHtmlEntities",
+        "splitActionAndInlineInput",
+        "normalized",
+        "jsonStart",
         "action",
-        "inputRaw",
-        "formatConversation",
-        "formatTrajectory"
+        "inlineInput"
       ],
       "imports": [
         "../core/messageTypes.js",
@@ -156,7 +156,7 @@
         "../tools/registry.js"
       ],
       "summary": "reactLoop.ts exports/defines ParsedAgentOutput, ReActRuntime, AgentPhase....",
-      "mtimeMs": 1773014547672
+      "mtimeMs": 1773068436111
     },
     {
       "path": "src/core/messageTypes.ts",
@@ -609,7 +609,10 @@
       "lang": "ts",
       "symbols": [
         "ToolRegistry",
-        "tool",
+        "normalizedName",
+        "decodedName",
+        "inlineMatch",
+        "candidate",
         "parsed",
         "createDefaultToolRegistry"
       ],
@@ -626,8 +629,8 @@
         "./planning/todo.js",
         "./shell/bash.js"
       ],
-      "summary": "registry.ts exports/defines ToolRegistry, tool, parsed....",
-      "mtimeMs": 1773014383524
+      "summary": "registry.ts exports/defines ToolRegistry, normalizedName, decodedName....",
+      "mtimeMs": 1773068445896
     },
     {
       "path": "src/tools/shell/bash.ts",
@@ -689,6 +692,14 @@
       "imports": [],
       "summary": "tsconfig.json source file.",
       "mtimeMs": 1772900203367
+    },
+    {
+      "path": ".nanocodin/index.json",
+      "lang": "json",
+      "symbols": [],
+      "imports": [],
+      "summary": "index.json source file.",
+      "mtimeMs": 1773068129083
     }
   ]
 }
