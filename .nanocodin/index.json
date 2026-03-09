@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773068581128,
+  "generatedAt": 1773070182576,
   "entries": [
     {
       "path": ".env",
@@ -49,7 +49,7 @@
       "symbols": [],
       "imports": [],
       "summary": "CHANGELOG.md source file.",
-      "mtimeMs": 1772896182936
+      "mtimeMs": 1773069430344
     },
     {
       "path": "LICENSE",
@@ -65,7 +65,7 @@
       "symbols": [],
       "imports": [],
       "summary": "README.md source file.",
-      "mtimeMs": 1773014591511
+      "mtimeMs": 1773068810819
     },
     {
       "path": "package-lock.json",
@@ -129,7 +129,7 @@
         "../services/recoveryEngine.js"
       ],
       "summary": "agentGraph.ts exports/defines AgentStateAnnotation, RunOptions, CodingAgentGraph....",
-      "mtimeMs": 1773014510495
+      "mtimeMs": 1773070161111
     },
     {
       "path": "src/agent/reactLoop.ts",
@@ -190,7 +190,7 @@
       ],
       "imports": [],
       "summary": "runtimeConfig.ts exports/defines SandboxPolicyDecision, PhaseLimits, ContextCompressionConfig....",
-      "mtimeMs": 1773014225126
+      "mtimeMs": 1773068801628
     },
     {
       "path": "src/core/toolTypes.ts",
@@ -375,11 +375,11 @@
         "sanitizeInput",
         "source",
         "num",
-        "recoverCommandNotFound",
-        "cmd",
-        "RecoveryEngine",
-        "type",
-        "input"
+        "normalizeTodoOperation",
+        "normalized",
+        "normalizeTodoItems",
+        "items",
+        "normalizeTodoInput"
       ],
       "imports": [
         "node:path",
@@ -387,7 +387,7 @@
         "../core/runtimeConfig.js"
       ],
       "summary": "recoveryEngine.ts exports/defines RecoveryErrorType, RecoveryAttempt, classifyError....",
-      "mtimeMs": 1773014370826
+      "mtimeMs": 1773069864752
     },
     {
       "path": "src/services/repoIndexer.ts",
@@ -668,12 +668,12 @@
         "BANNER_LINES",
         "formatLogPrefix",
         "formatLogColor",
-        "ConsoleApp",
-        "hint",
-        "task",
-        "runTask",
-        "result",
-        "message"
+        "UiState",
+        "SEPARATOR",
+        "nextLogId",
+        "summarizeObservation",
+        "lines",
+        "summary"
       ],
       "imports": [
         "react",
@@ -683,7 +683,7 @@
         "../core/messageTypes.js"
       ],
       "summary": "consoleApp.tsx exports/defines Props, LogEntry, BRAND_COLOR....",
-      "mtimeMs": 1772896182943
+      "mtimeMs": 1773069757994
     },
     {
       "path": "tsconfig.json",
@@ -699,7 +699,7 @@
       "symbols": [],
       "imports": [],
       "summary": "index.json source file.",
-      "mtimeMs": 1773068129083
+      "mtimeMs": 1773070031435
     }
   ]
 }

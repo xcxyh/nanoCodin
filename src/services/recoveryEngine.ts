@@ -48,6 +48,81 @@ function sanitizeInput(raw: unknown): unknown {
   return out;
 }
 
+function normalizeTodoOperation(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "create_todo_list" || normalized === "create" || normalized === "create_todo" || normalized === "create_list") {
+    return "create_todo_list";
+  }
+  if (normalized === "update_todo_item" || normalized === "update" || normalized === "edit" || normalized === "modify") {
+    return "update_todo_item";
+  }
+  if (normalized === "mark_complete" || normalized === "complete" || normalized === "done" || normalized === "mark_done") {
+    return "mark_complete";
+  }
+  return null;
+}
+
+function normalizeTodoItems(raw: unknown): string[] | undefined {
+  if (Array.isArray(raw)) {
+    const items = raw.filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return items.length > 0 ? items : undefined;
+  }
+  if (typeof raw === "string") {
+    const items = raw
+      .split(/\r?\n|[,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return items.length > 0 ? items : undefined;
+  }
+  return undefined;
+}
+
+function normalizeTodoInput(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return { operation: "create_todo_list", items: [] };
+  }
+  const source = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+
+  const operation = normalizeTodoOperation(source.operation);
+  const items = normalizeTodoItems(source.items ?? source.todo_items ?? source.list ?? source.tasks);
+
+  if (operation) {
+    out.operation = operation;
+  } else if (items) {
+    out.operation = "create_todo_list";
+  } else if (typeof source.id === "string" && source.id.trim().length > 0) {
+    out.operation = "mark_complete";
+  } else if (typeof source.content === "string" && source.content.trim().length > 0) {
+    out.operation = "create_todo_list";
+  } else {
+    out.operation = "create_todo_list";
+  }
+
+  if (items) {
+    out.items = items;
+  }
+  if (typeof source.id === "string" && source.id.trim().length > 0) {
+    out.id = source.id.trim();
+  }
+  if (typeof source.content === "string" && source.content.trim().length > 0) {
+    out.content = source.content.trim();
+  }
+
+  if (out.operation === "create_todo_list" && !out.items) {
+    out.items = typeof source.content === "string" && source.content.trim().length > 0
+      ? [source.content.trim()]
+      : [];
+  }
+
+  return out;
+}
+
 function recoverCommandNotFound(original: string, message: string): string | null {
   if (!message.toLowerCase().includes("command not found")) {
     return null;
@@ -88,6 +163,14 @@ export class RecoveryEngine {
   suggest(action: ToolCall, errorText: string): RecoveryAttempt {
     const type = classifyError(errorText);
     if (type === "input_schema") {
+      if (action.name === "todo") {
+        return {
+          type,
+          signature: this.createSignature(action, errorText),
+          action: { name: "todo", input: normalizeTodoInput(action.input) },
+          note: "Retrying todo with normalized operation/items schema."
+        };
+      }
       return {
         type,
         signature: this.createSignature(action, errorText),
@@ -119,4 +202,3 @@ export class RecoveryEngine {
     };
   }
 }
-

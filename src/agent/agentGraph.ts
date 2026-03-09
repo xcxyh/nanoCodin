@@ -354,7 +354,12 @@ export class CodingAgentGraph {
   private inferPhase(state: AgentGraphState, action: ToolCall): AgentPhase {
     const actionName = action.name.toLowerCase();
     if (actionName === "todo") {
-      return "plan";
+      const input = action.input as { operation?: unknown };
+      const operation = typeof input?.operation === "string" ? input.operation : "";
+      if (operation === "create_todo_list") {
+        return "plan";
+      }
+      return "execute";
     }
     if (actionName === "grep" || actionName === "view") {
       return "execute";

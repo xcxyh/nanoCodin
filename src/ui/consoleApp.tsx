@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useReducer, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import type { AgentEvent, } from "../agent/reactLoop.js";
 import { CodingAgentGraph } from "../agent/agentGraph.js";
@@ -18,8 +18,12 @@ type LogKind =
   | "meta";
 
 interface LogEntry {
+  id: string;
   kind: LogKind;
   text: string;
+  summary?: string;
+  hiddenLineCount?: number;
+  ephemeral?: boolean;
 }
 
 const BRAND_COLOR = "#38bdf8";
@@ -33,7 +37,7 @@ const BANNER_LINES = [
 
 function formatLogPrefix(kind: LogKind): string {
   if (kind === "user") return "● You";
-  if (kind === "thought") return "◦ Nano Codin";
+  if (kind === "thought") return "◦ Thinking";
   if (kind === "action") return "↳ Tool";
   if (kind === "observation") return "⋯ Output";
   if (kind === "final") return "✓ Nano Codin";
@@ -43,7 +47,7 @@ function formatLogPrefix(kind: LogKind): string {
 
 function formatLogColor(kind: LogKind): string {
   if (kind === "user") return "white";
-  if (kind === "thought") return BRAND_COLOR;
+  if (kind === "thought") return "green";
   if (kind === "action") return "cyan";
   if (kind === "observation") return "gray";
   if (kind === "final") return BRAND_COLOR;
@@ -51,18 +55,266 @@ function formatLogColor(kind: LogKind): string {
   return "gray";
 }
 
+interface UiState {
+  logs: LogEntry[];
+  busy: boolean;
+  thinkingVisible: boolean;
+  thinkingTick: number;
+  seq: number;
+}
+
+type UiAction =
+  | { type: "task_start"; task: string }
+  | { type: "task_success"; stepCount: number }
+  | { type: "task_failure"; message: string }
+  | { type: "append_action"; name: string; input: unknown }
+  | { type: "append_thought"; text: string }
+  | { type: "append_observation"; text: string }
+  | { type: "append_final"; text: string }
+  | { type: "append_error"; text: string }
+  | { type: "thinking_tick" };
+
+const SEPARATOR = "────────────────────────────────────────────────────────";
+
+function nextLogId(seq: number): string {
+  return `log-${seq + 1}`;
+}
+
+function summarizeObservation(text: string): { summary: string; hiddenLineCount: number } {
+  const lines = text.split("\n");
+  const summary = lines[0]?.trim() || "(empty output)";
+  return {
+    summary,
+    hiddenLineCount: Math.max(0, lines.length - 1)
+  };
+}
+
+function hasThinkingPlaceholder(logs: LogEntry[]): boolean {
+  return logs.some((entry) => entry.ephemeral && entry.kind === "thought");
+}
+
+function clearThinkingPlaceholder(logs: LogEntry[]): LogEntry[] {
+  return logs.filter((entry) => !(entry.ephemeral && entry.kind === "thought"));
+}
+
+function makeThinkingText(tick: number): string {
+  return `Thinking${".".repeat((tick % 3) + 1)}`;
+}
+
+function appendLog(
+  state: UiState,
+  kind: LogKind,
+  text: string,
+  options?: { summary?: string; hiddenLineCount?: number; ephemeral?: boolean }
+): UiState {
+  const entry: LogEntry = {
+    id: nextLogId(state.seq),
+    kind,
+    text,
+    summary: options?.summary,
+    hiddenLineCount: options?.hiddenLineCount,
+    ephemeral: options?.ephemeral
+  };
+  return {
+    ...state,
+    seq: state.seq + 1,
+    logs: [...state.logs, entry]
+  };
+}
+
+const initialUiState: UiState = {
+  logs: [],
+  busy: false,
+  thinkingVisible: false,
+  thinkingTick: 0,
+  seq: 0
+};
+
+function uiReducer(state: UiState, action: UiAction): UiState {
+  if (action.type === "task_start") {
+    let next = {
+      ...state,
+      busy: true,
+      thinkingVisible: false,
+      thinkingTick: 0,
+      logs: clearThinkingPlaceholder(state.logs)
+    };
+    next = appendLog(next, "meta", SEPARATOR);
+    next = appendLog(next, "user", action.task);
+    return next;
+  }
+
+  if (action.type === "task_success") {
+    let next = {
+      ...state,
+      busy: false,
+      thinkingVisible: false,
+      thinkingTick: 0,
+      logs: clearThinkingPlaceholder(state.logs)
+    };
+    next = appendLog(next, "meta", `Completed in ${action.stepCount} step(s).`);
+    return next;
+  }
+
+  if (action.type === "task_failure") {
+    let next = {
+      ...state,
+      busy: false,
+      thinkingVisible: false,
+      thinkingTick: 0,
+      logs: clearThinkingPlaceholder(state.logs)
+    };
+    next = appendLog(next, "error", `Execution failed: ${action.message}`);
+    return next;
+  }
+
+  if (action.type === "append_action") {
+    let next = appendLog(state, "action", `${action.name} ${JSON.stringify(action.input)}`);
+    if (!hasThinkingPlaceholder(next.logs)) {
+      next = appendLog(next, "thought", "Thinking...", { ephemeral: true });
+    }
+    return {
+      ...next,
+      thinkingVisible: true
+    };
+  }
+
+  if (action.type === "append_thought") {
+    const cleared = {
+      ...state,
+      logs: clearThinkingPlaceholder(state.logs),
+      thinkingVisible: false,
+      thinkingTick: 0
+    };
+    return appendLog(cleared, "thought", action.text);
+  }
+
+  if (action.type === "append_observation") {
+    const folded = summarizeObservation(action.text);
+    const cleared = {
+      ...state,
+      logs: clearThinkingPlaceholder(state.logs),
+      thinkingVisible: false,
+      thinkingTick: 0
+    };
+    return appendLog(cleared, "observation", action.text, {
+      summary: folded.summary,
+      hiddenLineCount: folded.hiddenLineCount
+    });
+  }
+
+  if (action.type === "append_final") {
+    const cleared = {
+      ...state,
+      logs: clearThinkingPlaceholder(state.logs),
+      thinkingVisible: false,
+      thinkingTick: 0
+    };
+    return appendLog(cleared, "final", action.text);
+  }
+
+  if (action.type === "append_error") {
+    const cleared = {
+      ...state,
+      logs: clearThinkingPlaceholder(state.logs),
+      thinkingVisible: false,
+      thinkingTick: 0
+    };
+    return appendLog(cleared, "error", action.text);
+  }
+
+  if (action.type === "thinking_tick") {
+    if (!state.thinkingVisible) {
+      return state;
+    }
+    return {
+      ...state,
+      thinkingTick: (state.thinkingTick + 1) % 3
+    };
+  }
+
+  return state;
+}
+
+function mapAgentEventToUiActions(event: AgentEvent): UiAction[] {
+  if (event.type === "thought") {
+    return [{ type: "append_thought", text: event.thought }];
+  }
+  if (event.type === "action") {
+    return [{ type: "append_action", name: event.action.name, input: event.action.input }];
+  }
+  if (event.type === "observation") {
+    return [{ type: "append_observation", text: event.observation }];
+  }
+  if (event.type === "error") {
+    return [{ type: "append_error", text: event.error }];
+  }
+  return [{ type: "append_final", text: event.answer }];
+}
+
+function renderLogEntry(entry: LogEntry, thinkingTick: number): React.ReactNode {
+  if (entry.kind === "meta") {
+    return (
+      <Text key={entry.id} color="gray">
+        {entry.text}
+      </Text>
+    );
+  }
+
+  if (entry.kind === "observation") {
+    const suffix = (entry.hiddenLineCount ?? 0) > 0 ? ` ... (${entry.hiddenLineCount} more lines)` : "";
+    return (
+      <Box key={entry.id} flexDirection="column" marginBottom={0}>
+        <Text color={formatLogColor(entry.kind)}>
+          {formatLogPrefix(entry.kind)}
+          {"  "}
+          {entry.summary ?? "(empty output)"}
+          {suffix}
+        </Text>
+      </Box>
+    );
+  }
+
+  const displayedText = entry.ephemeral ? makeThinkingText(thinkingTick) : entry.text;
+  const lines = displayedText.split("\n");
+  return (
+    <Box key={entry.id} flexDirection="column" marginBottom={0}>
+      <Text color={formatLogColor(entry.kind)}>
+        {formatLogPrefix(entry.kind)}
+        {"  "}
+        {lines[0]}
+      </Text>
+      {lines.slice(1).map((line, lineIdx) => (
+        <Text key={`${entry.id}-${lineIdx + 1}`} color={formatLogColor(entry.kind)}>
+          {"   "}
+          {line}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
 export function ConsoleApp({ graph }: Props) {
   const { exit } = useApp();
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [uiState, dispatch] = useReducer(uiReducer, initialUiState);
 
   const hint = useMemo(() => {
-    if (busy) {
+    if (uiState.busy) {
       return "Nano Codin is reasoning...";
     }
     return "Type a coding task and press Enter. Ctrl+C to exit.";
-  }, [busy]);
+  }, [uiState.busy]);
+
+  useEffect(() => {
+    if (!uiState.busy && !uiState.thinkingVisible) {
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      dispatch({ type: "thinking_tick" });
+    }, 300);
+    return () => clearInterval(timer);
+  }, [uiState.busy, uiState.thinkingVisible]);
 
   useInput((char, key) => {
     if (key.ctrl && char === "c") {
@@ -70,7 +322,7 @@ export function ConsoleApp({ graph }: Props) {
       return;
     }
 
-    if (busy) {
+    if (uiState.busy) {
       return;
     }
 
@@ -95,10 +347,8 @@ export function ConsoleApp({ graph }: Props) {
   });
 
   async function runTask(task: string) {
-    setBusy(true);
+    dispatch({ type: "task_start", task });
     setInput("");
-    setLogs((prev) => [...prev, { kind: "meta", text: "────────────────────────────────────────────────────────" }]);
-    setLogs((prev) => [...prev, { kind: "user", text: task }]);
 
     const initialMessages: Message[] = [{ role: "user", content: task }];
 
@@ -106,29 +356,17 @@ export function ConsoleApp({ graph }: Props) {
       const result = await graph.run({
         messages: initialMessages,
         onEvent: (event: AgentEvent) => {
-          if (event.type === "thought") {
-            setLogs((prev) => [...prev, { kind: "thought", text: event.thought }]);
-          } else if (event.type === "action") {
-            setLogs((prev) => [
-              ...prev,
-              { kind: "action", text: `${event.action.name} ${JSON.stringify(event.action.input)}` }
-            ]);
-          } else if (event.type === "observation") {
-            setLogs((prev) => [...prev, { kind: "observation", text: event.observation }]);
-          } else if (event.type === "error") {
-            setLogs((prev) => [...prev, { kind: "error", text: event.error }]);
-          } else if (event.type === "final") {
-            setLogs((prev) => [...prev, { kind: "final", text: event.answer }]);
+          const actions = mapAgentEventToUiActions(event);
+          for (const uiAction of actions) {
+            dispatch(uiAction);
           }
         }
       });
 
-      setLogs((prev) => [...prev, { kind: "meta", text: `Completed in ${result.steps.length} step(s).` }]);
+      dispatch({ type: "task_success", stepCount: result.steps.length });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setLogs((prev) => [...prev, { kind: "error", text: `Execution failed: ${message}` }]);
-    } finally {
-      setBusy(false);
+      dispatch({ type: "task_failure", message });
     }
   }
 
@@ -145,36 +383,11 @@ export function ConsoleApp({ graph }: Props) {
       </Box>
 
       <Box flexDirection="column">
-        {logs.slice(-40).map((entry, idx) => {
-          if (entry.kind === "meta") {
-            return (
-              <Text key={`${idx}-${entry.text.slice(0, 12)}`} color="gray">
-                {entry.text}
-              </Text>
-            );
-          }
-
-          const lines = entry.text.split("\n");
-          return (
-            <Box key={`${idx}-${entry.text.slice(0, 12)}`} flexDirection="column" marginBottom={0}>
-              <Text color={formatLogColor(entry.kind)}>
-                {formatLogPrefix(entry.kind)}
-                {"  "}
-                {lines[0]}
-              </Text>
-              {lines.slice(1).map((line, lineIdx) => (
-                <Text key={`${idx}-${lineIdx}`} color={formatLogColor(entry.kind)}>
-                  {"   "}
-                  {line}
-                </Text>
-              ))}
-            </Box>
-          );
-        })}
+        {uiState.logs.slice(-40).map((entry) => renderLogEntry(entry, uiState.thinkingTick))}
       </Box>
 
       <Box marginTop={1} borderStyle="round" borderColor={BRAND_COLOR} paddingX={1}>
-        <Text color={BRAND_COLOR}>{busy ? "…" : ">"}</Text>
+        <Text color={BRAND_COLOR}>{uiState.busy ? "…" : ">"}</Text>
         <Text> {input}</Text>
       </Box>
     </Box>
