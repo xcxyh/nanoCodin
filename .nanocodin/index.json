@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773073761896,
+  "generatedAt": 1773277252005,
   "entries": [
     {
       "path": ".env",
@@ -210,10 +210,11 @@
       ],
       "imports": [
         "zod",
-        "./runtimeConfig.js"
+        "./runtimeConfig.js",
+        "./permission.js"
       ],
       "summary": "toolTypes.ts exports/defines RepoIndexEntry, RepoIndexSnapshot, RepoIndexQuery....",
-      "mtimeMs": 1773014233299
+      "mtimeMs": 1773275570611
     },
     {
       "path": "src/index.ts",
@@ -247,7 +248,7 @@
         "./services/repoIndexer.js"
       ],
       "summary": "index.ts exports/defines parsePositiveIntEnv, parsed, buildRuntimeEnv....",
-      "mtimeMs": 1773071446637
+      "mtimeMs": 1773275594514
     },
     {
       "path": "src/llm/modelRouter.ts",
@@ -610,12 +611,16 @@
       "path": "src/tools/registry.ts",
       "lang": "ts",
       "symbols": [
+        "requiresPermission",
         "ToolRegistry",
         "normalizedName",
         "decodedName",
         "inlineMatch",
         "candidate",
         "parsed",
+        "command",
+        "policyDecision",
+        "decision",
         "createDefaultToolRegistry"
       ],
       "imports": [
@@ -631,8 +636,8 @@
         "./planning/todo.js",
         "./shell/bash.js"
       ],
-      "summary": "registry.ts exports/defines ToolRegistry, normalizedName, decodedName....",
-      "mtimeMs": 1773068445896
+      "summary": "registry.ts exports/defines requiresPermission, ToolRegistry, normalizedName....",
+      "mtimeMs": 1773276326847
     },
     {
       "path": "src/tools/shell/bash.ts",
@@ -648,8 +653,8 @@
         "normalized",
         "bashTool",
         "startedAt",
-        "policyDecision",
-        "output"
+        "output",
+        "timeoutMs"
       ],
       "imports": [
         "execa",
@@ -658,7 +663,7 @@
         "../../core/runtimeConfig.js"
       ],
       "summary": "bash.ts exports/defines schema, cutTail, marker....",
-      "mtimeMs": 1773071439010
+      "mtimeMs": 1773275575895
     },
     {
       "path": "src/ui/consoleApp.tsx",
@@ -671,21 +676,22 @@
         "formatLogPrefix",
         "formatLogColor",
         "UiState",
+        "PermissionPromptState",
         "SEPARATOR",
         "nextLogId",
         "summarizeObservation",
-        "lines",
-        "summary"
+        "lines"
       ],
       "imports": [
         "react",
         "ink",
         "../agent/reactLoop.js",
         "../agent/agentGraph.js",
-        "../core/messageTypes.js"
+        "../core/messageTypes.js",
+        "../core/permission.js"
       ],
       "summary": "consoleApp.tsx exports/defines Props, LogEntry, BRAND_COLOR....",
-      "mtimeMs": 1773070450491
+      "mtimeMs": 1773275629706
     },
     {
       "path": "tsconfig.json",
@@ -701,7 +707,7 @@
       "symbols": [],
       "imports": [],
       "summary": "index.json source file.",
-      "mtimeMs": 1773070652259
+      "mtimeMs": 1773277207094
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -777,16 +783,18 @@
       "lang": "ts",
       "symbols": [
         "registry",
-        "result"
+        "result",
+        "permission"
       ],
       "imports": [
         "vitest",
         "zod",
         "../../src/tools/registry.js",
-        "../fixtures/runtime.js"
+        "../fixtures/runtime.js",
+        "../../src/core/permission.js"
       ],
-      "summary": "toolRegistry.test.ts exports/defines registry, result.",
-      "mtimeMs": 1773071928480
+      "summary": "toolRegistry.test.ts exports/defines registry, result, permission.",
+      "mtimeMs": 1773275677188
     },
     {
       "path": "tests/smoke/index.test.ts",
@@ -812,15 +820,16 @@
       "path": "tests/unit/bashPolicy.test.ts",
       "lang": "ts",
       "symbols": [
-        "context"
+        "context",
+        "result"
       ],
       "imports": [
         "vitest",
         "../../src/tools/shell/bash.js",
         "../fixtures/runtime.js"
       ],
-      "summary": "bashPolicy.test.ts exports/defines context.",
-      "mtimeMs": 1773071877536
+      "summary": "bashPolicy.test.ts exports/defines context, result.",
+      "mtimeMs": 1773275685987
     },
     {
       "path": "tests/unit/configLoaderParser.test.ts",
@@ -878,6 +887,29 @@
       ],
       "summary": "vitest.config.ts imports vitest/config.",
       "mtimeMs": 1773072044847
+    },
+    {
+      "path": "AGENTS.md",
+      "lang": "md",
+      "symbols": [],
+      "imports": [],
+      "summary": "AGENTS.md source file.",
+      "mtimeMs": 1773273730352
+    },
+    {
+      "path": "src/core/permission.ts",
+      "lang": "ts",
+      "symbols": [
+        "PermissionDecision",
+        "PermissionPromptChoice",
+        "PermissionRequest",
+        "PermissionPromptHandler",
+        "PermissionController",
+        "choice"
+      ],
+      "imports": [],
+      "summary": "permission.ts exports/defines PermissionDecision, PermissionPromptChoice, PermissionRequest....",
+      "mtimeMs": 1773275566583
     }
   ]
 }

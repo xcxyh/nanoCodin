@@ -9,6 +9,11 @@ import { repoIndexQueryTool } from "./fs/repo_index_query.js";
 import { treeTool } from "./fs/tree.js";
 import { todoTool } from "./planning/todo.js";
 import { bashTool } from "./shell/bash.js";
+import { decidePolicy } from "./shell/bash.js";
+
+function requiresPermission(toolName: string): boolean {
+  return toolName === "bash" || toolName === "create" || toolName === "insert" || toolName === "str_replace";
+}
 
 export class ToolRegistry {
   private readonly toolMap: Map<string, Tool<any>>;
@@ -68,7 +73,28 @@ export class ToolRegistry {
       };
     }
 
-    return tool.execute(parsed.data, context);
+    let parsedInput = parsed.data as Record<string, unknown>;
+
+    if (context.permission && requiresPermission(tool.name)) {
+      if (tool.name === "bash") {
+        const command = typeof parsedInput.command === "string" ? parsedInput.command : "";
+        const policyDecision = decidePolicy(command, context);
+        if (policyDecision !== "deny") {
+          const decision = await context.permission.request({ toolName: tool.name, input: parsedInput });
+          if (decision === "deny") {
+            return { ok: false, output: "Permission denied by user." };
+          }
+          parsedInput = { ...parsedInput, confirmed: true };
+        }
+      } else {
+        const decision = await context.permission.request({ toolName: tool.name, input: parsedInput });
+        if (decision === "deny") {
+          return { ok: false, output: "Permission denied by user." };
+        }
+      }
+    }
+
+    return tool.execute(parsedInput, context);
   }
 }
 

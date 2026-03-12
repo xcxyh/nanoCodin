@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidePolicy, isWriteCommand } from "../../src/tools/shell/bash.js";
+import { bashTool, decidePolicy, isWriteCommand } from "../../src/tools/shell/bash.js";
 import { createToolContext } from "../fixtures/runtime.js";
 
 describe("bash policy helpers", () => {
@@ -39,5 +39,19 @@ describe("bash policy helpers", () => {
 
     expect(decidePolicy("echo safe", context)).toBe("ask");
     expect(decidePolicy("ls", context)).toBe("allow");
+  });
+
+  it("allows confirmed commands even when policy is ask", async () => {
+    const context = createToolContext();
+    const result = await bashTool.execute({ command: "echo test", confirmed: true }, context);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("still denies confirmed commands when policy is deny", async () => {
+    const context = createToolContext();
+    const result = await bashTool.execute({ command: "rm -rf /", confirmed: true }, context);
+
+    expect(result.ok).toBe(false);
   });
 });

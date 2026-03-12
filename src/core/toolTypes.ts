@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { ResolvedRuntimeConfig } from "./runtimeConfig.js";
+import type { PermissionController } from "./permission.js";
 
 export interface RepoIndexEntry {
   path: string;
@@ -62,6 +63,7 @@ export interface ToolContext {
   repoIndex: RepoIndexProvider;
   commandLogs: CommandExecutionLog[];
   workingMemory: WorkingMemory | null;
+  permission?: PermissionController;
 }
 
 export interface ToolResult {

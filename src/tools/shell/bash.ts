@@ -5,7 +5,8 @@ import type { SandboxPolicyDecision } from "../../core/runtimeConfig.js";
 
 const schema = z.object({
   command: z.string().min(1),
-  timeoutMs: z.number().int().min(1000).max(120000).optional()
+  timeoutMs: z.number().int().min(1000).max(120000).optional(),
+  confirmed: z.boolean().optional()
 });
 
 type Input = z.infer<typeof schema>;
@@ -59,7 +60,10 @@ export const bashTool: Tool<Input> = {
   schema,
   execute: async (input, context) => {
     const startedAt = Date.now();
-    const policyDecision = decidePolicy(input.command, context);
+    let policyDecision = decidePolicy(input.command, context);
+    if (input.confirmed && policyDecision !== "deny") {
+      policyDecision = "allow";
+    }
 
     if (policyDecision !== "allow") {
       const output = JSON.stringify({

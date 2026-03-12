@@ -3,9 +3,11 @@ import { Box, Text, useApp, useInput } from "ink";
 import type { AgentEvent, } from "../agent/reactLoop.js";
 import { CodingAgentGraph } from "../agent/agentGraph.js";
 import type { Message } from "../core/messageTypes.js";
+import type { PermissionController, PermissionPromptChoice, PermissionRequest } from "../core/permission.js";
 
 interface Props {
   graph: CodingAgentGraph;
+  permissionController: PermissionController;
 }
 
 type LogKind =
@@ -64,6 +66,11 @@ interface UiState {
   thinkingTick: number;
   seq: number;
   pendingToolName: string | null;
+}
+
+interface PermissionPromptState {
+  request: PermissionRequest;
+  resolve: (choice: PermissionPromptChoice) => void;
 }
 
 type UiAction =
@@ -349,17 +356,21 @@ function renderLogEntry(entry: LogEntry, thinkingTick: number): React.ReactNode 
   );
 }
 
-export function ConsoleApp({ graph }: Props) {
+export function ConsoleApp({ graph, permissionController }: Props) {
   const { exit } = useApp();
   const [input, setInput] = useState("");
   const [uiState, dispatch] = useReducer(uiReducer, initialUiState);
+  const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptState | null>(null);
 
   const hint = useMemo(() => {
+    if (permissionPrompt) {
+      return "Permission required. Press Y to allow once, A to allow all, N to deny.";
+    }
     if (uiState.busy) {
       return "Nano Codin is reasoning...";
     }
     return "Type a coding task and press Enter. Press E to expand/collapse latest output. Ctrl+C to exit.";
-  }, [uiState.busy]);
+  }, [permissionPrompt, uiState.busy]);
 
   useEffect(() => {
     if (!uiState.busy && !uiState.thinkingVisible) {
@@ -372,6 +383,25 @@ export function ConsoleApp({ graph }: Props) {
   }, [uiState.busy, uiState.thinkingVisible]);
 
   useInput((char, key) => {
+    if (permissionPrompt) {
+      if (key.ctrl && char === "c") {
+        exit();
+        return;
+      }
+      const normalized = char.toLowerCase();
+      if (normalized === "y") {
+        permissionPrompt.resolve("allow_once");
+        setPermissionPrompt(null);
+      } else if (normalized === "a") {
+        permissionPrompt.resolve("allow_all");
+        setPermissionPrompt(null);
+      } else if (normalized === "n") {
+        permissionPrompt.resolve("deny");
+        setPermissionPrompt(null);
+      }
+      return;
+    }
+
     if (key.ctrl && char === "c") {
       exit();
       return;
@@ -430,6 +460,34 @@ export function ConsoleApp({ graph }: Props) {
     }
   }
 
+  useEffect(() => {
+    const handler = async (request: PermissionRequest) => new Promise<PermissionPromptChoice>((resolve) => {
+      setPermissionPrompt({ request, resolve });
+    });
+    permissionController.setPromptHandler(handler);
+    return () => {
+      permissionController.setPromptHandler(null);
+    };
+  }, [permissionController]);
+
+  function renderPermissionPrompt(prompt: PermissionPromptState): React.ReactNode {
+    const { toolName, input: toolInput } = prompt.request;
+    const inputRecord = toolInput as Record<string, unknown>;
+    const detailLabel = toolName === "bash" ? "Command" : "Target";
+    const detailValue = toolName === "bash"
+      ? String(inputRecord.command ?? "(unknown)")
+      : String(inputRecord.path ?? "(unknown)");
+
+    return (
+      <Box marginTop={1} borderStyle="round" borderColor="yellow" paddingX={1} flexDirection="column">
+        <Text color="yellow">Permission required</Text>
+        <Text>Tool: {toolName}</Text>
+        <Text>{detailLabel}: {detailValue}</Text>
+        <Text>Allow? [y] once, [a] all session, [n] deny</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" paddingX={1}>
       <Box marginBottom={1} flexDirection="column">
@@ -445,6 +503,8 @@ export function ConsoleApp({ graph }: Props) {
       <Box flexDirection="column">
         {uiState.logs.slice(-40).map((entry) => renderLogEntry(entry, uiState.thinkingTick))}
       </Box>
+
+      {permissionPrompt ? renderPermissionPrompt(permissionPrompt) : null}
 
       <Box marginTop={1} borderStyle="round" borderColor={BRAND_COLOR} paddingX={1}>
         <Text color={BRAND_COLOR}>{uiState.busy ? "…" : ">"}</Text>

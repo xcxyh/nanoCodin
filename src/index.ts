@@ -11,6 +11,7 @@ import { createDefaultToolRegistry } from "./tools/registry.js";
 import { ConsoleApp } from "./ui/consoleApp.js";
 import { loadRuntimeConfig } from "./services/configLoader.js";
 import { RepoIndexer } from "./services/repoIndexer.js";
+import { PermissionController } from "./core/permission.js";
 
 export function parsePositiveIntEnv(value: string | undefined, fallback: number): number {
   if (!value) {
@@ -56,6 +57,7 @@ export function main() {
   const model = createModelProviderFromEnv();
   const repoIndexer = new RepoIndexer(process.cwd(), runtime.config.repoIndex);
   const tools = createDefaultToolRegistry();
+  const permissionController = new PermissionController();
   const maxSteps = runtime.config.agent.maxSteps ?? parsePositiveIntEnv(process.env.AGENT_MAX_STEPS, 12);
   const recursionLimit = runtime.config.agent.recursionLimit ?? parsePositiveIntEnv(process.env.AGENT_RECURSION_LIMIT, maxSteps * 2 + 8);
 
@@ -65,12 +67,13 @@ export function main() {
     runtimeConfig: runtime.config,
     repoIndex: repoIndexer,
     commandLogs: [],
-    workingMemory: null
+    workingMemory: null,
+    permission: permissionController
   };
 
   void repoIndexer.init().catch(() => undefined).finally(() => {
     const graph = new CodingAgentGraph(model, tools, toolContext, maxSteps, recursionLimit);
-    render(React.createElement(ConsoleApp, { graph }));
+    render(React.createElement(ConsoleApp, { graph, permissionController }));
   });
 }
 
