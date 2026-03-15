@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useState } from "react";
+import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import type { AgentEvent, } from "../agent/reactLoop.js";
 import { CodingAgentGraph } from "../agent/agentGraph.js";
@@ -13,6 +13,7 @@ interface Props {
 type LogKind =
   | "user"
   | "thought"
+  | "loading"
   | "action"
   | "observation"
   | "final"
@@ -42,6 +43,7 @@ const BANNER_LINES = [
 function formatLogPrefix(kind: LogKind): string {
   if (kind === "user") return "● You";
   if (kind === "thought") return "◦ Thinking";
+  if (kind === "loading") return "◦ Loading";
   if (kind === "action") return "↳ Tool";
   if (kind === "observation") return "⋯ Output";
   if (kind === "final") return "✓ Nano Codin";
@@ -52,6 +54,7 @@ function formatLogPrefix(kind: LogKind): string {
 function formatLogColor(kind: LogKind): string {
   if (kind === "user") return "white";
   if (kind === "thought") return "green";
+  if (kind === "loading") return "green";
   if (kind === "action") return "cyan";
   if (kind === "observation") return "gray";
   if (kind === "final") return BRAND_COLOR;
@@ -63,6 +66,7 @@ interface UiState {
   logs: LogEntry[];
   busy: boolean;
   thinkingVisible: boolean;
+  loadingVisible: boolean;
   thinkingTick: number;
   seq: number;
   pendingToolName: string | null;
@@ -77,6 +81,7 @@ type UiAction =
   | { type: "task_start"; task: string }
   | { type: "task_success"; stepCount: number }
   | { type: "task_failure"; message: string }
+  | { type: "task_cancel" }
   | { type: "append_action"; name: string; input: unknown }
   | { type: "append_thought"; text: string }
   | { type: "append_observation"; text: string }
@@ -86,6 +91,15 @@ type UiAction =
   | { type: "toggle_latest_observation" };
 
 const SEPARATOR = "────────────────────────────────────────────────────────";
+const LOADING_MESSAGES = [
+  "Warming up the agent",
+  "Getting tools ready",
+  "Reviewing your request",
+  "Setting up the workspace",
+  "Lining up the next steps",
+  "Preparing a careful answer"
+];
+const EXIT_ARM_WINDOW_MS = 1500;
 
 function nextLogId(seq: number): string {
   return `log-${seq + 1}`;
@@ -104,12 +118,16 @@ function hasThinkingPlaceholder(logs: LogEntry[]): boolean {
   return logs.some((entry) => entry.ephemeral && entry.kind === "thought");
 }
 
-function clearThinkingPlaceholder(logs: LogEntry[]): LogEntry[] {
-  return logs.filter((entry) => !(entry.ephemeral && entry.kind === "thought"));
+function clearEphemeralPlaceholders(logs: LogEntry[]): LogEntry[] {
+  return logs.filter((entry) => !(entry.ephemeral && (entry.kind === "thought" || entry.kind === "loading")));
 }
 
 function makeThinkingText(tick: number): string {
   return `Thinking${".".repeat((tick % 3) + 1)}`;
+}
+
+function makeLoadingText(message: string, tick: number): string {
+  return `${message}${".".repeat((tick % 3) + 1)}`;
 }
 
 function appendLog(
@@ -139,6 +157,7 @@ const initialUiState: UiState = {
   logs: [],
   busy: false,
   thinkingVisible: false,
+  loadingVisible: false,
   thinkingTick: 0,
   seq: 0,
   pendingToolName: null
@@ -146,16 +165,19 @@ const initialUiState: UiState = {
 
 function uiReducer(state: UiState, action: UiAction): UiState {
   if (action.type === "task_start") {
+    const loadingMessage = LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
     let next: UiState = {
       ...state,
       busy: true,
       thinkingVisible: false,
+      loadingVisible: true,
       thinkingTick: 0,
-      logs: clearThinkingPlaceholder(state.logs),
+      logs: clearEphemeralPlaceholders(state.logs),
       pendingToolName: null
     };
     next = appendLog(next, "meta", SEPARATOR);
     next = appendLog(next, "user", action.task);
+    next = appendLog(next, "loading", loadingMessage, { ephemeral: true });
     return next;
   }
 
@@ -164,8 +186,9 @@ function uiReducer(state: UiState, action: UiAction): UiState {
       ...state,
       busy: false,
       thinkingVisible: false,
+      loadingVisible: false,
       thinkingTick: 0,
-      logs: clearThinkingPlaceholder(state.logs),
+      logs: clearEphemeralPlaceholders(state.logs),
       pendingToolName: null
     };
     next = appendLog(next, "meta", `Completed in ${action.stepCount} step(s).`);
@@ -177,16 +200,36 @@ function uiReducer(state: UiState, action: UiAction): UiState {
       ...state,
       busy: false,
       thinkingVisible: false,
+      loadingVisible: false,
       thinkingTick: 0,
-      logs: clearThinkingPlaceholder(state.logs),
+      logs: clearEphemeralPlaceholders(state.logs),
       pendingToolName: null
     };
     next = appendLog(next, "error", `Execution failed: ${action.message}`);
     return next;
   }
 
+  if (action.type === "task_cancel") {
+    let next: UiState = {
+      ...state,
+      busy: false,
+      thinkingVisible: false,
+      loadingVisible: false,
+      thinkingTick: 0,
+      logs: clearEphemeralPlaceholders(state.logs),
+      pendingToolName: null
+    };
+    next = appendLog(next, "meta", "Cancelled.");
+    return next;
+  }
+
   if (action.type === "append_action") {
-    let next = appendLog(state, "action", `${action.name} ${JSON.stringify(action.input)}`);
+    const baseState: UiState = {
+      ...state,
+      logs: clearEphemeralPlaceholders(state.logs),
+      loadingVisible: false
+    };
+    let next = appendLog(baseState, "action", `${action.name} ${JSON.stringify(action.input)}`);
     if (!hasThinkingPlaceholder(next.logs)) {
       next = appendLog(next, "thought", "Thinking...", { ephemeral: true });
     }
@@ -200,8 +243,9 @@ function uiReducer(state: UiState, action: UiAction): UiState {
   if (action.type === "append_thought") {
     const cleared: UiState = {
       ...state,
-      logs: clearThinkingPlaceholder(state.logs),
+      logs: clearEphemeralPlaceholders(state.logs),
       thinkingVisible: false,
+      loadingVisible: false,
       thinkingTick: 0,
       pendingToolName: null
     };
@@ -214,8 +258,9 @@ function uiReducer(state: UiState, action: UiAction): UiState {
     const shouldCollapse = sourceTool !== "todo";
     const cleared: UiState = {
       ...state,
-      logs: clearThinkingPlaceholder(state.logs),
+      logs: clearEphemeralPlaceholders(state.logs),
       thinkingVisible: false,
+      loadingVisible: false,
       thinkingTick: 0,
       pendingToolName: null
     };
@@ -230,8 +275,9 @@ function uiReducer(state: UiState, action: UiAction): UiState {
   if (action.type === "append_final") {
     const cleared: UiState = {
       ...state,
-      logs: clearThinkingPlaceholder(state.logs),
+      logs: clearEphemeralPlaceholders(state.logs),
       thinkingVisible: false,
+      loadingVisible: false,
       thinkingTick: 0,
       pendingToolName: null
     };
@@ -241,8 +287,9 @@ function uiReducer(state: UiState, action: UiAction): UiState {
   if (action.type === "append_error") {
     const cleared: UiState = {
       ...state,
-      logs: clearThinkingPlaceholder(state.logs),
+      logs: clearEphemeralPlaceholders(state.logs),
       thinkingVisible: false,
+      loadingVisible: false,
       thinkingTick: 0,
       pendingToolName: null
     };
@@ -250,7 +297,7 @@ function uiReducer(state: UiState, action: UiAction): UiState {
   }
 
   if (action.type === "thinking_tick") {
-    if (!state.thinkingVisible) {
+    if (!state.thinkingVisible && !state.loadingVisible) {
       return state;
     }
     return {
@@ -338,6 +385,25 @@ function renderLogEntry(entry: LogEntry, thinkingTick: number): React.ReactNode 
   }
 
   const displayedText = entry.ephemeral ? makeThinkingText(thinkingTick) : entry.text;
+  if (entry.kind === "loading") {
+    const loadingText = entry.ephemeral ? makeLoadingText(entry.text, thinkingTick) : entry.text;
+    const lines = loadingText.split("\n");
+    return (
+      <Box key={entry.id} flexDirection="column" marginBottom={0}>
+        <Text color={formatLogColor(entry.kind)}>
+          {formatLogPrefix(entry.kind)}
+          {"  "}
+          {lines[0]}
+        </Text>
+        {lines.slice(1).map((line, lineIdx) => (
+          <Text key={`${entry.id}-${lineIdx + 1}`} color={formatLogColor(entry.kind)}>
+            {"   "}
+            {line}
+          </Text>
+        ))}
+      </Box>
+    );
+  }
   const lines = displayedText.split("\n");
   return (
     <Box key={entry.id} flexDirection="column" marginBottom={0}>
@@ -358,36 +424,100 @@ function renderLogEntry(entry: LogEntry, thinkingTick: number): React.ReactNode 
 
 export function ConsoleApp({ graph, permissionController }: Props) {
   const { exit } = useApp();
-  const [input, setInput] = useState("");
+  const [input, setInputState] = useState("");
+  const inputRef = useRef("");
+  const setInput = (next: string) => {
+    inputRef.current = next;
+    setInputState(next);
+  };
+  const [cursor, setCursorState] = useState(0);
+  const cursorRef = useRef(0);
+  const setCursor = (next: number) => {
+    cursorRef.current = next;
+    setCursorState(next);
+  };
   const [uiState, dispatch] = useReducer(uiReducer, initialUiState);
   const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptState | null>(null);
+  const [exitArmedAt, setExitArmedAt] = useState<number | null>(null);
+  const exitArmedAtRef = useRef<number | null>(null);
+  const activeRunIdRef = useRef(0);
+
+  const clearExitArm = () => {
+    if (exitArmedAtRef.current !== null) {
+      exitArmedAtRef.current = null;
+      setExitArmedAt(null);
+    }
+  };
+
+  const armExit = () => {
+    const now = Date.now();
+    exitArmedAtRef.current = now;
+    setExitArmedAt(now);
+  };
+
+  const tryExit = () => {
+    const armedAt = exitArmedAtRef.current;
+    const now = Date.now();
+    if (armedAt && now - armedAt <= EXIT_ARM_WINDOW_MS) {
+      exit();
+      return true;
+    }
+    armExit();
+    return false;
+  };
+
+  const clampCursor = (next: number, value = inputRef.current) => Math.max(0, Math.min(next, value.length));
 
   const hint = useMemo(() => {
     if (permissionPrompt) {
       return "Permission required. Press Y to allow once, A to allow all, N to deny.";
     }
     if (uiState.busy) {
-      return "Nano Codin is reasoning...";
+      return "Nano Codin is working. Press ESC to cancel.";
     }
-    return "Type a coding task and press Enter. Press E to expand/collapse latest output. Ctrl+C to exit.";
-  }, [permissionPrompt, uiState.busy]);
+    if (exitArmedAt) {
+      return "Press Ctrl+C again to exit.";
+    }
+    return "Type a coding task and press Enter. Press Ctrl+E to expand/collapse latest output. Ctrl+C twice to exit.";
+  }, [permissionPrompt, uiState.busy, exitArmedAt]);
 
   useEffect(() => {
-    if (!uiState.busy && !uiState.thinkingVisible) {
+    if (!uiState.busy && !uiState.thinkingVisible && !uiState.loadingVisible) {
       return undefined;
     }
     const timer = setInterval(() => {
       dispatch({ type: "thinking_tick" });
     }, 300);
     return () => clearInterval(timer);
-  }, [uiState.busy, uiState.thinkingVisible]);
+  }, [uiState.busy, uiState.thinkingVisible, uiState.loadingVisible]);
+
+  useEffect(() => {
+    if (exitArmedAt === null) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => {
+      if (exitArmedAtRef.current === exitArmedAt) {
+        clearExitArm();
+      }
+    }, EXIT_ARM_WINDOW_MS);
+    return () => clearTimeout(timeout);
+  }, [exitArmedAt]);
 
   useInput((char, key) => {
-    if (permissionPrompt) {
-      if (key.ctrl && char === "c") {
-        exit();
-        return;
+    if (key.escape) {
+      if (uiState.busy) {
+        activeRunIdRef.current += 1;
+        dispatch({ type: "task_cancel" });
       }
+      return;
+    }
+
+    if (key.ctrl && char === "c") {
+      tryExit();
+      return;
+    }
+
+    if (permissionPrompt) {
       const normalized = char.toLowerCase();
       if (normalized === "y") {
         permissionPrompt.resolve("allow_once");
@@ -402,16 +532,13 @@ export function ConsoleApp({ graph, permissionController }: Props) {
       return;
     }
 
-    if (key.ctrl && char === "c") {
-      exit();
-      return;
-    }
-
     if (uiState.busy) {
       return;
     }
 
-    if (!key.ctrl && !key.meta && (char === "e" || char === "E")) {
+    clearExitArm();
+
+    if (key.ctrl && !key.meta && (char === "e" || char === "E")) {
       dispatch({ type: "toggle_latest_observation" });
       return;
     }
@@ -426,19 +553,55 @@ export function ConsoleApp({ graph, permissionController }: Props) {
       return;
     }
 
-    if (key.backspace || key.delete) {
-      setInput((prev) => prev.slice(0, -1));
+    if (key.leftArrow) {
+      setCursor(clampCursor(cursorRef.current - 1));
+      return;
+    }
+
+    if (key.rightArrow) {
+      setCursor(clampCursor(cursorRef.current + 1));
+      return;
+    }
+
+    if (key.backspace || (key.delete && !key.ctrl)) {
+      const currentInput = inputRef.current;
+      const cursorPos = cursorRef.current;
+      if (cursorPos === 0) {
+        return;
+      }
+      const next = currentInput.slice(0, cursorPos - 1) + currentInput.slice(cursorPos);
+      setInput(next);
+      setCursor(clampCursor(cursorPos - 1, next));
+      return;
+    }
+
+    if (key.delete) {
+      const currentInput = inputRef.current;
+      const cursorPos = cursorRef.current;
+      if (cursorPos >= currentInput.length) {
+        return;
+      }
+      const next = currentInput.slice(0, cursorPos) + currentInput.slice(cursorPos + 1);
+      setInput(next);
+      setCursor(clampCursor(cursorPos, next));
       return;
     }
 
     if (!key.ctrl && !key.meta && char) {
-      setInput((prev) => prev + char);
+      const currentInput = inputRef.current;
+      const cursorPos = cursorRef.current;
+      const next = currentInput.slice(0, cursorPos) + char + currentInput.slice(cursorPos);
+      setInput(next);
+      setCursor(clampCursor(cursorPos + char.length, next));
     }
   });
 
   async function runTask(task: string) {
+    const runId = activeRunIdRef.current + 1;
+    activeRunIdRef.current = runId;
     dispatch({ type: "task_start", task });
     setInput("");
+    setCursor(0);
 
     const initialMessages: Message[] = [{ role: "user", content: task }];
 
@@ -446,6 +609,9 @@ export function ConsoleApp({ graph, permissionController }: Props) {
       const result = await graph.run({
         messages: initialMessages,
         onEvent: (event: AgentEvent) => {
+          if (runId !== activeRunIdRef.current) {
+            return;
+          }
           const actions = mapAgentEventToUiActions(event);
           for (const uiAction of actions) {
             dispatch(uiAction);
@@ -453,8 +619,15 @@ export function ConsoleApp({ graph, permissionController }: Props) {
         }
       });
 
+      if (runId !== activeRunIdRef.current) {
+        return;
+      }
+
       dispatch({ type: "task_success", stepCount: result.steps.length });
     } catch (error) {
+      if (runId !== activeRunIdRef.current) {
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       dispatch({ type: "task_failure", message });
     }
@@ -508,7 +681,9 @@ export function ConsoleApp({ graph, permissionController }: Props) {
 
       <Box marginTop={1} borderStyle="round" borderColor={BRAND_COLOR} paddingX={1}>
         <Text color={BRAND_COLOR}>{uiState.busy ? "…" : ">"}</Text>
-        <Text> {input}</Text>
+        <Text> {input.slice(0, cursor)}</Text>
+        <Text color={BRAND_COLOR}>｜</Text>
+        <Text>{input.slice(cursor)}</Text>
       </Box>
     </Box>
   );

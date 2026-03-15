@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773277252005,
+  "generatedAt": 1773539429083,
   "entries": [
     {
       "path": ".env",
@@ -129,7 +129,7 @@
         "../services/recoveryEngine.js"
       ],
       "summary": "agentGraph.ts exports/defines AgentStateAnnotation, RunOptions, CodingAgentGraph....",
-      "mtimeMs": 1773070161111
+      "mtimeMs": 1773414135029
     },
     {
       "path": "src/agent/reactLoop.ts",
@@ -678,9 +678,9 @@
         "UiState",
         "PermissionPromptState",
         "SEPARATOR",
-        "nextLogId",
-        "summarizeObservation",
-        "lines"
+        "LOADING_MESSAGES",
+        "EXIT_ARM_WINDOW_MS",
+        "nextLogId"
       ],
       "imports": [
         "react",
@@ -691,7 +691,7 @@
         "../core/permission.js"
       ],
       "summary": "consoleApp.tsx exports/defines Props, LogEntry, BRAND_COLOR....",
-      "mtimeMs": 1773275629706
+      "mtimeMs": 1773451987060
     },
     {
       "path": "tsconfig.json",
@@ -707,7 +707,7 @@
       "symbols": [],
       "imports": [],
       "summary": "index.json source file.",
-      "mtimeMs": 1773277207094
+      "mtimeMs": 1773539404669
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -757,7 +757,7 @@
         "../fixtures/runtime.js"
       ],
       "summary": "agentGraphVerify.test.ts exports/defines AlwaysFinalModel, context, graph....",
-      "mtimeMs": 1773071937765
+      "mtimeMs": 1773414135030
     },
     {
       "path": "tests/integration/configLoader.test.ts",
