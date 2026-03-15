@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773539429083,
+  "generatedAt": 1773582217851,
   "entries": [
     {
       "path": ".env",
@@ -670,28 +670,28 @@
       "lang": "tsx",
       "symbols": [
         "Props",
-        "LogEntry",
-        "BRAND_COLOR",
-        "BANNER_LINES",
-        "formatLogPrefix",
-        "formatLogColor",
-        "UiState",
         "PermissionPromptState",
-        "SEPARATOR",
-        "LOADING_MESSAGES",
         "EXIT_ARM_WINDOW_MS",
-        "nextLogId"
+        "resolvePermissionChoice",
+        "normalized",
+        "ConsoleApp",
+        "exitArmedAtRef",
+        "activeRunIdRef",
+        "clearExitArm",
+        "armExit",
+        "now",
+        "tryExit"
       ],
       "imports": [
         "react",
         "ink",
-        "../agent/reactLoop.js",
         "../agent/agentGraph.js",
         "../core/messageTypes.js",
-        "../core/permission.js"
+        "../core/permission.js",
+        "./useConsoleInput.js"
       ],
-      "summary": "consoleApp.tsx exports/defines Props, LogEntry, BRAND_COLOR....",
-      "mtimeMs": 1773451987060
+      "summary": "consoleApp.tsx exports/defines Props, PermissionPromptState, EXIT_ARM_WINDOW_MS....",
+      "mtimeMs": 1773567614565
     },
     {
       "path": "tsconfig.json",
@@ -707,7 +707,7 @@
       "symbols": [],
       "imports": [],
       "summary": "index.json source file.",
-      "mtimeMs": 1773539404669
+      "mtimeMs": 1773573755279
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -910,6 +910,121 @@
       "imports": [],
       "summary": "permission.ts exports/defines PermissionDecision, PermissionPromptChoice, PermissionRequest....",
       "mtimeMs": 1773275566583
+    },
+    {
+      "path": "src/ui/consoleComponents.tsx",
+      "lang": "tsx",
+      "symbols": [
+        "BRAND_COLOR",
+        "BANNER_LINES",
+        "formatLogPrefix",
+        "formatLogColor",
+        "makeThinkingText",
+        "makeLoadingText",
+        "renderLogEntry",
+        "lines",
+        "suffix",
+        "displayedText",
+        "loadingText",
+        "ConsoleHeader"
+      ],
+      "imports": [
+        "react",
+        "ink",
+        "../core/permission.js",
+        "./consoleState.js"
+      ],
+      "summary": "consoleComponents.tsx exports/defines BRAND_COLOR, BANNER_LINES, formatLogPrefix....",
+      "mtimeMs": 1773541238089
+    },
+    {
+      "path": "src/ui/consoleState.ts",
+      "lang": "ts",
+      "symbols": [
+        "LogKind",
+        "LogEntry",
+        "UiState",
+        "UiAction",
+        "LOADING_MESSAGES",
+        "SEPARATOR",
+        "nextLogId",
+        "summarizeObservation",
+        "lines",
+        "summary",
+        "hasThinkingPlaceholder",
+        "clearEphemeralPlaceholders"
+      ],
+      "imports": [
+        "../agent/reactLoop.js"
+      ],
+      "summary": "consoleState.ts exports/defines LogKind, LogEntry, UiState....",
+      "mtimeMs": 1773541178227
+    },
+    {
+      "path": "src/ui/useConsoleInput.ts",
+      "lang": "ts",
+      "symbols": [
+        "InputKey",
+        "ConsoleInputState",
+        "HOME_SEQUENCES",
+        "END_SEQUENCES",
+        "DELETE_SEQUENCES",
+        "clampCursor",
+        "isCtrlA",
+        "isCtrlE",
+        "isCtrlC",
+        "isHome",
+        "isEnd",
+        "isEscapedInput"
+      ],
+      "imports": [
+        "react"
+      ],
+      "summary": "useConsoleInput.ts exports/defines InputKey, ConsoleInputState, HOME_SEQUENCES....",
+      "mtimeMs": 1773582012201
+    },
+    {
+      "path": "tests/unit/consoleInput.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "key",
+        "next",
+        "atStart",
+        "atEnd",
+        "backspaced",
+        "deleted",
+        "macBackspace",
+        "toStart",
+        "toEnd"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/ui/useConsoleInput.js"
+      ],
+      "summary": "consoleInput.test.ts exports/defines key, next, atStart....",
+      "mtimeMs": 1773582030116
+    },
+    {
+      "path": "tests/unit/consoleState.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "state",
+        "withObservation"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/ui/consoleState.js"
+      ],
+      "summary": "consoleState.test.ts exports/defines state, withObservation.",
+      "mtimeMs": 1773541376917
+    },
+    {
+      "path": ".claude/settings.local.json",
+      "lang": "json",
+      "symbols": [],
+      "imports": [],
+      "summary": "settings.local.json source file.",
+      "mtimeMs": 1773581924004
     }
   ]
 }
