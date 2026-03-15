@@ -171,10 +171,20 @@ export class RecoveryEngine {
           note: "Retrying todo with normalized operation/items schema."
         };
       }
+      const sanitized = sanitizeInput(action.input);
+      // If sanitizeInput made no changes, recovery cannot help
+      if (sanitized === action.input || JSON.stringify(sanitized) === JSON.stringify(action.input)) {
+        return {
+          type,
+          signature: this.createSignature(action, errorText),
+          action: null,
+          note: "Cannot auto-recover: input lacks required fields or has unfixable schema issues."
+        };
+      }
       return {
         type,
         signature: this.createSignature(action, errorText),
-        action: { name: action.name, input: sanitizeInput(action.input) },
+        action: { name: action.name, input: sanitized },
         note: "Retrying with sanitized schema-compatible fields."
       };
     }

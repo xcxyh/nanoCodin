@@ -131,4 +131,19 @@ describe("RecoveryEngine", () => {
 
     expect(disabled.shouldAttempt(0, [], sig)).toBe(false);
   });
+
+  it("does not retry when sanitizeInput cannot fix the input", () => {
+    // When view tool receives empty object {}, sanitizeInput cannot add missing required fields
+    const attempt = engine.suggest(
+      {
+        name: "view",
+        input: {}
+      },
+      "Invalid input for tool view: Required at \"path\""
+    );
+
+    expect(attempt.type).toBe("input_schema");
+    expect(attempt.action).toBeNull();
+    expect(attempt.note).toContain("Cannot auto-recover");
+  });
 });
