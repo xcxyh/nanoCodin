@@ -48,4 +48,16 @@ describe("configLoader parser helpers", () => {
     expect(config.agent.compression.tokenThresholdRatio).toBe(1);
     expect(config.agent.compression.retainRecentRatio).toBe(0.2);
   });
+
+  it("applies and clamps phase limits", () => {
+    const config = cloneConfig();
+
+    applyValue(config, "agent.phase_limits.discover", 12);
+    applyValue(config, "agent.phase_limits.plan", 0);
+    applyValue(config, "agent.phase_limits.execute_verify", 30.9);
+
+    expect(config.agent.phaseLimits.discover).toBe(12);
+    expect(config.agent.phaseLimits.plan).toBe(1);
+    expect(config.agent.phaseLimits.executeVerify).toBe(30);
+  });
 });

@@ -63,12 +63,12 @@ export interface ResolvedRuntimeConfigResult {
 
 export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
   agent: {
-    maxSteps: 12,
-    recursionLimit: 32,
+    maxSteps: 50,
+    recursionLimit: 96,
     phaseLimits: {
-      discover: 5,
-      plan: 2,
-      executeVerify: 10
+      discover: 32,
+      plan: 16,
+      executeVerify: 100
     },
     verifyRequiredKeywords: ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"],
     compression: {
