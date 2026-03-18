@@ -46,6 +46,36 @@ export interface WorkingMemory {
   nextAction: string;
 }
 
+export interface SessionMemory {
+  goal: string;
+  decisions: string[];
+  touchedFiles: string[];
+  pendingVerification: string[];
+  failureNotes: string[];
+  nextAction: string;
+}
+
+export interface ContextSources {
+  projectRules: string[];
+  projectContext: string | null;
+  persistentMemory: string | null;
+}
+
+export interface SubtaskResult {
+  id: string;
+  task: string;
+  summary: string;
+  evidence: string[];
+  touchedFiles: string[];
+  nextActionSuggestion: string;
+}
+
+export interface TaskBundle {
+  primaryTask: string | null;
+  subtasks: string[];
+  results: SubtaskResult[];
+}
+
 export interface TodoItem {
   id: string;
   content: string;
@@ -54,6 +84,13 @@ export interface TodoItem {
 
 export interface TodoState {
   items: TodoItem[];
+  verificationPlan: string[];
+  taskBundle: TaskBundle;
+}
+
+export interface RunSubtaskInput {
+  task: string;
+  maxSteps?: number;
 }
 
 export interface ToolContext {
@@ -62,8 +99,11 @@ export interface ToolContext {
   runtimeConfig: ResolvedRuntimeConfig;
   repoIndex: RepoIndexProvider;
   commandLogs: CommandExecutionLog[];
-  workingMemory: WorkingMemory | null;
+  sessionMemory: SessionMemory | null;
+  contextSources: ContextSources;
   permission?: PermissionController;
+  runSubtask?: (input: RunSubtaskInput) => Promise<SubtaskResult>;
+  delegationDepth?: number;
 }
 
 export interface ToolResult {

@@ -54,6 +54,8 @@ export interface ResolvedRuntimeConfig {
 export interface RuntimeConfigSources {
   configTomlPath: string;
   agentsPath: string;
+  contextPath: string;
+  memoryPath: string;
 }
 
 export interface ResolvedRuntimeConfigResult {

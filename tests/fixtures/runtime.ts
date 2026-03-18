@@ -15,11 +15,21 @@ export function createRepoIndexStub(): RepoIndexProvider {
 export function createToolContext(overrides?: Partial<ToolContext>): ToolContext {
   const base: ToolContext = {
     cwd: process.cwd(),
-    todos: { items: [] },
+    todos: {
+      items: [],
+      verificationPlan: [],
+      taskBundle: { primaryTask: null, subtasks: [], results: [] }
+    },
     runtimeConfig: cloneConfig(),
     repoIndex: createRepoIndexStub(),
     commandLogs: [],
-    workingMemory: null
+    sessionMemory: null,
+    contextSources: {
+      projectRules: [],
+      projectContext: null,
+      persistentMemory: null
+    },
+    delegationDepth: 0
   };
   return { ...base, ...overrides };
 }

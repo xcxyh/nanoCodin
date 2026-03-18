@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAgentResponse } from "../../src/agent/reactLoop.js";
+import { buildAgentMessagesWithContext, parseAgentResponse } from "../../src/agent/reactLoop.js";
 
 describe("parseAgentResponse", () => {
   it("parses standard Thought/Action/Action Input", () => {
@@ -44,5 +44,33 @@ describe("parseAgentResponse", () => {
 
     expect(parsed.action).toBe("final");
     expect(parsed.actionInput).toEqual({ answer: "not-json-answer" });
+  });
+
+  it("builds layered prompt context", async () => {
+    const messages = await buildAgentMessagesWithContext(
+      [{ role: "user", content: "Inspect the project." }],
+      [],
+      "- view: read files",
+      "discover",
+      {
+        goal: "Inspect the project.",
+        decisions: ["Use repo index first"],
+        touchedFiles: ["src/index.ts"],
+        pendingVerification: [],
+        failureNotes: [],
+        nextAction: "Read the entrypoint"
+      },
+      {
+        projectRules: ["Keep diffs small"],
+        projectContext: "Use npm run typecheck for TS checks.",
+        persistentMemory: "Avoid broad scans."
+      }
+    );
+
+    expect(messages[0]?.content).toContain("Project rules:");
+    expect(messages[0]?.content).toContain("Keep diffs small");
+    expect(messages[0]?.content).toContain("Persistent memory:");
+    expect(messages[1]?.content).toContain("Session memory summary:");
+    expect(messages[1]?.content).toContain("&quot;nextAction&quot;: &quot;Read the entrypoint&quot;");
   });
 });

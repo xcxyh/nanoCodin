@@ -5,8 +5,11 @@ import { strReplaceTool } from "./edit/str_replace.js";
 import { viewTool } from "./edit/view.js";
 import { grepTool } from "./fs/grep.js";
 import { lsTool } from "./fs/ls.js";
+import { readContextTool } from "./fs/read_context.js";
 import { repoIndexQueryTool } from "./fs/repo_index_query.js";
 import { treeTool } from "./fs/tree.js";
+import { delegateTool } from "./planning/delegate.js";
+import { summarizeChangesTool } from "./planning/summarize_changes.js";
 import { todoTool } from "./planning/todo.js";
 import { bashTool } from "./shell/bash.js";
 import { decidePolicy } from "./shell/bash.js";
@@ -104,11 +107,14 @@ export function createDefaultToolRegistry(): ToolRegistry {
     treeTool,
     grepTool,
     repoIndexQueryTool,
+    readContextTool,
     viewTool,
     createTool,
     strReplaceTool,
     insertTool,
     bashTool,
-    todoTool
+    todoTool,
+    delegateTool,
+    summarizeChangesTool
   ]);
 }

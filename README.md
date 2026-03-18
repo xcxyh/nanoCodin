@@ -18,10 +18,12 @@ It uses a ReAct loop (Thought -> Action -> Observation), LangGraph orchestration
 - ReAct single-agent loop built on LangGraph
 - Pluggable tool registry (`fs`, `edit`, `shell`, `planning`)
 - Repo index cache with `repo_index_query` for faster repo understanding
+- Layered prompt context from `AGENTS.md`, `.nanocodin/context.md`, and `.nanocodin/memory.md`
 - Sandbox policy (`allow|ask|deny`) for shell tool execution
 - Phase-aware loop (`discover -> plan -> execute -> verify -> finalize`)
 - Single-step error recovery loop for common failures
-- Token-threshold context compression with structured working memory
+- Token-threshold context compression with structured session memory
+- Lightweight delegated research subtasks via `delegate`
 - Provider routing for OpenAI-compatible and Anthropic-compatible APIs
 - Custom provider base URLs via environment variables
 - Ink-powered terminal UI with step-by-step agent output
@@ -183,8 +185,8 @@ Supported files in working directory:
 - `AGENTS.md` (behavior constraints and collaboration preferences)
 - `.nanocodin/config.toml` (runtime controls for agent/sandbox/index/recovery/compression)
 - `.nanocodin/index.json` (auto-generated repo index cache)
-- `.nanocodin/memory.md` (optional)
-- `.nanocodin/context.md` (optional)
+- `.nanocodin/memory.md` (optional persistent project memory; read by `read_context`)
+- `.nanocodin/context.md` (optional project context; read by `read_context`)
 
 Precedence:
 
@@ -254,6 +256,7 @@ Example prompts:
 - `Create an Express hello-world server in ./examples/server.ts`
 - `Find where tool parsing happens and explain the flow`
 - `Replace all TODO comments in src with FIXME comments`
+- `Inspect the repo structure, read project context, then propose a 3-step plan with verification`
 
 ## Project Structure
 

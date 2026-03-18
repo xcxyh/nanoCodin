@@ -1,29 +1,16 @@
 import type { AgentStep, Message } from "../core/messageTypes.js";
 import type { ContextCompressionConfig } from "../core/runtimeConfig.js";
-import type { WorkingMemory } from "../core/toolTypes.js";
+import type { SessionMemory } from "../core/toolTypes.js";
+import { buildSessionMemory } from "./sessionMemory.js";
 
 interface CompressionResult {
   stepsForPrompt: AgentStep[];
-  workingMemory: WorkingMemory | null;
+  sessionMemory: SessionMemory | null;
   compressed: boolean;
 }
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
-}
-
-function extractTouchedFiles(steps: AgentStep[]): string[] {
-  const files = new Set<string>();
-  for (const step of steps) {
-    const input = step.action?.input;
-    if (input && typeof input === "object" && input !== null && "path" in input) {
-      const pathValue = (input as { path?: unknown }).path;
-      if (typeof pathValue === "string") {
-        files.add(pathValue);
-      }
-    }
-  }
-  return [...files].slice(0, 20);
 }
 
 function compressCommandObservation(observation: string): string {
@@ -37,34 +24,12 @@ function compressCommandObservation(observation: string): string {
   return [...head, "...(compressed)...", ...errorLines, "...(tail)...", ...tail].join("\n");
 }
 
-function buildWorkingMemory(messages: Message[], oldSteps: AgentStep[], recentSteps: AgentStep[]): WorkingMemory {
-  const goal = messages[messages.length - 1]?.content ?? "Complete the current coding task.";
-  const touchedFiles = extractTouchedFiles(oldSteps);
-  const decisions = oldSteps
-    .map((step) => step.thought.trim())
-    .filter(Boolean)
-    .slice(0, 8);
-  const openIssues = oldSteps
-    .map((step) => step.observation ?? "")
-    .filter((obs) => /error/i.test(obs))
-    .slice(0, 8);
-  const nextAction = recentSteps[0]?.thought || "Continue with the highest-priority open issue.";
-
-  return {
-    goal,
-    decisions,
-    touchedFiles,
-    openIssues,
-    nextAction: nextAction || "Continue with the highest-priority open issue."
-  };
-}
-
 export class CompressionManager {
   constructor(private readonly config: ContextCompressionConfig) {}
 
-  maybeCompress(messages: Message[], steps: AgentStep[], previousMemory: WorkingMemory | null): CompressionResult {
+  maybeCompress(messages: Message[], steps: AgentStep[], previousMemory: SessionMemory | null): CompressionResult {
     if (!this.config.enabled || steps.length < 4) {
-      return { stepsForPrompt: steps, workingMemory: previousMemory, compressed: false };
+      return { stepsForPrompt: steps, sessionMemory: previousMemory, compressed: false };
     }
 
     const textBlob = [
@@ -75,7 +40,7 @@ export class CompressionManager {
     const threshold = Math.floor(this.config.contextTokenBudget * this.config.tokenThresholdRatio);
 
     if (estimated <= threshold) {
-      return { stepsForPrompt: steps, workingMemory: previousMemory, compressed: false };
+      return { stepsForPrompt: steps, sessionMemory: previousMemory, compressed: false };
     }
 
     const retainCount = Math.max(2, Math.floor(steps.length * this.config.retainRecentRatio));
@@ -84,13 +49,12 @@ export class CompressionManager {
       ...step,
       observation: step.observation ? compressCommandObservation(step.observation) : step.observation
     }));
-    const workingMemory = buildWorkingMemory(messages, oldSteps, recentSteps);
+    const sessionMemory = buildSessionMemory(messages, oldSteps, recentSteps);
 
-    if (!workingMemory.nextAction) {
-      return { stepsForPrompt: steps, workingMemory: previousMemory, compressed: false };
+    if (!sessionMemory.nextAction) {
+      return { stepsForPrompt: steps, sessionMemory: previousMemory, compressed: false };
     }
 
-    return { stepsForPrompt: recentSteps, workingMemory, compressed: true };
+    return { stepsForPrompt: recentSteps, sessionMemory, compressed: true };
   }
 }
-

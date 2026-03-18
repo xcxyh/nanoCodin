@@ -10,6 +10,7 @@ import type { ToolContext } from "./core/toolTypes.js";
 import { createDefaultToolRegistry } from "./tools/registry.js";
 import { ConsoleApp } from "./ui/consoleApp.js";
 import { loadRuntimeConfig } from "./services/configLoader.js";
+import { loadContextSources } from "./services/contextLoader.js";
 import { RepoIndexer } from "./services/repoIndexer.js";
 import { PermissionController } from "./core/permission.js";
 
@@ -54,6 +55,7 @@ export function main() {
   Object.assign(process.env, buildRuntimeEnv(path.resolve(process.cwd(), ".env")));
 
   const runtime = loadRuntimeConfig(process.cwd());
+  const context = loadContextSources(process.cwd());
   const model = createModelProviderFromEnv();
   const repoIndexer = new RepoIndexer(process.cwd(), runtime.config.repoIndex);
   const tools = createDefaultToolRegistry();
@@ -63,11 +65,16 @@ export function main() {
 
   const toolContext: ToolContext = {
     cwd: process.cwd(),
-    todos: { items: [] },
+    todos: {
+      items: [],
+      verificationPlan: [],
+      taskBundle: { primaryTask: null, subtasks: [], results: [] }
+    },
     runtimeConfig: runtime.config,
     repoIndex: repoIndexer,
     commandLogs: [],
-    workingMemory: null,
+    sessionMemory: null,
+    contextSources: context.sources,
     permission: permissionController
   };
 

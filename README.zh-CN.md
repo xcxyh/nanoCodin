@@ -18,10 +18,12 @@ Nano Codin 是一个基于 TypeScript 的 Coding Agent CLI，采用简洁且面�
 - 基于 LangGraph 的 ReAct 单代理循环
 - 可插拔工具注册表（`fs`、`edit`、`shell`、`planning`）
 - 通过 `repo_index_query` 仓库索引缓存提升仓库理解速度
+- 从 `AGENTS.md`、`.nanocodin/context.md`、`.nanocodin/memory.md` 分层注入提示词上下文
 - 为 shell 工具执行提供沙箱策略（`allow|ask|deny`）
 - 阶段感知循环（`discover -> plan -> execute -> verify -> finalize`）
 - 面向常见失败场景的单步错误恢复
-- 基于 Token 阈值的上下文压缩与结构化工作记忆
+- 基于 Token 阈值的上下文压缩与结构化 session memory
+- 通过 `delegate` 支持轻量级委托式研究子任务
 - 支持 OpenAI 兼容与 Anthropic 兼容 API 的 Provider 路由
 - 支持通过环境变量自定义 Provider Base URL
 - 基于 Ink 的终端 UI，逐步展示 Agent 输出
@@ -183,8 +185,8 @@ AGENT_RECURSION_LIMIT=32
 - `AGENTS.md`（行为约束与协作偏好）
 - `.nanocodin/config.toml`（agent/sandbox/index/recovery/compression 运行时控制）
 - `.nanocodin/index.json`（自动生成的仓库索引缓存）
-- `.nanocodin/memory.md`（可选）
-- `.nanocodin/context.md`（可选）
+- `.nanocodin/memory.md`（可选，持久项目记忆；可由 `read_context` 读取）
+- `.nanocodin/context.md`（可选，项目背景上下文；可由 `read_context` 读取）
 
 优先级：
 
@@ -254,6 +256,7 @@ export LANGSMITH_PROJECT=nano-codin
 - `Create an Express hello-world server in ./examples/server.ts`
 - `Find where tool parsing happens and explain the flow`
 - `Replace all TODO comments in src with FIXME comments`
+- `Inspect the repo structure, read project context, then propose a 3-step plan with verification`
 
 ## 项目结构
 

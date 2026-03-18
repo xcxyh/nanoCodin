@@ -4,10 +4,12 @@ import type { AgentStep, Message, ToolCall } from "../core/messageTypes.js";
 import type { ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { buildAgentMessagesWithContext, parseAgentResponse, type AgentEvent, type AgentPhase } from "./reactLoop.js";
-import type { ToolRegistry } from "../tools/registry.js";
+import { ToolRegistry } from "../tools/registry.js";
 import { createLangSmithRunnableConfig } from "../observability/langsmith.js";
 import { CompressionManager } from "../services/compressionManager.js";
+import { buildFinalSummary, classifyVerificationResult, isVerificationAction as isVerificationToolAction } from "../services/executionSummary.js";
 import { RecoveryEngine } from "../services/recoveryEngine.js";
+import type { RunSubtaskInput, SubtaskResult } from "../core/toolTypes.js";
 
 const AgentStateAnnotation = Annotation.Root({
   messages: Annotation<Message[]>({
@@ -57,6 +59,10 @@ const AgentStateAnnotation = Annotation.Root({
   recoveryHistory: Annotation<string[]>({
     reducer: (_, right) => right,
     default: () => []
+  }),
+  latestVerification: Annotation<string | null>({
+    reducer: (_, right) => right,
+    default: () => null
   })
 });
 
@@ -74,6 +80,7 @@ export class CodingAgentGraph {
   private readonly recursionLimit: number;
   private readonly compressionManager: CompressionManager;
   private readonly recoveryEngine: RecoveryEngine;
+  private readonly readonlyTools: ToolRegistry;
 
   constructor(
     private readonly model: ModelProvider,
@@ -86,6 +93,10 @@ export class CodingAgentGraph {
     this.recursionLimit = Math.max(recursionLimit ?? (maxSteps * 2 + 8), maxSteps + 2);
     this.compressionManager = new CompressionManager(this.toolContext.runtimeConfig.agent.compression);
     this.recoveryEngine = new RecoveryEngine(this.toolContext.runtimeConfig.recovery);
+    this.readonlyTools = new (this.tools.constructor as typeof ToolRegistry)(
+      this.tools.list().filter((tool) => this.isReadOnlyTool(tool.name))
+    );
+    this.toolContext.runSubtask = this.runSubtask.bind(this);
 
     const graphBuilder = new StateGraph(AgentStateAnnotation)
       .addNode("agent", this.agentNode.bind(this))
@@ -116,7 +127,8 @@ export class CodingAgentGraph {
       hasVerified: false,
       stepRecoveryCount: 0,
       recoverySignatures: [],
-      recoveryHistory: []
+      recoveryHistory: [],
+      latestVerification: null
     };
 
     const runnableConfig = createLangSmithRunnableConfig("coding-agent-run", {
@@ -156,10 +168,10 @@ export class CodingAgentGraph {
       const compressed = this.compressionManager.maybeCompress(
         state.messages,
         state.intermediate_steps,
-        this.toolContext.workingMemory
+        this.toolContext.sessionMemory
       );
-      if (compressed.compressed && compressed.workingMemory) {
-        this.toolContext.workingMemory = compressed.workingMemory;
+      if (compressed.compressed && compressed.sessionMemory) {
+        this.toolContext.sessionMemory = compressed.sessionMemory;
       }
 
       const messages = await buildAgentMessagesWithContext(
@@ -167,8 +179,8 @@ export class CodingAgentGraph {
         compressed.stepsForPrompt,
         this.tools.formatToolsForPrompt(),
         state.phase,
-        this.toolContext.workingMemory ? JSON.stringify(this.toolContext.workingMemory, null, 2) : null,
-        this.toolContext.runtimeConfig.agentsGuidelines
+        this.toolContext.sessionMemory,
+        this.toolContext.contextSources
       );
       const response = await this.model.generate(messages);
       responseText = response.text;
@@ -207,16 +219,23 @@ export class CodingAgentGraph {
       const answer = typeof parsed.actionInput.answer === "string"
         ? parsed.actionInput.answer
         : responseText;
+      const summary = buildFinalSummary({
+        sessionMemory: this.toolContext.sessionMemory,
+        todos: this.toolContext.todos,
+        subtasks: this.toolContext.todos.taskBundle.results,
+        latestVerification: state.latestVerification
+      });
+      const finalAnswer = `${answer}\n\nExecution summary:\n${summary}`;
 
-      this.onEvent?.({ type: "final", answer });
+      this.onEvent?.({ type: "final", answer: finalAnswer });
       return {
-        finalAnswer: answer,
+        finalAnswer,
         pending_action: null,
         stepCount: state.stepCount + 1,
         phase: "finalize" as AgentPhase,
         phaseVisits: this.bumpPhaseVisit(state.phaseVisits, "finalize"),
         intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, phase: "finalize" }],
-        messages: [{ role: "assistant", content: answer }]
+        messages: [{ role: "assistant", content: finalAnswer }]
       };
     }
 
@@ -262,7 +281,7 @@ export class CodingAgentGraph {
 
     let result;
     try {
-      if (!this.canExecuteAction(state.pending_action)) {
+      if (!this.canExecuteAction(state.phase, state.pending_action)) {
         const blockedObservation = "ERROR: Plan gate requires todo.create_todo_list with 1-3 items before execute phase mutating actions.";
         this.onEvent?.({ type: "observation", observation: blockedObservation });
         return {
@@ -326,6 +345,11 @@ export class CodingAgentGraph {
     const hasVerified = this.isVerificationAction(state.pending_action) && result.ok
       ? true
       : state.hasVerified;
+    const latestVerification = this.isVerificationAction(state.pending_action)
+      ? `${classifyVerificationResult(observation)}: ${observation.split("\n")[0]}`
+      : state.latestVerification;
+
+    this.updateSessionMemoryFromAction(state.pending_action, observation);
 
     if (!result.ok) {
       const recovered = await this.tryRecovery(state, observation);
@@ -338,6 +362,7 @@ export class CodingAgentGraph {
       messages: [toolMessage],
       pending_action: null,
       hasVerified,
+      latestVerification,
       intermediate_steps: [...state.intermediate_steps.slice(0, -1), updatedStep]
     };
   }
@@ -364,7 +389,7 @@ export class CodingAgentGraph {
     if (actionName === "grep" || actionName === "view") {
       return "execute";
     }
-    if (actionName === "repo_index_query" || actionName === "tree" || actionName === "ls") {
+    if (actionName === "repo_index_query" || actionName === "tree" || actionName === "ls" || actionName === "read_context" || actionName === "delegate") {
       return (state.phaseVisits.discover ?? 0) === 0 ? "discover" : "execute";
     }
     if (this.isVerificationAction(action)) {
@@ -390,18 +415,14 @@ export class CodingAgentGraph {
   }
 
   private isVerificationAction(action: ToolCall): boolean {
-    if (action.name !== "bash") {
-      return false;
-    }
-    const input = action.input as { command?: unknown };
-    if (typeof input.command !== "string") {
-      return false;
-    }
-    return /\b(test|lint|typecheck|build)\b/i.test(input.command);
+    return isVerificationToolAction(action);
   }
 
-  private canExecuteAction(action: ToolCall): boolean {
-    if (action.name === "todo" || action.name === "repo_index_query" || action.name === "ls" || action.name === "tree" || action.name === "grep" || action.name === "view") {
+  private canExecuteAction(phase: AgentPhase, action: ToolCall): boolean {
+    if (phase === "discover" && !this.isReadOnlyTool(action.name)) {
+      return false;
+    }
+    if (action.name === "todo" || action.name === "repo_index_query" || action.name === "ls" || action.name === "tree" || action.name === "grep" || action.name === "view" || action.name === "read_context" || action.name === "delegate" || action.name === "summarize_changes") {
       return true;
     }
     const isMutating = action.name === "create" || action.name === "insert" || action.name === "str_replace";
@@ -409,7 +430,7 @@ export class CodingAgentGraph {
       return true;
     }
     const count = this.toolContext.todos.items.length;
-    return count > 0 && count <= 3;
+    return count > 0 && count <= 3 && this.toolContext.todos.verificationPlan.length > 0;
   }
 
   private bumpPhaseVisit(visits: Record<string, number>, phase: AgentPhase): Record<string, number> {
@@ -489,6 +510,85 @@ export class CodingAgentGraph {
       recoveryHistory: updatedHistory,
       recoverySignatures: [...state.recoverySignatures, attempt.signature],
       intermediate_steps: [...state.intermediate_steps.slice(0, -1), updatedStep]
+    };
+  }
+
+  private isReadOnlyTool(name: string): boolean {
+    return ["todo", "repo_index_query", "ls", "tree", "grep", "view", "read_context", "delegate", "summarize_changes"].includes(name);
+  }
+
+  private updateSessionMemoryFromAction(action: ToolCall, observation: string): void {
+    const current = this.toolContext.sessionMemory ?? {
+      goal: "Complete the current coding task.",
+      decisions: [],
+      touchedFiles: [],
+      pendingVerification: [],
+      failureNotes: [],
+      nextAction: "Continue with the highest-priority open issue."
+    };
+    const input = action.input as { path?: unknown };
+    if (typeof input.path === "string" && !current.touchedFiles.includes(input.path)) {
+      current.touchedFiles = [...current.touchedFiles, input.path].slice(0, 20);
+    }
+    if (action.name === "todo" && this.toolContext.todos.verificationPlan.length > 0) {
+      current.pendingVerification = [...this.toolContext.todos.verificationPlan];
+    }
+    if (/error|failed|exception/i.test(observation)) {
+      current.failureNotes = [...current.failureNotes, observation.split("\n")[0]].slice(0, 8);
+    }
+    current.nextAction = action.name === "summarize_changes"
+      ? "Return a concise final answer with verification and residual risks."
+      : "Continue based on the latest tool observation.";
+    this.toolContext.sessionMemory = current;
+  }
+
+  private async runSubtask(input: RunSubtaskInput): Promise<SubtaskResult> {
+    const subgraph = new CodingAgentGraph(
+      this.model,
+      this.readonlyTools,
+      {
+        ...this.toolContext,
+        todos: {
+          items: [],
+          verificationPlan: [],
+          taskBundle: { primaryTask: input.task, subtasks: [], results: [] }
+        },
+        commandLogs: [],
+        sessionMemory: null,
+        delegationDepth: (this.toolContext.delegationDepth ?? 0) + 1,
+        runSubtask: undefined
+      },
+      Math.min(input.maxSteps ?? 4, 8),
+      Math.max(8, Math.min(this.recursionLimit, 20))
+    );
+    const result = await subgraph.run({
+      messages: [{ role: "user", content: input.task }]
+    });
+    const evidence = result.steps
+      .map((step) => step.observation ?? "")
+      .filter(Boolean)
+      .slice(-3)
+      .map((entry) => entry.split("\n")[0]);
+    const touchedFiles = Array.from(new Set(
+      result.steps
+        .map((step) => {
+          const actionInput = step.action?.input;
+          if (actionInput && typeof actionInput === "object" && actionInput !== null && "path" in actionInput) {
+            const pathValue = (actionInput as { path?: unknown }).path;
+            return typeof pathValue === "string" ? pathValue : null;
+          }
+          return null;
+        })
+        .filter((value): value is string => Boolean(value))
+    ));
+
+    return {
+      id: `subtask-${Date.now().toString(36)}`,
+      task: input.task,
+      summary: result.finalAnswer.split("\n")[0] ?? "Subtask completed.",
+      evidence,
+      touchedFiles,
+      nextActionSuggestion: "Use the summarized evidence to continue the main task."
     };
   }
 }

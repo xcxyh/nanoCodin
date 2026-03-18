@@ -1,5 +1,5 @@
 import type { AgentStep, Message, ToolCall } from "../core/messageTypes.js";
-import type { ToolContext } from "../core/toolTypes.js";
+import type { ContextSources, SessionMemory, ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { renderTemplate } from "../prompts/templateEngine.js";
 import type { ToolRegistry } from "../tools/registry.js";
@@ -95,8 +95,46 @@ function formatTrajectory(steps: AgentStep[]): string {
     .join("\n\n");
 }
 
+function formatSourceText(value: string | null): string {
+  return value && value.trim().length > 0 ? value : "(none)";
+}
+
+function formatProjectRules(rules: string[]): string {
+  if (rules.length === 0) {
+    return "(none)";
+  }
+  return rules.map((rule) => `- ${rule}`).join("\n");
+}
+
+function formatSessionMemory(memory: SessionMemory | null): string {
+  if (!memory) {
+    return "(none)";
+  }
+  return JSON.stringify(memory, null, 2);
+}
+
+function buildToolHelp(phase: AgentPhase): string {
+  const lines = [
+    "Prefer repo_index_query, read_context, ls, tree, grep, and view for discovery.",
+    "Use todo to create a 1-3 item plan and set verificationPlan before edits.",
+    "Use delegate for bounded research subtasks when the answer can be summarized for the main task.",
+    "Use summarize_changes before final when edits or validation happened."
+  ];
+  if (phase === "verify") {
+    lines.unshift("In verify, run a validation command and capture the result before final.");
+  }
+  if (phase === "plan") {
+    lines.unshift("In plan, define both execution steps and how you will verify the result.");
+  }
+  return lines.map((line) => `- ${line}`).join("\n");
+}
+
 export async function buildAgentMessages(messages: Message[], steps: AgentStep[], toolsDescription: string): Promise<Message[]> {
-  return buildAgentMessagesWithContext(messages, steps, toolsDescription, "discover", null, []);
+  return buildAgentMessagesWithContext(messages, steps, toolsDescription, "discover", null, {
+    projectRules: [],
+    projectContext: null,
+    persistentMemory: null
+  });
 }
 
 export async function buildAgentMessagesWithContext(
@@ -104,18 +142,21 @@ export async function buildAgentMessagesWithContext(
   steps: AgentStep[],
   toolsDescription: string,
   phase: AgentPhase,
-  workingMemory: string | null,
-  agentsGuidelines: string[]
+  sessionMemory: SessionMemory | null,
+  contextSources: ContextSources
 ): Promise<Message[]> {
   const systemPrompt = await renderTemplate("system", {
     tools: toolsDescription,
-    agentsGuidelines
+    projectRules: formatProjectRules(contextSources.projectRules),
+    projectContext: formatSourceText(contextSources.projectContext),
+    persistentMemory: formatSourceText(contextSources.persistentMemory),
+    toolHelp: buildToolHelp(phase)
   });
   const reactPrompt = await renderTemplate("react", {
     conversation: formatConversation(messages),
     trajectory: formatTrajectory(steps),
     phase,
-    workingMemory: workingMemory ?? "(none)"
+    sessionMemory: formatSessionMemory(sessionMemory)
   });
 
   return [

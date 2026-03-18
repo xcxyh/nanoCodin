@@ -6,6 +6,7 @@ import {
   type ResolvedRuntimeConfigResult,
   type SandboxPolicyDecision
 } from "../core/runtimeConfig.js";
+import { loadContextSources } from "./contextLoader.js";
 
 interface CliOverrides {
   maxSteps?: number;
@@ -112,30 +113,6 @@ export function parseFlatToml(text: string): Record<string, unknown> {
   return out;
 }
 
-function parseAgentsGuidelines(filePath: string): string[] {
-  if (!existsSync(filePath)) {
-    return [];
-  }
-  const text = readFileSync(filePath, "utf8");
-  const guidelines: string[] = [];
-  let inCodeBlock = false;
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (line.startsWith("```")) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (inCodeBlock || !line || line.startsWith("#")) {
-      continue;
-    }
-    const normalized = line.replace(/^[-*]\s+/, "").trim();
-    if (normalized.length > 0) {
-      guidelines.push(normalized);
-    }
-  }
-  return guidelines.slice(0, 40);
-}
-
 export function applyValue(config: ResolvedRuntimeConfig, key: string, value: unknown): void {
   if (key === "agent.max_steps" && typeof value === "number") {
     config.agent.maxSteps = Math.max(1, Math.floor(value));
@@ -230,12 +207,12 @@ function loadCliOverrides(config: ResolvedRuntimeConfig): void {
 export function loadRuntimeConfig(cwd: string): ResolvedRuntimeConfigResult {
   const config = cloneDefaultConfig();
   const configTomlPath = path.join(cwd, ".nanocodin", "config.toml");
-  const agentsPath = path.join(cwd, "AGENTS.md");
+  const context = loadContextSources(cwd);
 
   loadEnvConfig(config);
   loadTomlConfig(configTomlPath, config);
   loadCliOverrides(config);
-  config.agentsGuidelines = parseAgentsGuidelines(agentsPath);
+  config.agentsGuidelines = context.sources.projectRules;
 
   if (config.agent.recursionLimit < config.agent.maxSteps + 2) {
     config.agent.recursionLimit = config.agent.maxSteps + 2;
@@ -245,7 +222,9 @@ export function loadRuntimeConfig(cwd: string): ResolvedRuntimeConfigResult {
     config,
     sources: {
       configTomlPath,
-      agentsPath
+      agentsPath: context.paths.agentsPath,
+      contextPath: context.paths.contextPath,
+      memoryPath: context.paths.memoryPath
     }
   };
 }

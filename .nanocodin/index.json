@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1773582217851,
+  "generatedAt": 1773848599779,
   "entries": [
     {
       "path": ".env",
@@ -65,7 +65,7 @@
       "symbols": [],
       "imports": [],
       "summary": "README.md source file.",
-      "mtimeMs": 1773073734539
+      "mtimeMs": 1773844518225
     },
     {
       "path": "package-lock.json",
@@ -126,10 +126,11 @@
         "../tools/registry.js",
         "../observability/langsmith.js",
         "../services/compressionManager.js",
+        "../services/executionSummary.js",
         "../services/recoveryEngine.js"
       ],
       "summary": "agentGraph.ts exports/defines AgentStateAnnotation, RunOptions, CodingAgentGraph....",
-      "mtimeMs": 1773414135029
+      "mtimeMs": 1773844429285
     },
     {
       "path": "src/agent/reactLoop.ts",
@@ -156,7 +157,7 @@
         "../tools/registry.js"
       ],
       "summary": "reactLoop.ts exports/defines ParsedAgentOutput, ReActRuntime, AgentPhase....",
-      "mtimeMs": 1773068436111
+      "mtimeMs": 1773844322792
     },
     {
       "path": "src/core/messageTypes.ts",
@@ -190,7 +191,7 @@
       ],
       "imports": [],
       "summary": "runtimeConfig.ts exports/defines SandboxPolicyDecision, PhaseLimits, ContextCompressionConfig....",
-      "mtimeMs": 1773070736130
+      "mtimeMs": 1773844285803
     },
     {
       "path": "src/core/toolTypes.ts",
@@ -202,11 +203,12 @@
         "RepoIndexProvider",
         "CommandExecutionLog",
         "WorkingMemory",
+        "SessionMemory",
+        "ContextSources",
+        "SubtaskResult",
+        "TaskBundle",
         "TodoItem",
-        "TodoState",
-        "ToolContext",
-        "ToolResult",
-        "Tool"
+        "TodoState"
       ],
       "imports": [
         "zod",
@@ -214,7 +216,7 @@
         "./permission.js"
       ],
       "summary": "toolTypes.ts exports/defines RepoIndexEntry, RepoIndexSnapshot, RepoIndexQuery....",
-      "mtimeMs": 1773275570611
+      "mtimeMs": 1773844275412
     },
     {
       "path": "src/index.ts",
@@ -230,8 +232,8 @@
         "value",
         "main",
         "runtime",
-        "model",
-        "repoIndexer"
+        "context",
+        "model"
       ],
       "imports": [
         "node:fs",
@@ -245,10 +247,10 @@
         "./tools/registry.js",
         "./ui/consoleApp.js",
         "./services/configLoader.js",
-        "./services/repoIndexer.js"
+        "./services/contextLoader.js"
       ],
       "summary": "index.ts exports/defines parsePositiveIntEnv, parsed, buildRuntimeEnv....",
-      "mtimeMs": 1773275594514
+      "mtimeMs": 1773844380484
     },
     {
       "path": "src/llm/modelRouter.ts",
@@ -323,24 +325,25 @@
       "symbols": [
         "CompressionResult",
         "estimateTokens",
-        "extractTouchedFiles",
-        "files",
-        "input",
-        "pathValue",
         "compressCommandObservation",
         "lines",
         "head",
         "tail",
         "errorLines",
-        "buildWorkingMemory"
+        "CompressionManager",
+        "textBlob",
+        "estimated",
+        "threshold",
+        "retainCount"
       ],
       "imports": [
         "../core/messageTypes.js",
         "../core/runtimeConfig.js",
-        "../core/toolTypes.js"
+        "../core/toolTypes.js",
+        "./sessionMemory.js"
       ],
-      "summary": "compressionManager.ts exports/defines CompressionResult, estimateTokens, extractTouchedFiles....",
-      "mtimeMs": 1773014349532
+      "summary": "compressionManager.ts exports/defines CompressionResult, estimateTokens, compressCommandObservation....",
+      "mtimeMs": 1773844312051
     },
     {
       "path": "src/services/configLoader.ts",
@@ -361,10 +364,11 @@
       ],
       "imports": [
         "node:fs",
-        "node:path"
+        "node:path",
+        "./contextLoader.js"
       ],
       "summary": "configLoader.ts exports/defines CliOverrides, parsePositiveInt, parsed....",
-      "mtimeMs": 1773071438996
+      "mtimeMs": 1773844293512
     },
     {
       "path": "src/services/recoveryEngine.ts",
@@ -389,7 +393,7 @@
         "../core/runtimeConfig.js"
       ],
       "summary": "recoveryEngine.ts exports/defines RecoveryErrorType, RecoveryAttempt, classifyError....",
-      "mtimeMs": 1773069864752
+      "mtimeMs": 1773582547014
     },
     {
       "path": "src/services/repoIndexer.ts",
@@ -594,6 +598,9 @@
       "symbols": [
         "schema",
         "renderTodos",
+        "renderVerificationPlan",
+        "renderSubtaskResults",
+        "renderTodoState",
         "todoTool",
         "inferredOperation",
         "items",
@@ -604,8 +611,8 @@
         "zod",
         "../../core/toolTypes.js"
       ],
-      "summary": "todo.ts exports/defines schema, renderTodos, todoTool....",
-      "mtimeMs": 1773070570238
+      "summary": "todo.ts exports/defines schema, renderTodos, renderVerificationPlan....",
+      "mtimeMs": 1773844370923
     },
     {
       "path": "src/tools/registry.ts",
@@ -631,13 +638,14 @@
         "./edit/view.js",
         "./fs/grep.js",
         "./fs/ls.js",
+        "./fs/read_context.js",
         "./fs/repo_index_query.js",
         "./fs/tree.js",
-        "./planning/todo.js",
-        "./shell/bash.js"
+        "./planning/delegate.js",
+        "./planning/summarize_changes.js"
       ],
       "summary": "registry.ts exports/defines requiresPermission, ToolRegistry, normalizedName....",
-      "mtimeMs": 1773276326847
+      "mtimeMs": 1773844375532
     },
     {
       "path": "src/tools/shell/bash.ts",
@@ -707,7 +715,7 @@
       "symbols": [],
       "imports": [],
       "summary": "index.json source file.",
-      "mtimeMs": 1773573755279
+      "mtimeMs": 1773582217852
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -723,7 +731,7 @@
       "symbols": [],
       "imports": [],
       "summary": "README.zh-CN.md source file.",
-      "mtimeMs": 1773073741292
+      "mtimeMs": 1773844534859
     },
     {
       "path": "tests/fixtures/runtime.ts",
@@ -738,13 +746,14 @@
         "../../src/core/toolTypes.js"
       ],
       "summary": "runtime.ts exports/defines cloneConfig, createRepoIndexStub, createToolContext.",
-      "mtimeMs": 1773071845340
+      "mtimeMs": 1773844385402
     },
     {
       "path": "tests/integration/agentGraphVerify.test.ts",
       "lang": "ts",
       "symbols": [
         "AlwaysFinalModel",
+        "AlwaysCreateModel",
         "context",
         "graph",
         "result"
@@ -756,8 +765,8 @@
         "../../src/llm/modelRouter.js",
         "../fixtures/runtime.js"
       ],
-      "summary": "agentGraphVerify.test.ts exports/defines AlwaysFinalModel, context, graph....",
-      "mtimeMs": 1773414135030
+      "summary": "agentGraphVerify.test.ts exports/defines AlwaysFinalModel, AlwaysCreateModel, context....",
+      "mtimeMs": 1773844484477
     },
     {
       "path": "tests/integration/configLoader.test.ts",
@@ -845,20 +854,21 @@
         "../../src/services/configLoader.js"
       ],
       "summary": "configLoaderParser.test.ts exports/defines cloneConfig, parsed, config.",
-      "mtimeMs": 1773071901408
+      "mtimeMs": 1773760281843
     },
     {
       "path": "tests/unit/reactLoop.test.ts",
       "lang": "ts",
       "symbols": [
-        "parsed"
+        "parsed",
+        "messages"
       ],
       "imports": [
         "vitest",
         "../../src/agent/reactLoop.js"
       ],
-      "summary": "reactLoop.test.ts exports/defines parsed.",
-      "mtimeMs": 1773071856348
+      "summary": "reactLoop.test.ts exports/defines parsed, messages.",
+      "mtimeMs": 1773844493175
     },
     {
       "path": "tests/unit/recoveryEngine.test.ts",
@@ -876,7 +886,7 @@
         "../../src/services/recoveryEngine.js"
       ],
       "summary": "recoveryEngine.test.ts exports/defines engine, attempt, sig....",
-      "mtimeMs": 1773072088867
+      "mtimeMs": 1773582558486
     },
     {
       "path": "vitest.config.ts",
@@ -1025,6 +1035,180 @@
       "imports": [],
       "summary": "settings.local.json source file.",
       "mtimeMs": 1773581924004
+    },
+    {
+      "path": "ARCHITECTURE_AND_DESIGN_REPORT.md",
+      "lang": "md",
+      "symbols": [],
+      "imports": [],
+      "summary": "ARCHITECTURE_AND_DESIGN_REPORT.md source file.",
+      "mtimeMs": 1773759890747
+    },
+    {
+      "path": "src/services/contextLoader.ts",
+      "lang": "ts",
+      "symbols": [
+        "ContextFilePaths",
+        "resolveContextFilePaths",
+        "parseAgentsGuidelines",
+        "text",
+        "line",
+        "normalized",
+        "readOptionalText",
+        "loadContextSources",
+        "paths"
+      ],
+      "imports": [
+        "node:fs",
+        "node:path",
+        "../core/toolTypes.js"
+      ],
+      "summary": "contextLoader.ts exports/defines ContextFilePaths, resolveContextFilePaths, parseAgentsGuidelines....",
+      "mtimeMs": 1773844283798
+    },
+    {
+      "path": "src/services/executionSummary.ts",
+      "lang": "ts",
+      "symbols": [
+        "isVerificationAction",
+        "input",
+        "classifyVerificationResult",
+        "buildFinalSummary",
+        "changedFiles",
+        "verification",
+        "risks",
+        "completedTodos",
+        "subtaskSummaries"
+      ],
+      "imports": [
+        "../core/messageTypes.js",
+        "../core/toolTypes.js"
+      ],
+      "summary": "executionSummary.ts exports/defines isVerificationAction, input, classifyVerificationResult....",
+      "mtimeMs": 1773844339389
+    },
+    {
+      "path": "src/services/sessionMemory.ts",
+      "lang": "ts",
+      "symbols": [
+        "extractTouchedFiles",
+        "files",
+        "input",
+        "pathValue",
+        "buildSessionMemory",
+        "goal",
+        "touchedFiles",
+        "decisions",
+        "pendingVerification",
+        "failureNotes",
+        "nextAction"
+      ],
+      "imports": [
+        "../core/messageTypes.js",
+        "../core/toolTypes.js"
+      ],
+      "summary": "sessionMemory.ts exports/defines extractTouchedFiles, files, input....",
+      "mtimeMs": 1773844300966
+    },
+    {
+      "path": "src/tools/fs/read_context.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "toLines",
+        "readContextTool",
+        "raw",
+        "lines",
+        "start",
+        "end",
+        "numbered"
+      ],
+      "imports": [
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "read_context.ts exports/defines schema, toLines, readContextTool....",
+      "mtimeMs": 1773844349618
+    },
+    {
+      "path": "src/tools/planning/delegate.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "delegateTool",
+        "result"
+      ],
+      "imports": [
+        "zod",
+        "../../core/toolTypes.js"
+      ],
+      "summary": "delegate.ts exports/defines schema, delegateTool, result.",
+      "mtimeMs": 1773844360753
+    },
+    {
+      "path": "src/tools/planning/summarize_changes.ts",
+      "lang": "ts",
+      "symbols": [
+        "schema",
+        "summarizeChangesTool",
+        "summary",
+        "commandTail",
+        "status"
+      ],
+      "imports": [
+        "zod",
+        "../../core/toolTypes.js",
+        "../../services/executionSummary.js"
+      ],
+      "summary": "summarize_changes.ts exports/defines schema, summarizeChangesTool, summary....",
+      "mtimeMs": 1773844354841
+    },
+    {
+      "path": "tests/unit/compressionManager.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "manager",
+        "result"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/services/compressionManager.js",
+        "../../src/core/messageTypes.js"
+      ],
+      "summary": "compressionManager.test.ts exports/defines manager, result.",
+      "mtimeMs": 1773844496995
+    },
+    {
+      "path": "tests/unit/contextLoader.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "cwd",
+        "loaded"
+      ],
+      "imports": [
+        "node:fs/promises",
+        "node:os",
+        "node:path",
+        "vitest",
+        "../../src/services/contextLoader.js"
+      ],
+      "summary": "contextLoader.test.ts exports/defines cwd, loaded.",
+      "mtimeMs": 1773844453562
+    },
+    {
+      "path": "tests/unit/delegateTool.test.ts",
+      "lang": "ts",
+      "symbols": [
+        "context",
+        "result"
+      ],
+      "imports": [
+        "vitest",
+        "../../src/tools/planning/delegate.js",
+        "../fixtures/runtime.js"
+      ],
+      "summary": "delegateTool.test.ts exports/defines context, result.",
+      "mtimeMs": 1773844473301
     }
   ]
 }
