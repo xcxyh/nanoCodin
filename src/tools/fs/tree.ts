@@ -44,6 +44,7 @@ async function walk(dir: string, depth: number, maxDepth: number, prefix: string
 export const treeTool: Tool<Input> = {
   name: "tree",
   description: "Display a recursive directory tree",
+  capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
     const target = path.resolve(context.cwd, input.path ?? ".");

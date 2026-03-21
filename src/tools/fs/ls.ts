@@ -12,6 +12,7 @@ type Input = z.infer<typeof schema>;
 export const lsTool: Tool<Input> = {
   name: "ls",
   description: "List files and directories in a path",
+  capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
     const target = path.resolve(context.cwd, input.path ?? ".");

@@ -11,6 +11,7 @@ type Input = z.infer<typeof schema>;
 export const delegateTool: Tool<Input> = {
   name: "delegate",
   description: "Run a bounded research subtask and return only a structured summary",
+  capabilities: ["read_only", "delegation"],
   schema,
   execute: async (input, context) => {
     if (!context.runSubtask) {
@@ -25,9 +26,10 @@ export const delegateTool: Tool<Input> = {
     context.todos.taskBundle.results.push(result);
 
     return {
-      ok: true,
+      ok: result.status === "success" || result.status === "no_conclusion",
       output: [
         `task=${result.task}`,
+        `status=${result.status}`,
         `summary=${result.summary}`,
         `evidence=${result.evidence.join(" | ") || "(none)"}`,
         `touched_files=${result.touchedFiles.join(", ") || "(none)"}`,

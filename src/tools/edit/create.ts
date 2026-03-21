@@ -14,6 +14,7 @@ type Input = z.infer<typeof schema>;
 export const createTool: Tool<Input> = {
   name: "create",
   description: "Create a new file. Fails if file already exists",
+  capabilities: ["mutating"],
   schema,
   execute: async (input, context) => {
     const target = path.resolve(context.cwd, input.path);

@@ -3,13 +3,21 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 import type { AgentStep, Message, ToolCall } from "../core/messageTypes.js";
 import type { ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
-import { buildAgentMessagesWithContext, parseAgentResponse, type AgentEvent, type AgentPhase } from "./reactLoop.js";
+import {
+  buildAgentExecutionSnapshot,
+  buildAgentMessagesWithContext,
+  formatExecutionStateForPrompt,
+  parseAgentResponse,
+  type AgentEvent,
+  type AgentPhase
+} from "./reactLoop.js";
 import { ToolRegistry } from "../tools/registry.js";
 import { createLangSmithRunnableConfig } from "../observability/langsmith.js";
 import { CompressionManager } from "../services/compressionManager.js";
 import { buildFinalSummary, classifyVerificationResult, isVerificationAction as isVerificationToolAction } from "../services/executionSummary.js";
 import { RecoveryEngine } from "../services/recoveryEngine.js";
 import type { RunSubtaskInput, SubtaskResult } from "../core/toolTypes.js";
+import { buildToolHelp, canExecuteAction, inferPhaseForAction, isDelegationTool, isMutatingTool, isReadOnlyTool, isSummaryTool, isVerificationTool } from "../services/agentPolicy.js";
 
 const AgentStateAnnotation = Annotation.Root({
   messages: Annotation<Message[]>({
@@ -115,6 +123,7 @@ export class CodingAgentGraph {
 
   async run(options: RunOptions): Promise<{ finalAnswer: string; steps: AgentStep[] }> {
     this.onEvent = options.onEvent;
+    await this.restoreCheckpointIfNeeded(options.messages);
     const input = {
       messages: options.messages,
       intermediate_steps: [],
@@ -180,7 +189,9 @@ export class CodingAgentGraph {
         this.tools.formatToolsForPrompt(),
         state.phase,
         this.toolContext.sessionMemory,
-        this.toolContext.contextSources
+        this.toolContext.contextSources,
+        formatExecutionStateForPrompt(this.toolContext.todos, state.latestVerification),
+        buildToolHelp(this.tools.list(), state.phase)
       );
       const response = await this.model.generate(messages);
       responseText = response.text;
@@ -226,6 +237,7 @@ export class CodingAgentGraph {
         latestVerification: state.latestVerification
       });
       const finalAnswer = `${answer}\n\nExecution summary:\n${summary}`;
+      await this.toolContext.checkpoint?.clear();
 
       this.onEvent?.({ type: "final", answer: finalAnswer });
       return {
@@ -281,8 +293,9 @@ export class CodingAgentGraph {
 
     let result;
     try {
-      if (!this.canExecuteAction(state.phase, state.pending_action)) {
-        const blockedObservation = "ERROR: Plan gate requires todo.create_todo_list with 1-3 items before execute phase mutating actions.";
+      const gate = this.canExecuteAction(state.phase, state.pending_action);
+      if (!gate.ok) {
+        const blockedObservation = `ERROR: ${gate.reason}`;
         this.onEvent?.({ type: "observation", observation: blockedObservation });
         return {
           messages: [{ role: "tool", name: state.pending_action.name, content: blockedObservation }],
@@ -349,7 +362,10 @@ export class CodingAgentGraph {
       ? `${classifyVerificationResult(observation)}: ${observation.split("\n")[0]}`
       : state.latestVerification;
 
+    this.updateVerificationState(state.pending_action, observation, result.ok);
     this.updateSessionMemoryFromAction(state.pending_action, observation);
+    await this.maybeSaveCheckpoint(state.messages, state.pending_action, latestVerification);
+    this.emitStateSnapshot(state.phase, latestVerification);
 
     if (!result.ok) {
       const recovered = await this.tryRecovery(state, observation);
@@ -377,8 +393,8 @@ export class CodingAgentGraph {
   }
 
   private inferPhase(state: AgentGraphState, action: ToolCall): AgentPhase {
-    const actionName = action.name.toLowerCase();
-    if (actionName === "todo") {
+    const tool = this.tools.getToolByName(action.name);
+    if (action.name === "todo") {
       const input = action.input as { operation?: unknown };
       const operation = typeof input?.operation === "string" ? input.operation : "";
       if (operation === "create_todo_list") {
@@ -386,16 +402,7 @@ export class CodingAgentGraph {
       }
       return "execute";
     }
-    if (actionName === "grep" || actionName === "view") {
-      return "execute";
-    }
-    if (actionName === "repo_index_query" || actionName === "tree" || actionName === "ls" || actionName === "read_context" || actionName === "delegate") {
-      return (state.phaseVisits.discover ?? 0) === 0 ? "discover" : "execute";
-    }
-    if (this.isVerificationAction(action)) {
-      return "verify";
-    }
-    return "execute";
+    return inferPhaseForAction(state.phaseVisits, action, tool);
   }
 
   private buildPlannerHintIfNeeded(state: AgentGraphState, nextPhase: AgentPhase, action: ToolCall): string | null {
@@ -415,22 +422,12 @@ export class CodingAgentGraph {
   }
 
   private isVerificationAction(action: ToolCall): boolean {
-    return isVerificationToolAction(action);
+    const tool = this.tools.getToolByName(action.name);
+    return isVerificationTool(tool) && isVerificationToolAction(action);
   }
 
-  private canExecuteAction(phase: AgentPhase, action: ToolCall): boolean {
-    if (phase === "discover" && !this.isReadOnlyTool(action.name)) {
-      return false;
-    }
-    if (action.name === "todo" || action.name === "repo_index_query" || action.name === "ls" || action.name === "tree" || action.name === "grep" || action.name === "view" || action.name === "read_context" || action.name === "delegate" || action.name === "summarize_changes") {
-      return true;
-    }
-    const isMutating = action.name === "create" || action.name === "insert" || action.name === "str_replace";
-    if (!isMutating) {
-      return true;
-    }
-    const count = this.toolContext.todos.items.length;
-    return count > 0 && count <= 3 && this.toolContext.todos.verificationPlan.length > 0;
+  private canExecuteAction(phase: AgentPhase, action: ToolCall): { ok: boolean; reason?: string } {
+    return canExecuteAction(phase, action, this.tools.getToolByName(action.name), this.toolContext.todos);
   }
 
   private bumpPhaseVisit(visits: Record<string, number>, phase: AgentPhase): Record<string, number> {
@@ -514,7 +511,7 @@ export class CodingAgentGraph {
   }
 
   private isReadOnlyTool(name: string): boolean {
-    return ["todo", "repo_index_query", "ls", "tree", "grep", "view", "read_context", "delegate", "summarize_changes"].includes(name);
+    return isReadOnlyTool(this.tools.getToolByName(name));
   }
 
   private updateSessionMemoryFromAction(action: ToolCall, observation: string): void {
@@ -530,16 +527,76 @@ export class CodingAgentGraph {
     if (typeof input.path === "string" && !current.touchedFiles.includes(input.path)) {
       current.touchedFiles = [...current.touchedFiles, input.path].slice(0, 20);
     }
-    if (action.name === "todo" && this.toolContext.todos.verificationPlan.length > 0) {
-      current.pendingVerification = [...this.toolContext.todos.verificationPlan];
+    if (action.name === "todo" && this.toolContext.todos.verification.commands.length > 0) {
+      current.pendingVerification = this.toolContext.todos.verification.commands.map((command) => `${this.toolContext.todos.verification.goal}: ${command}`);
     }
     if (/error|failed|exception/i.test(observation)) {
       current.failureNotes = [...current.failureNotes, observation.split("\n")[0]].slice(0, 8);
     }
-    current.nextAction = action.name === "summarize_changes"
+    current.nextAction = isSummaryTool(this.tools.getToolByName(action.name))
       ? "Return a concise final answer with verification and residual risks."
       : "Continue based on the latest tool observation.";
     this.toolContext.sessionMemory = current;
+  }
+
+  private updateVerificationState(action: ToolCall, observation: string, ok: boolean): void {
+    if (!this.isVerificationAction(action)) {
+      return;
+    }
+    const input = action.input as { command?: unknown };
+    const command = typeof input.command === "string" ? input.command : null;
+    if (command && !this.toolContext.todos.verification.commands.includes(command)) {
+      this.toolContext.todos.verification.commands = [...this.toolContext.todos.verification.commands, command];
+    }
+    this.toolContext.todos.verification.latestCommand = command;
+    this.toolContext.todos.verification.latestSummary = observation.split("\n")[0] ?? observation;
+    this.toolContext.todos.verification.status = ok ? "passed" : "failed";
+  }
+
+  private async maybeSaveCheckpoint(messages: Message[], action: ToolCall, latestVerification: string | null): Promise<void> {
+    if (!this.toolContext.checkpoint) {
+      return;
+    }
+    const tool = this.tools.getToolByName(action.name);
+    if (!isMutatingTool(tool) && !isVerificationTool(tool) && !isSummaryTool(tool)) {
+      return;
+    }
+    const latestUser = [...messages].reverse().find((message) => message.role === "user");
+    await this.toolContext.checkpoint.save({
+      task: latestUser?.content ?? this.toolContext.todos.taskBundle.primaryTask ?? "unknown task",
+      updatedAt: Date.now(),
+      sessionMemory: this.toolContext.sessionMemory,
+      todos: this.toolContext.todos,
+      latestVerification
+    });
+  }
+
+  private async restoreCheckpointIfNeeded(messages: Message[]): Promise<void> {
+    if (!this.toolContext.checkpoint) {
+      return;
+    }
+    const latestUser = [...messages].reverse().find((message) => message.role === "user");
+    const latestTask = latestUser?.content?.trim() ?? "";
+    const checkpoint = await this.toolContext.checkpoint.load();
+    if (!checkpoint) {
+      return;
+    }
+    const shouldRestore = latestTask.toLowerCase() === "continue"
+      || latestTask === checkpoint.task
+      || latestTask.startsWith("continue ");
+    if (!shouldRestore) {
+      return;
+    }
+    this.toolContext.sessionMemory = checkpoint.sessionMemory;
+    this.toolContext.todos = checkpoint.todos;
+    this.emitStateSnapshot("plan", checkpoint.latestVerification);
+  }
+
+  private emitStateSnapshot(phase: AgentPhase, latestVerification: string | null): void {
+    this.onEvent?.({
+      type: "state",
+      snapshot: buildAgentExecutionSnapshot(phase, this.toolContext.todos, this.toolContext.sessionMemory, latestVerification)
+    });
   }
 
   private async runSubtask(input: RunSubtaskInput): Promise<SubtaskResult> {
@@ -550,13 +607,20 @@ export class CodingAgentGraph {
         ...this.toolContext,
         todos: {
           items: [],
-          verificationPlan: [],
+          verification: {
+            goal: "",
+            commands: [],
+            latestCommand: null,
+            latestSummary: null,
+            status: "pending"
+          },
           taskBundle: { primaryTask: input.task, subtasks: [], results: [] }
         },
         commandLogs: [],
         sessionMemory: null,
         delegationDepth: (this.toolContext.delegationDepth ?? 0) + 1,
-        runSubtask: undefined
+        runSubtask: undefined,
+        checkpoint: undefined
       },
       Math.min(input.maxSteps ?? 4, 8),
       Math.max(8, Math.min(this.recursionLimit, 20))
@@ -582,13 +646,21 @@ export class CodingAgentGraph {
         .filter((value): value is string => Boolean(value))
     ));
 
+    const status: SubtaskResult["status"] = result.finalAnswer.includes("Stopped after maxSteps=")
+      ? "limit_reached"
+      : evidence.length === 0
+        ? "no_conclusion"
+        : "success";
     return {
       id: `subtask-${Date.now().toString(36)}`,
       task: input.task,
       summary: result.finalAnswer.split("\n")[0] ?? "Subtask completed.",
       evidence,
       touchedFiles,
-      nextActionSuggestion: "Use the summarized evidence to continue the main task."
+      nextActionSuggestion: status === "success"
+        ? "Use the summarized evidence to continue the main task."
+        : "Review the subtask output before relying on it.",
+      status
     };
   }
 }

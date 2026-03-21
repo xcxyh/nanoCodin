@@ -43,6 +43,7 @@ async function collectFiles(root: string): Promise<string[]> {
 export const grepTool: Tool<Input> = {
   name: "grep",
   description: "Search for text across files",
+  capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
     const root = path.resolve(context.cwd, input.path ?? ".");

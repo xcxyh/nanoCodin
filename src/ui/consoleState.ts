@@ -1,4 +1,4 @@
-import type { AgentEvent } from "../agent/reactLoop.js";
+import type { AgentEvent, AgentExecutionSnapshot } from "../agent/reactLoop.js";
 
 export type LogKind =
   | "user"
@@ -29,6 +29,7 @@ export interface UiState {
   thinkingTick: number;
   seq: number;
   pendingToolName: string | null;
+  latestSnapshot: AgentExecutionSnapshot | null;
 }
 
 export type UiAction =
@@ -41,6 +42,7 @@ export type UiAction =
   | { type: "append_observation"; text: string }
   | { type: "append_final"; text: string }
   | { type: "append_error"; text: string }
+  | { type: "set_snapshot"; snapshot: AgentExecutionSnapshot }
   | { type: "thinking_tick" }
   | { type: "toggle_latest_observation" };
 
@@ -107,7 +109,8 @@ export const initialUiState: UiState = {
   loadingVisible: false,
   thinkingTick: 0,
   seq: 0,
-  pendingToolName: null
+  pendingToolName: null,
+  latestSnapshot: null
 };
 
 export function hasToggleableObservation(logs: LogEntry[]): boolean {
@@ -130,7 +133,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       loadingVisible: true,
       thinkingTick: 0,
       logs: clearEphemeralPlaceholders(state.logs),
-      pendingToolName: null
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
     };
     next = appendLog(next, "meta", SEPARATOR);
     next = appendLog(next, "user", action.task);
@@ -146,7 +150,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       loadingVisible: false,
       thinkingTick: 0,
       logs: clearEphemeralPlaceholders(state.logs),
-      pendingToolName: null
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
     };
     next = appendLog(next, "meta", `Completed in ${action.stepCount} step(s).`);
     return next;
@@ -160,7 +165,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       loadingVisible: false,
       thinkingTick: 0,
       logs: clearEphemeralPlaceholders(state.logs),
-      pendingToolName: null
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
     };
     next = appendLog(next, "error", `Execution failed: ${action.message}`);
     return next;
@@ -174,7 +180,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       loadingVisible: false,
       thinkingTick: 0,
       logs: clearEphemeralPlaceholders(state.logs),
-      pendingToolName: null
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
     };
     next = appendLog(next, "meta", "Cancelled.");
     return next;
@@ -204,7 +211,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       thinkingVisible: false,
       loadingVisible: false,
       thinkingTick: 0,
-      pendingToolName: null
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
     };
     return appendLog(cleared, "thought", action.text);
   }
@@ -219,7 +227,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       thinkingVisible: false,
       loadingVisible: false,
       thinkingTick: 0,
-      pendingToolName: null
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
     };
 
     return appendLog(cleared, "observation", action.text, {
@@ -237,7 +246,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       thinkingVisible: false,
       loadingVisible: false,
       thinkingTick: 0,
-      pendingToolName: null
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
     };
     return appendLog(cleared, "final", action.text);
   }
@@ -261,6 +271,13 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
     return {
       ...state,
       thinkingTick: (state.thinkingTick + 1) % 3
+    };
+  }
+
+  if (action.type === "set_snapshot") {
+    return {
+      ...state,
+      latestSnapshot: action.snapshot
     };
   }
 
@@ -297,6 +314,9 @@ export function mapAgentEventToUiActions(event: AgentEvent): UiAction[] {
   }
   if (event.type === "error") {
     return [{ type: "append_error", text: event.error }];
+  }
+  if (event.type === "state") {
+    return [{ type: "set_snapshot", snapshot: event.snapshot }];
   }
   return [{ type: "append_final", text: event.answer }];
 }

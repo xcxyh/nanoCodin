@@ -51,7 +51,13 @@ describe("CodingAgentGraph verification guard", () => {
     const context = createToolContext({
       todos: {
         items: [{ id: "1", content: "edit file", completed: false }],
-        verificationPlan: [],
+        verification: {
+          goal: "",
+          commands: [],
+          latestCommand: null,
+          latestSummary: null,
+          status: "pending"
+        },
         taskBundle: { primaryTask: "edit file", subtasks: [], results: [] }
       }
     });
@@ -68,6 +74,7 @@ describe("CodingAgentGraph verification guard", () => {
     });
 
     expect(result.finalAnswer).toContain("Stopped after maxSteps=2 without reaching final.");
-    expect(result.steps.some((step) => (step.observation ?? "").includes("Plan gate requires todo.create_todo_list"))).toBe(true);
+    expect(context.todos.verification.status).toBe("pending");
+    expect(context.todos.items.some((item) => item.completed)).toBe(false);
   });
 });

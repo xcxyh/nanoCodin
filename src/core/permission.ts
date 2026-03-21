@@ -4,6 +4,7 @@ export type PermissionPromptChoice = "allow_once" | "allow_all" | "deny";
 export interface PermissionRequest {
   toolName: string;
   input: unknown;
+  reason?: string;
 }
 
 export type PermissionPromptHandler = (request: PermissionRequest) => Promise<PermissionPromptChoice>;

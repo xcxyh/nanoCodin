@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { RepoIndexConfig } from "../core/runtimeConfig.js";
 import type { RepoIndexEntry, RepoIndexProvider, RepoIndexQuery, RepoIndexSnapshot } from "../core/toolTypes.js";
@@ -86,12 +88,15 @@ export class RepoIndexer implements RepoIndexProvider {
   private entries = new Map<string, RepoIndexEntry>();
   private generatedAt = Date.now();
   private readonly indexPath: string;
+  private readonly legacyIndexPath: string;
 
   constructor(
     private readonly cwd: string,
     private readonly config: RepoIndexConfig
   ) {
-    this.indexPath = path.join(this.cwd, ".nanocodin", "index.json");
+    const cacheKey = createHash("sha1").update(this.cwd).digest("hex").slice(0, 12);
+    this.indexPath = path.join(os.tmpdir(), "nano-codin", cacheKey, "repo-index.json");
+    this.legacyIndexPath = path.join(this.cwd, ".nanocodin", "index.json");
   }
 
   async init(): Promise<void> {
@@ -171,11 +176,14 @@ export class RepoIndexer implements RepoIndexProvider {
   }
 
   private async loadFromDisk(): Promise<void> {
-    if (!existsSync(this.indexPath)) {
+    const readablePath = existsSync(this.indexPath)
+      ? this.indexPath
+      : this.legacyIndexPath;
+    if (!existsSync(readablePath)) {
       return;
     }
     try {
-      const text = await readFile(this.indexPath, "utf8");
+      const text = await readFile(readablePath, "utf8");
       const parsed = JSON.parse(text) as PersistedRepoIndex;
       if (!Array.isArray(parsed.entries)) {
         return;
@@ -272,4 +280,3 @@ export class RepoIndexer implements RepoIndexProvider {
     };
   }
 }
-

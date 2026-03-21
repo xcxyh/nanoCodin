@@ -14,6 +14,7 @@ type Input = z.infer<typeof schema>;
 export const viewTool: Tool<Input> = {
   name: "view",
   description: "View file content with optional line range",
+  capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
     const target = path.resolve(context.cwd, input.path);

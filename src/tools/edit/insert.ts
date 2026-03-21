@@ -14,6 +14,7 @@ type Input = z.infer<typeof schema>;
 export const insertTool: Tool<Input> = {
   name: "insert",
   description: "Insert text before a line number",
+  capabilities: ["mutating"],
   schema,
   execute: async (input, context) => {
     const target = path.resolve(context.cwd, input.path);

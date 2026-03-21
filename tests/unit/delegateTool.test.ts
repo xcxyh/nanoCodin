@@ -11,7 +11,8 @@ describe("delegateTool", () => {
         summary: "Found the relevant file",
         evidence: ["src/index.ts"],
         touchedFiles: ["src/index.ts"],
-        nextActionSuggestion: "Open the file"
+        nextActionSuggestion: "Open the file",
+        status: "success"
       })
     });
 

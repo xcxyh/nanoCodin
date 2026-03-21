@@ -13,6 +13,7 @@ import { loadRuntimeConfig } from "./services/configLoader.js";
 import { loadContextSources } from "./services/contextLoader.js";
 import { RepoIndexer } from "./services/repoIndexer.js";
 import { PermissionController } from "./core/permission.js";
+import { FileSessionCheckpointStore } from "./services/sessionCheckpoint.js";
 
 export function parsePositiveIntEnv(value: string | undefined, fallback: number): number {
   if (!value) {
@@ -67,7 +68,13 @@ export function main() {
     cwd: process.cwd(),
     todos: {
       items: [],
-      verificationPlan: [],
+      verification: {
+        goal: "",
+        commands: [],
+        latestCommand: null,
+        latestSummary: null,
+        status: "pending"
+      },
       taskBundle: { primaryTask: null, subtasks: [], results: [] }
     },
     runtimeConfig: runtime.config,
@@ -75,7 +82,8 @@ export function main() {
     commandLogs: [],
     sessionMemory: null,
     contextSources: context.sources,
-    permission: permissionController
+    permission: permissionController,
+    checkpoint: new FileSessionCheckpointStore(process.cwd())
   };
 
   void repoIndexer.init().catch(() => undefined).finally(() => {

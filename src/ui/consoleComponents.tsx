@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import type { PermissionRequest } from "../core/permission.js";
 import type { LogEntry, LogKind } from "./consoleState.js";
+import type { AgentExecutionSnapshot } from "../agent/reactLoop.js";
 
 export const BRAND_COLOR = "#38bdf8";
 
@@ -124,7 +125,7 @@ function renderLogEntry(entry: LogEntry, thinkingTick: number): React.ReactNode 
   );
 }
 
-export function ConsoleHeader({ hint }: { hint: string }) {
+export function ConsoleHeader({ hint, snapshot }: { hint: string; snapshot: AgentExecutionSnapshot | null }) {
   return (
     <Box marginBottom={1} flexDirection="column">
       {BANNER_LINES.map((line, idx) => (
@@ -134,6 +135,18 @@ export function ConsoleHeader({ hint }: { hint: string }) {
       ))}
       <Text color="gray">ReAct Coding Agent</Text>
       <Text color="gray">{hint}</Text>
+      {snapshot ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color="cyan">Phase: {snapshot.phase}</Text>
+          <Text color="gray">Todos: {snapshot.todos.join(" | ") || "(none)"}</Text>
+          <Text color="gray">Verification: {snapshot.verificationGoal || "(none)"} / {snapshot.verificationStatus}</Text>
+          <Text color="gray">Commands: {snapshot.verificationCommands.join(" | ") || "(none)"}</Text>
+          <Text color="gray">Latest check: {snapshot.latestVerification ?? "(none)"}</Text>
+          <Text color="gray">Subtasks: {snapshot.subtaskSummaries.join(" | ") || "(none)"}</Text>
+          <Text color="gray">Next: {snapshot.sessionNextAction ?? "(none)"}</Text>
+          <Text color="gray">Touched: {snapshot.touchedFiles.join(", ") || "(none)"}</Text>
+        </Box>
+      ) : null}
     </Box>
   );
 }
@@ -155,6 +168,7 @@ export function PermissionPromptBox({ request }: { request: PermissionRequest })
       <Text color="yellow">Permission required</Text>
       <Text>Tool: {toolName}</Text>
       <Text>{detailLabel}: {detailValue}</Text>
+      {request.reason ? <Text>Why: {request.reason}</Text> : null}
       <Text>Allow? [y] once, [a] all session, [n] deny</Text>
     </Box>
   );

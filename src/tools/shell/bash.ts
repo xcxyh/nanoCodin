@@ -57,6 +57,7 @@ export function decidePolicy(command: string, context: Parameters<Tool<Input>["e
 export const bashTool: Tool<Input> = {
   name: "bash",
   description: "Execute a shell command with safety checks and timeout",
+  capabilities: ["verification"],
   schema,
   execute: async (input, context) => {
     const startedAt = Date.now();

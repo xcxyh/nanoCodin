@@ -5,7 +5,8 @@ import type { Tool, TodoItem } from "../../core/toolTypes.js";
 const schema = z.object({
   operation: z.enum(["create_todo_list", "update_todo_item", "mark_complete"]).optional(),
   items: z.array(z.string()).optional(),
-  verificationPlan: z.array(z.string()).optional(),
+  verificationGoal: z.string().optional(),
+  verificationCommands: z.array(z.string()).optional(),
   id: z.string().optional(),
   content: z.string().optional()
 });
@@ -21,11 +22,18 @@ function renderTodos(items: TodoItem[]): string {
     .join("\n");
 }
 
-function renderVerificationPlan(verificationPlan: string[]): string {
-  if (verificationPlan.length === 0) {
+function renderVerificationPlan(
+  verification: { goal: string; commands: string[]; latestSummary: string | null; status: string }
+): string {
+  if (!verification.goal && verification.commands.length === 0) {
     return "Verification plan: (none)";
   }
-  return `Verification plan: ${verificationPlan.join(" | ")}`;
+  return [
+    `Verification goal: ${verification.goal || "(none)"}`,
+    `Verification commands: ${verification.commands.join(" | ") || "(none)"}`,
+    `Verification status: ${verification.status}`,
+    `Latest verification: ${verification.latestSummary ?? "(none)"}`
+  ].join("\n");
 }
 
 function renderSubtaskResults(results: { task: string; summary: string }[]): string {
@@ -41,7 +49,7 @@ function renderSubtaskResults(results: { task: string; summary: string }[]): str
 function renderTodoState(context: Parameters<Tool<Input>["execute"]>[1]): string {
   return [
     renderTodos(context.todos.items),
-    renderVerificationPlan(context.todos.verificationPlan),
+    renderVerificationPlan(context.todos.verification),
     renderSubtaskResults(context.todos.taskBundle.results)
   ].join("\n");
 }
@@ -49,6 +57,7 @@ function renderTodoState(context: Parameters<Tool<Input>["execute"]>[1]): string
 export const todoTool: Tool<Input> = {
   name: "todo",
   description: "Manage in-memory todo list for planning",
+  capabilities: ["planning"],
   schema,
   execute: async (input, context) => {
     // Tolerant inference for partial model outputs:
@@ -72,7 +81,11 @@ export const todoTool: Tool<Input> = {
         content,
         completed: false
       }));
-      context.todos.verificationPlan = input.verificationPlan ?? context.todos.verificationPlan;
+      context.todos.verification.goal = input.verificationGoal ?? context.todos.verification.goal;
+      context.todos.verification.commands = input.verificationCommands ?? context.todos.verification.commands;
+      context.todos.verification.status = "pending";
+      context.todos.verification.latestCommand = null;
+      context.todos.verification.latestSummary = null;
       context.todos.taskBundle.primaryTask = items[0] ?? context.todos.taskBundle.primaryTask;
       return { ok: true, output: renderTodoState(context) };
     }

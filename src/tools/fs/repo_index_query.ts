@@ -13,6 +13,7 @@ type Input = z.infer<typeof schema>;
 export const repoIndexQueryTool: Tool<Input> = {
   name: "repo_index_query",
   description: "Query cached repository index by path prefix, symbol, or keyword",
+  capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
     const snapshot = context.repoIndex.snapshot();
@@ -37,4 +38,3 @@ export const repoIndexQueryTool: Tool<Input> = {
     };
   }
 };
-

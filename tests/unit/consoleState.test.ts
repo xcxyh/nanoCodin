@@ -19,4 +19,24 @@ describe("console state helpers", () => {
 
     expect(hasToggleableObservation(withObservation.logs)).toBe(false);
   });
+
+  it("stores latest execution snapshot", () => {
+    const next = uiReducer(initialUiState, {
+      type: "set_snapshot",
+      snapshot: {
+        phase: "verify",
+        todos: ["[ ] edit file"],
+        verificationGoal: "Run tests",
+        verificationCommands: ["npm run test"],
+        verificationStatus: "pending",
+        latestVerification: null,
+        subtaskSummaries: [],
+        sessionNextAction: "Run tests",
+        touchedFiles: ["src/index.ts"]
+      }
+    });
+
+    expect(next.latestSnapshot?.phase).toBe("verify");
+    expect(next.latestSnapshot?.verificationCommands).toEqual(["npm run test"]);
+  });
 });

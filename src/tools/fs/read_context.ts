@@ -16,6 +16,7 @@ function toLines(input: string): string[] {
 export const readContextTool: Tool<Input> = {
   name: "read_context",
   description: "Read layered project context such as AGENTS rules, context.md, or memory.md",
+  capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
     const raw = input.source === "project_rules"
@@ -36,9 +37,14 @@ export const readContextTool: Tool<Input> = {
     }
 
     const numbered = lines.slice(start, end).map((line, idx) => `${start + idx + 1}: ${line}`);
+    const hint = input.source === "project_rules"
+      ? "Use this for hard constraints and collaboration rules."
+      : input.source === "project_context"
+        ? "Use this for repo architecture and operating conventions."
+        : "Use this for durable lessons or prior pitfalls.";
     return {
       ok: true,
-      output: [`source=${input.source}`, ...numbered].join("\n")
+      output: [`source=${input.source}`, `hint=${hint}`, ...numbered].join("\n")
     };
   }
 };

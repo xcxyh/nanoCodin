@@ -26,16 +26,16 @@ export function buildFinalSummary(input: {
   latestVerification: string | null;
 }): string {
   const changedFiles = input.sessionMemory?.touchedFiles ?? [];
-  const verification = input.latestVerification ?? "(none)";
+  const verification = input.latestVerification ?? input.todos.verification.latestSummary ?? "(none)";
   const risks = input.sessionMemory?.failureNotes ?? [];
   const completedTodos = input.todos.items.filter((item) => item.completed).map((item) => item.content);
-  const subtaskSummaries = input.subtasks.map((item) => `${item.task}: ${item.summary}`);
+  const subtaskSummaries = input.subtasks.map((item) => `${item.status} ${item.task}: ${item.summary}`);
 
   return [
-    `Completed todo items: ${completedTodos.length > 0 ? completedTodos.join("; ") : "(none)"}`,
+    `What changed: ${completedTodos.length > 0 ? completedTodos.join("; ") : "(none)"}`,
     `Touched files: ${changedFiles.length > 0 ? changedFiles.join(", ") : "(none)"}`,
-    `Verification: ${verification}`,
-    `Subtasks: ${subtaskSummaries.length > 0 ? subtaskSummaries.join(" | ") : "(none)"}`,
-    `Residual risks: ${risks.length > 0 ? risks.join(" | ") : "(none)"}`
+    `How verified: goal=${input.todos.verification.goal || "(none)"}; commands=${input.todos.verification.commands.join(" | ") || "(none)"}; latest=${verification}`,
+    `Residual risks: ${risks.length > 0 ? risks.join(" | ") : "(none)"}`,
+    `Subtasks used: ${subtaskSummaries.length > 0 ? subtaskSummaries.join(" | ") : "(none)"}`
   ].join("\n");
 }

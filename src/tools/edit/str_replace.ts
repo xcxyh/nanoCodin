@@ -14,6 +14,7 @@ type Input = z.infer<typeof schema>;
 export const strReplaceTool: Tool<Input> = {
   name: "str_replace",
   description: "Replace exact text in a file",
+  capabilities: ["mutating"],
   schema,
   execute: async (input, context) => {
     if (input.oldText.length === 0) {

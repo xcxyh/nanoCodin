@@ -11,6 +11,7 @@ type Input = z.infer<typeof schema>;
 export const summarizeChangesTool: Tool<Input> = {
   name: "summarize_changes",
   description: "Summarize touched files, completed todos, verification, and subtask outcomes",
+  capabilities: ["summary"],
   schema,
   execute: async (input, context) => {
     const summary = buildFinalSummary({

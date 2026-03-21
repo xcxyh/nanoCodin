@@ -17,6 +17,13 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 - Automated test stack based on Vitest with coverage thresholds and new scripts: `test`, `test:watch`, `test:coverage`, `verify`.
 - New test suites across `tests/unit`, `tests/integration`, and `tests/smoke`, plus shared fixtures under `tests/fixtures`.
 - New CI workflow `.github/workflows/ci.yml` to enforce `typecheck + test + coverage` on PRs and pushes to main branches.
+- Layered context loading from `AGENTS.md`, `.nanocodin/context.md`, and `.nanocodin/memory.md`.
+- Structured `sessionMemory` model for compressed task state, plus prompt sections for execution state.
+- New `read_context`, `delegate`, and `summarize_changes` tools.
+- Lightweight subtask delegation with structured result statuses (`success`, `failed`, `no_conclusion`, `limit_reached`).
+- Session checkpoint persistence at `.nanocodin/session-checkpoint.json` for continuing interrupted tasks.
+- Agent policy helpers to centralize tool capability checks and phase gating.
+- New tests covering checkpoint persistence, repo index cache location, permission prompt reasons, delegation status handling, and UI state snapshots.
 
 ### Changed
 - `bash` tool upgraded to policy-driven sandbox (`allow|ask|deny`) with structured output fields (`exit_code`, `stdout_tail`, `stderr_tail`, `duration_ms`, `policy_decision`) and in-memory command logs.
@@ -29,10 +36,18 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 - `index.ts` now exports `main`, `buildRuntimeEnv`, and `parsePositiveIntEnv`, with direct-run guard to support smoke testing without auto-start on import.
 - `configLoader` and `bash` policy helpers now export selected pure functions for unit testing without changing runtime behavior.
 - Contributing docs now require `npm run verify`; `coverage/` is ignored in git.
+- Prompt assembly now uses layered project context, structured session memory, and explicit execution-state sections instead of only guideline injection.
+- Todo planning now records verification goal, verification commands, latest verification result, and verification status.
+- Final answers now consistently append a structured execution summary covering changes, verification, residual risks, and subtask use.
+- Permission prompts now include a human-readable reason for why the tool needs approval.
+- Console UI now surfaces phase, todo state, verification state, subtask summaries, next action, and touched files while the agent runs.
+- Repo index persistence now defaults to a per-workspace cache under the system temp directory instead of writing into the repo on every run.
 
 ### Fixed
 - Tool parsing now handles inline JSON in `Action` lines (e.g. `Action: tree {"path":"src"}`) and HTML-escaped JSON payloads.
 - Tool registry now falls back to split-and-parse when tool name and JSON input are merged, fixing false `Unknown tool` errors for valid tools like `tree` and `view`.
+- Mutating actions are now blocked unless a bounded todo plan exists and verification details are defined, reducing unsafe execute-path transitions.
+- Delegated subtasks no longer behave like opaque happy-path summaries; failure and inconclusive outcomes are surfaced explicitly to the main task.
 
 ## [0.1.0] - 2026-03-07
 

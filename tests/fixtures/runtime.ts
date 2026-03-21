@@ -17,7 +17,13 @@ export function createToolContext(overrides?: Partial<ToolContext>): ToolContext
     cwd: process.cwd(),
     todos: {
       items: [],
-      verificationPlan: [],
+      verification: {
+        goal: "",
+        commands: [],
+        latestCommand: null,
+        latestSummary: null,
+        status: "pending"
+      },
       taskBundle: { primaryTask: null, subtasks: [], results: [] }
     },
     runtimeConfig: cloneConfig(),

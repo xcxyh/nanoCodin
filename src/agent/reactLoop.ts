@@ -1,5 +1,5 @@
 import type { AgentStep, Message, ToolCall } from "../core/messageTypes.js";
-import type { ContextSources, SessionMemory, ToolContext } from "../core/toolTypes.js";
+import type { ContextSources, SessionMemory, TodoState, ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { renderTemplate } from "../prompts/templateEngine.js";
 import type { ToolRegistry } from "../tools/registry.js";
@@ -24,7 +24,20 @@ export type AgentEvent =
   | { type: "action"; action: ToolCall }
   | { type: "observation"; observation: string }
   | { type: "final"; answer: string }
-  | { type: "error"; error: string };
+  | { type: "error"; error: string }
+  | { type: "state"; snapshot: AgentExecutionSnapshot };
+
+export interface AgentExecutionSnapshot {
+  phase: AgentPhase;
+  todos: string[];
+  verificationGoal: string;
+  verificationCommands: string[];
+  verificationStatus: string;
+  latestVerification: string | null;
+  subtaskSummaries: string[];
+  sessionNextAction: string | null;
+  touchedFiles: string[];
+}
 
 function extractField(text: string, field: string): string | null {
   const match = text.match(new RegExp(`^${field}:\\s*(.*)$`, "im"));
@@ -113,20 +126,26 @@ function formatSessionMemory(memory: SessionMemory | null): string {
   return JSON.stringify(memory, null, 2);
 }
 
-function buildToolHelp(phase: AgentPhase): string {
-  const lines = [
-    "Prefer repo_index_query, read_context, ls, tree, grep, and view for discovery.",
-    "Use todo to create a 1-3 item plan and set verificationPlan before edits.",
-    "Use delegate for bounded research subtasks when the answer can be summarized for the main task.",
-    "Use summarize_changes before final when edits or validation happened."
-  ];
-  if (phase === "verify") {
-    lines.unshift("In verify, run a validation command and capture the result before final.");
-  }
-  if (phase === "plan") {
-    lines.unshift("In plan, define both execution steps and how you will verify the result.");
-  }
-  return lines.map((line) => `- ${line}`).join("\n");
+function formatExecutionState(
+  todoState: TodoState,
+  latestVerification: string | null
+): string {
+  const todos = todoState.items.length > 0
+    ? todoState.items.map((item) => `- [${item.completed ? "x" : " "}] ${item.content}`).join("\n")
+    : "(none)";
+  const subtasks = todoState.taskBundle.results.length > 0
+    ? todoState.taskBundle.results.map((result) => `- ${result.status} ${result.task}: ${result.summary}`).join("\n")
+    : "(none)";
+  return [
+    "Todo state:",
+    todos,
+    `Verification goal: ${todoState.verification.goal || "(none)"}`,
+    `Verification commands: ${todoState.verification.commands.join(" | ") || "(none)"}`,
+    `Verification status: ${todoState.verification.status}`,
+    `Latest verification: ${latestVerification ?? todoState.verification.latestSummary ?? "(none)"}`,
+    "Subtasks:",
+    subtasks
+  ].join("\n");
 }
 
 export async function buildAgentMessages(messages: Message[], steps: AgentStep[], toolsDescription: string): Promise<Message[]> {
@@ -134,7 +153,7 @@ export async function buildAgentMessages(messages: Message[], steps: AgentStep[]
     projectRules: [],
     projectContext: null,
     persistentMemory: null
-  });
+  }, "(none)", "(none)");
 }
 
 export async function buildAgentMessagesWithContext(
@@ -143,24 +162,53 @@ export async function buildAgentMessagesWithContext(
   toolsDescription: string,
   phase: AgentPhase,
   sessionMemory: SessionMemory | null,
-  contextSources: ContextSources
+  contextSources: ContextSources,
+  executionState: string,
+  toolHelp: string
 ): Promise<Message[]> {
   const systemPrompt = await renderTemplate("system", {
     tools: toolsDescription,
     projectRules: formatProjectRules(contextSources.projectRules),
     projectContext: formatSourceText(contextSources.projectContext),
     persistentMemory: formatSourceText(contextSources.persistentMemory),
-    toolHelp: buildToolHelp(phase)
+    toolHelp
   });
   const reactPrompt = await renderTemplate("react", {
     conversation: formatConversation(messages),
     trajectory: formatTrajectory(steps),
     phase,
-    sessionMemory: formatSessionMemory(sessionMemory)
+    sessionMemory: formatSessionMemory(sessionMemory),
+    executionState
   });
 
   return [
     { role: "system", content: systemPrompt },
     { role: "user", content: reactPrompt }
   ];
+}
+
+export function buildAgentExecutionSnapshot(
+  phase: AgentPhase,
+  todos: TodoState,
+  sessionMemory: SessionMemory | null,
+  latestVerification: string | null
+): AgentExecutionSnapshot {
+  return {
+    phase,
+    todos: todos.items.map((item) => `${item.completed ? "[x]" : "[ ]"} ${item.content}`),
+    verificationGoal: todos.verification.goal,
+    verificationCommands: [...todos.verification.commands],
+    verificationStatus: todos.verification.status,
+    latestVerification,
+    subtaskSummaries: todos.taskBundle.results.map((result) => `${result.status} ${result.task}: ${result.summary}`),
+    sessionNextAction: sessionMemory?.nextAction ?? null,
+    touchedFiles: sessionMemory?.touchedFiles ?? []
+  };
+}
+
+export function formatExecutionStateForPrompt(
+  todoState: TodoState,
+  latestVerification: string | null
+): string {
+  return formatExecutionState(todoState, latestVerification);
 }

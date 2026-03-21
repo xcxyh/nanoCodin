@@ -205,7 +205,7 @@ export function ConsoleApp({ graph, permissionController }: Props) {
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <ConsoleHeader hint={hint} />
+      <ConsoleHeader hint={hint} snapshot={uiState.latestSnapshot} />
       <ConsoleLogList logs={uiState.logs} thinkingTick={uiState.thinkingTick} />
       {permissionPrompt ? <PermissionPromptBox request={permissionPrompt.request} /> : null}
       <ConsoleInputBar input={input} cursor={cursor} busy={uiState.busy} />

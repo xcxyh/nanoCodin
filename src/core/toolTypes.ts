@@ -55,6 +55,14 @@ export interface SessionMemory {
   nextAction: string;
 }
 
+export interface VerificationCheckpoint {
+  goal: string;
+  commands: string[];
+  latestCommand: string | null;
+  latestSummary: string | null;
+  status: "pending" | "passed" | "failed";
+}
+
 export interface ContextSources {
   projectRules: string[];
   projectContext: string | null;
@@ -68,6 +76,7 @@ export interface SubtaskResult {
   evidence: string[];
   touchedFiles: string[];
   nextActionSuggestion: string;
+  status: "success" | "failed" | "no_conclusion" | "limit_reached";
 }
 
 export interface TaskBundle {
@@ -84,7 +93,7 @@ export interface TodoItem {
 
 export interface TodoState {
   items: TodoItem[];
-  verificationPlan: string[];
+  verification: VerificationCheckpoint;
   taskBundle: TaskBundle;
 }
 
@@ -104,7 +113,30 @@ export interface ToolContext {
   permission?: PermissionController;
   runSubtask?: (input: RunSubtaskInput) => Promise<SubtaskResult>;
   delegationDepth?: number;
+  checkpoint?: SessionCheckpointStore;
 }
+
+export interface SessionCheckpoint {
+  task: string;
+  updatedAt: number;
+  sessionMemory: SessionMemory | null;
+  todos: TodoState;
+  latestVerification: string | null;
+}
+
+export interface SessionCheckpointStore {
+  load(): Promise<SessionCheckpoint | null>;
+  save(checkpoint: SessionCheckpoint): Promise<void>;
+  clear(): Promise<void>;
+}
+
+export type ToolCapability =
+  | "read_only"
+  | "mutating"
+  | "planning"
+  | "verification"
+  | "summary"
+  | "delegation";
 
 export interface ToolResult {
   ok: boolean;
@@ -114,6 +146,7 @@ export interface ToolResult {
 export interface Tool<TInput = any> {
   name: string;
   description: string;
+  capabilities?: ToolCapability[];
   schema: z.ZodType<TInput>;
   execute: (input: TInput, context: ToolContext) => Promise<ToolResult>;
 }

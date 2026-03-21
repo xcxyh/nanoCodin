@@ -87,4 +87,28 @@ describe("ToolRegistry.execute", () => {
     expect(result.ok).toBe(true);
     expect(result.output).toBe("true");
   });
+
+  it("passes a reason into permission prompts", async () => {
+    const registry = new ToolRegistry([
+      {
+        name: "create",
+        description: "create",
+        capabilities: ["mutating"],
+        schema: z.object({ path: z.string() }),
+        execute: async () => ({ ok: true, output: "ok" })
+      }
+    ]);
+
+    const permission = new PermissionController();
+    let reason = "";
+    permission.setPromptHandler(async (request) => {
+      reason = request.reason ?? "";
+      return "allow_once";
+    });
+
+    const result = await registry.execute("create", { path: "file.txt" }, createToolContext({ permission }));
+
+    expect(result.ok).toBe(true);
+    expect(reason).toContain("modify files");
+  });
 });

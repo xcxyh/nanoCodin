@@ -64,7 +64,9 @@ describe("parseAgentResponse", () => {
         projectRules: ["Keep diffs small"],
         projectContext: "Use npm run typecheck for TS checks.",
         persistentMemory: "Avoid broad scans."
-      }
+      },
+      "Todo state:\n(none)",
+      "- Read-only tools: view"
     );
 
     expect(messages[0]?.content).toContain("Project rules:");
