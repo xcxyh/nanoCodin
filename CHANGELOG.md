@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-03-21
+
 ### Added
 - Runtime config system with precedence: CLI > `.nanocodin/config.toml` > `AGENTS.md` guidelines > env > defaults.
 - New core config/types: `ResolvedRuntimeConfig`, sandbox/index/recovery/compression settings.
