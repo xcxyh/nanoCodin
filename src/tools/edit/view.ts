@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Tool } from "../../core/toolTypes.js";
 
 const schema = z.object({
-  path: z.string(),
+  path: z.string().optional(),
   startLine: z.number().int().min(1).optional(),
   endLine: z.number().int().min(1).optional()
 });
@@ -13,11 +13,21 @@ type Input = z.infer<typeof schema>;
 
 export const viewTool: Tool<Input> = {
   name: "view",
-  description: "View file content with optional line range",
+  description: "View file content with optional line range; if path is omitted, reuse the most recent touched file when available",
   capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
-    const target = path.resolve(context.cwd, input.path);
+    const fallbackPath = context.sessionMemory?.touchedFiles.at(-1);
+    const selectedPath = input.path ?? fallbackPath;
+
+    if (!selectedPath) {
+      return {
+        ok: true,
+        output: "No file path provided. Use ls, tree, grep, or repo_index_query to find a file, or retry view with a path."
+      };
+    }
+
+    const target = path.resolve(context.cwd, selectedPath);
     const content = await readFile(target, "utf8");
     const lines = content.split(/\r?\n/);
     const start = input.startLine ? input.startLine - 1 : 0;
@@ -32,7 +42,7 @@ export const viewTool: Tool<Input> = {
 
     return {
       ok: true,
-      output: numbered.join("\n")
+      output: [`Viewing: ${selectedPath}`, numbered.join("\n")].filter(Boolean).join("\n")
     };
   }
 };

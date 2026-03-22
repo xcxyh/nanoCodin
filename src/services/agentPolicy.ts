@@ -62,9 +62,6 @@ export function canExecuteAction(
   if (count === 0 || count > 3) {
     return { ok: false, reason: "Plan gate requires todo.create_todo_list with 1-3 items before mutating actions." };
   }
-  if (!todos.verification.goal || todos.verification.commands.length === 0) {
-    return { ok: false, reason: "Plan gate requires both a verification goal and at least one verification command before mutating actions." };
-  }
   return { ok: true };
 }
 
@@ -84,7 +81,7 @@ export function buildToolHelp(tools: Tool<any>[], phase: AgentPhase): string {
   ];
 
   if (phase === "plan") {
-    lines.unshift("In plan, define both the verification goal and the exact commands to run.");
+    lines.unshift("In plan, create a short 1-3 item todo list. Add verification goal and commands when you know them, but do not block progress on that alone.");
   }
   if (phase === "verify") {
     lines.unshift("In verify, run or inspect validation and capture the latest result before final.");
