@@ -16,7 +16,7 @@ import { decidePolicy } from "./shell/bash.js";
 import { isMutatingTool, isVerificationTool, isSummaryTool } from "../services/agentPolicy.js";
 
 function requiresPermission(toolName: string): boolean {
-  return toolName === "bash" || toolName === "create" || toolName === "insert" || toolName === "str_replace";
+  return toolName === "bash";
 }
 
 export class ToolRegistry {
