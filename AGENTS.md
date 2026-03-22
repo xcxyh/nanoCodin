@@ -1,5 +1,6 @@
 # AGENTS
 
+- Always reply in Chinese, except for technical terms.
 - Use concise, concrete steps; prefer small, reviewable diffs.
 - Follow existing TypeScript + ESM patterns; avoid introducing new tooling.
 - Keep public CLI behavior and output stable unless the task explicitly changes it.

@@ -14,9 +14,45 @@ import { todoTool } from "./planning/todo.js";
 import { bashTool } from "./shell/bash.js";
 import { decidePolicy } from "./shell/bash.js";
 import { isMutatingTool, isVerificationTool, isSummaryTool } from "../services/agentPolicy.js";
+import { ZodIssueCode, type ZodError } from "zod";
 
 function requiresPermission(toolName: string): boolean {
   return toolName === "bash";
+}
+
+function formatSchemaError(toolName: string, rawInput: unknown, error: ZodError): string {
+  const keys = rawInput && typeof rawInput === "object" && !Array.isArray(rawInput)
+    ? Object.keys(rawInput as Record<string, unknown>)
+    : [];
+  const missingFields = error.issues
+    .filter((issue) => issue.code === ZodIssueCode.invalid_type && issue.received === "undefined" && issue.path.length > 0)
+    .map((issue) => String(issue.path[0]));
+  const messages = error.issues.map((issue) => {
+    const pathLabel = issue.path.length > 0 ? `"${issue.path.join(".")}"` : "input";
+    if (issue.code === ZodIssueCode.invalid_type && issue.received === "undefined") {
+      return `missing required field ${pathLabel}`;
+    }
+    return `${pathLabel}: ${issue.message}`;
+  });
+
+  const hints: string[] = [];
+  if (toolName === "str_replace") {
+    const input = rawInput && typeof rawInput === "object" ? rawInput as Record<string, unknown> : {};
+    if ("old_str" in input || "old_text" in input || "new_str" in input || "new_text" in input) {
+      hints.push("Use field names oldText and newText.");
+    }
+  }
+  if (toolName === "view" && missingFields.includes("path")) {
+    hints.push("view can omit path only when a recent touched file exists in session memory.");
+  }
+
+  const details = [
+    messages.join("; "),
+    keys.length > 0 ? `received keys: ${keys.join(", ")}` : "received keys: (none)",
+    ...hints
+  ].filter(Boolean);
+
+  return `Invalid input for tool ${toolName}: ${details.join(". ")}`;
 }
 
 export class ToolRegistry {
@@ -77,7 +113,7 @@ export class ToolRegistry {
     if (!parsed.success) {
       return {
         ok: false,
-        output: `Invalid input for tool ${name}: ${parsed.error.message}`
+        output: formatSchemaError(tool.name, resolvedInput, parsed.error)
       };
     }
 

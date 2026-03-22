@@ -61,13 +61,49 @@ function nextLogId(seq: number): string {
   return `log-${seq + 1}`;
 }
 
-function summarizeObservation(text: string): { summary: string; hiddenLineCount: number } {
+function summarizeBashObservation(text: string): string | null {
+  const match = text.match(/^(OK|ERROR):\s*(\{[\s\S]*\})$/);
+  if (!match) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(match[2]) as {
+      exit_code?: number | null;
+      stdout_tail?: string;
+      stderr_tail?: string;
+      policy_decision?: string;
+    };
+    const stderr = payload.stderr_tail?.trim();
+    const stdout = payload.stdout_tail?.trim();
+    const detail = stderr || stdout || "(no stdout/stderr)";
+    const firstLine = detail.split("\n")[0] ?? detail;
+    const exit = payload.exit_code ?? "null";
+    const policy = payload.policy_decision ?? "unknown";
+    return `${match[1]}: exit=${exit}, policy=${policy}, detail=${firstLine}`;
+  } catch {
+    return null;
+  }
+}
+
+function summarizeObservation(text: string, sourceTool?: string | null): { summary: string; hiddenLineCount: number } {
   const lines = text.split("\n");
-  const summary = lines[0]?.trim() || "(empty output)";
+  const fallbackSummary = lines[0]?.trim() || "(empty output)";
+  const bashSummary = summarizeBashObservation(text);
+  const summary = sourceTool === "bash" && bashSummary
+    ? bashSummary
+    : fallbackSummary;
   return {
     summary,
     hiddenLineCount: Math.max(0, lines.length - 1)
   };
+}
+
+function formatActionText(name: string, input: unknown): string {
+  if (input && typeof input === "object" && !Array.isArray(input) && Object.keys(input as Record<string, unknown>).length === 0) {
+    return name;
+  }
+  return `${name} ${JSON.stringify(input)}`;
 }
 
 function hasThinkingPlaceholder(logs: LogEntry[]): boolean {
@@ -193,7 +229,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       logs: clearEphemeralPlaceholders(state.logs),
       loadingVisible: false
     };
-    let next = appendLog(baseState, "action", `${action.name} ${JSON.stringify(action.input)}`);
+    let next = appendLog(baseState, "action", formatActionText(action.name, action.input));
     if (!hasThinkingPlaceholder(next.logs)) {
       next = appendLog(next, "thought", "Thinking...", { ephemeral: true });
     }
@@ -218,8 +254,8 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
   }
 
   if (action.type === "append_observation") {
-    const folded = summarizeObservation(action.text);
     const sourceTool = state.pendingToolName;
+    const folded = summarizeObservation(action.text, sourceTool);
     const shouldCollapse = sourceTool !== "todo";
     const cleared: UiState = {
       ...state,

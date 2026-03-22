@@ -48,6 +48,26 @@ function sanitizeInput(raw: unknown): unknown {
   return out;
 }
 
+function normalizeStrReplaceInput(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+  const source = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...source };
+
+  const oldText = source.oldText ?? source.old_text ?? source.old_str ?? source.oldString;
+  const newText = source.newText ?? source.new_text ?? source.new_str ?? source.newString;
+
+  if (typeof oldText === "string" && !("oldText" in out)) {
+    out.oldText = oldText;
+  }
+  if (typeof newText === "string" && !("newText" in out)) {
+    out.newText = newText;
+  }
+
+  return out;
+}
+
 function normalizeTodoOperation(raw: unknown): string | null {
   if (typeof raw !== "string") {
     return null;
@@ -171,7 +191,9 @@ export class RecoveryEngine {
           note: "Retrying todo with normalized operation/items schema."
         };
       }
-      const sanitized = sanitizeInput(action.input);
+      const sanitized = action.name === "str_replace"
+        ? normalizeStrReplaceInput(sanitizeInput(action.input))
+        : sanitizeInput(action.input);
       // If sanitizeInput made no changes, recovery cannot help
       if (sanitized === action.input || JSON.stringify(sanitized) === JSON.stringify(action.input)) {
         return {

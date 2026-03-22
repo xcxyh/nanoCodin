@@ -29,6 +29,23 @@ describe("ToolRegistry.execute", () => {
     expect(result.output).toContain("Invalid input for tool echo");
   });
 
+  it("adds alias hint for str_replace schema errors", async () => {
+    const registry = new ToolRegistry([
+      {
+        name: "str_replace",
+        description: "replace text",
+        schema: z.object({ path: z.string(), oldText: z.string(), newText: z.string() }),
+        execute: async () => ({ ok: true, output: "ok" })
+      }
+    ]);
+
+    const result = await registry.execute("str_replace", { path: "a.ts", old_str: "a", new_text: "b" }, createToolContext());
+
+    expect(result.ok).toBe(false);
+    expect(result.output).toContain("oldText");
+    expect(result.output).toContain("newText");
+  });
+
   it("supports inline tool + json payload in action string", async () => {
     const registry = new ToolRegistry([
       {

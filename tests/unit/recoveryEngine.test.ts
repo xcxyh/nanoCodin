@@ -146,4 +146,20 @@ describe("RecoveryEngine", () => {
     expect(attempt.action).toBeNull();
     expect(attempt.note).toContain("Cannot auto-recover");
   });
+
+  it("normalizes common str_replace alias fields", () => {
+    const attempt = engine.suggest(
+      {
+        name: "str_replace",
+        input: { path: "src/index.ts", old_str: "foo", new_text: "bar" }
+      },
+      "Invalid input for tool str_replace: missing required fields"
+    );
+
+    expect(attempt.type).toBe("input_schema");
+    expect(attempt.action).toEqual({
+      name: "str_replace",
+      input: { path: "src/index.ts", old_str: "foo", new_text: "bar", oldText: "foo", newText: "bar" }
+    });
+  });
 });

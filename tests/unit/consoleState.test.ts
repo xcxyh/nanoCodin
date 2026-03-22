@@ -39,4 +39,32 @@ describe("console state helpers", () => {
     expect(next.latestSnapshot?.phase).toBe("verify");
     expect(next.latestSnapshot?.verificationCommands).toEqual(["npm run test"]);
   });
+
+  it("renders empty action input without trailing empty object", () => {
+    const next = uiReducer(initialUiState, { type: "append_action", name: "view", input: {} });
+
+    expect(next.logs.at(-2)?.text).toBe("view");
+  });
+
+  it("summarizes bash json observation with stderr detail", () => {
+    const state = uiReducer(initialUiState, {
+      type: "append_action",
+      name: "bash",
+      input: { command: "npm run typecheck" }
+    });
+    const next = uiReducer(state, {
+      type: "append_observation",
+      text: [
+        "ERROR: {",
+        "  \"exit_code\": 2,",
+        "  \"stdout_tail\": \"\",",
+        "  \"stderr_tail\": \"tsc: found 3 errors\",",
+        "  \"duration_ms\": 123,",
+        "  \"policy_decision\": \"allow\"",
+        "}"
+      ].join("\n")
+    });
+
+    expect(next.logs.at(-1)?.summary).toContain("detail=tsc: found 3 errors");
+  });
 });
