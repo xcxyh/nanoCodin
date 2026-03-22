@@ -108,10 +108,9 @@ describe("ToolRegistry.execute", () => {
   it("passes a reason into permission prompts", async () => {
     const registry = new ToolRegistry([
       {
-        name: "create",
-        description: "create",
-        capabilities: ["mutating"],
-        schema: z.object({ path: z.string() }),
+        name: "bash",
+        description: "bash",
+        schema: z.object({ command: z.string(), confirmed: z.boolean().optional() }),
         execute: async () => ({ ok: true, output: "ok" })
       }
     ]);
@@ -123,9 +122,33 @@ describe("ToolRegistry.execute", () => {
       return "allow_once";
     });
 
+    const result = await registry.execute("bash", { command: "echo test" }, createToolContext({ permission }));
+
+    expect(result.ok).toBe(true);
+    expect(reason).toContain("approval");
+  });
+
+  it("does not prompt for mutating file tools", async () => {
+    let prompted = false;
+    const registry = new ToolRegistry([
+      {
+        name: "create",
+        description: "create",
+        capabilities: ["mutating"],
+        schema: z.object({ path: z.string() }),
+        execute: async () => ({ ok: true, output: "ok" })
+      }
+    ]);
+
+    const permission = new PermissionController();
+    permission.setPromptHandler(async () => {
+      prompted = true;
+      return "deny";
+    });
+
     const result = await registry.execute("create", { path: "file.txt" }, createToolContext({ permission }));
 
     expect(result.ok).toBe(true);
-    expect(reason).toContain("modify files");
+    expect(prompted).toBe(false);
   });
 });
