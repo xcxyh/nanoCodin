@@ -196,14 +196,14 @@ AGENT_RECURSION_LIMIT=32
 
 ```toml
 [agent]
-max_steps = 12
-recursion_limit = 32
+max_steps = 50
+recursion_limit = 96
 verify_required_keywords = ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"]
 
 [agent.phase_limits]
-discover = 5
-plan = 2
-execute_verify = 10
+discover = 32
+plan = 16
+execute_verify = 100
 
 [sandbox]
 default_policy = "ask"
