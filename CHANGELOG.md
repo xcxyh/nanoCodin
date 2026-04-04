@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-04
+
 ### Added
 - Runtime config system with precedence: CLI > `.nanocodin/config.toml` > `AGENTS.md` guidelines > env > defaults.
 - New core config/types: `ResolvedRuntimeConfig`, sandbox/index/recovery/compression settings.
@@ -42,12 +44,15 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 - Permission prompts now include a human-readable reason for why the tool needs approval.
 - Console UI now surfaces phase, todo state, verification state, subtask summaries, next action, and touched files while the agent runs.
 - Repo index persistence now defaults to a per-workspace cache under the system temp directory instead of writing into the repo on every run.
+- Console input now supports `@`-triggered file search with inline picker navigation and path insertion.
 
 ### Fixed
 - Tool parsing now handles inline JSON in `Action` lines (e.g. `Action: tree {"path":"src"}`) and HTML-escaped JSON payloads.
 - Tool registry now falls back to split-and-parse when tool name and JSON input are merged, fixing false `Unknown tool` errors for valid tools like `tree` and `view`.
 - Mutating actions are now blocked unless a bounded todo plan exists and verification details are defined, reducing unsafe execute-path transitions.
 - Delegated subtasks no longer behave like opaque happy-path summaries; failure and inconclusive outcomes are surfaced explicitly to the main task.
+- Console input handling now keeps cursor movement and deletion semantics consistent across Mac terminal key sequences.
+- File search picker rendering now clears cleanly when the candidate list closes, avoiding stale UI above the input bar.
 
 ## [0.1.0] - 2026-03-07
 
