@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
 
@@ -130,6 +131,20 @@ describe("index smoke", () => {
     expect(parsePositiveIntEnv("0", 10)).toBe(10);
     expect(parsePositiveIntEnv("abc", 10)).toBe(10);
     expect(parsePositiveIntEnv(undefined, 10)).toBe(10);
+  });
+
+  it("treats symlinked argv[1] as direct execution", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-link-"));
+    const realEntry = path.join(cwd, "real-index.js");
+    const linkedEntry = path.join(cwd, "linked-index.js");
+    await writeFile(realEntry, "", "utf8");
+
+    const fs = await import("node:fs");
+    fs.symlinkSync(realEntry, linkedEntry);
+
+    const { isDirectExecution } = await import("../../src/index.js");
+
+    expect(isDirectExecution(pathToFileURL(realEntry).href, linkedEntry)).toBe(true);
   });
 
   it("main boots without crashing when dependencies are mocked", async () => {
