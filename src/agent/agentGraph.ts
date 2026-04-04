@@ -79,6 +79,8 @@ type AgentGraphState = typeof AgentStateAnnotation.State;
 export interface RunOptions {
   messages: Message[];
   onEvent?: (event: AgentEvent) => void;
+  checkpointRestore?: "auto" | "disabled" | "latest" | "session";
+  resumeSessionId?: string;
 }
 
 export class CodingAgentGraph {
@@ -123,7 +125,11 @@ export class CodingAgentGraph {
 
   async run(options: RunOptions): Promise<{ finalAnswer: string; steps: AgentStep[] }> {
     this.onEvent = options.onEvent;
-    await this.restoreCheckpointIfNeeded(options.messages);
+    await this.restoreCheckpointIfNeeded(
+      options.messages,
+      options.checkpointRestore ?? "auto",
+      options.resumeSessionId
+    );
     const input = {
       messages: options.messages,
       intermediate_steps: [],
@@ -571,19 +577,34 @@ export class CodingAgentGraph {
     });
   }
 
-  private async restoreCheckpointIfNeeded(messages: Message[]): Promise<void> {
+  private async restoreCheckpointIfNeeded(
+    messages: Message[],
+    mode: RunOptions["checkpointRestore"],
+    resumeSessionId?: string
+  ): Promise<void> {
     if (!this.toolContext.checkpoint) {
       return;
     }
+    if (mode === "disabled") {
+      return;
+    }
+
     const latestUser = [...messages].reverse().find((message) => message.role === "user");
     const latestTask = latestUser?.content?.trim() ?? "";
-    const checkpoint = await this.toolContext.checkpoint.load();
+    const checkpoint = mode === "session"
+      ? await this.toolContext.checkpoint.load(resumeSessionId)
+      : mode === "latest"
+        ? await this.toolContext.checkpoint.load()
+        : await this.toolContext.checkpoint.load();
     if (!checkpoint) {
       return;
     }
-    const shouldRestore = latestTask.toLowerCase() === "continue"
-      || latestTask === checkpoint.task
-      || latestTask.startsWith("continue ");
+
+    const shouldRestore = mode === "latest" || mode === "session"
+      ? true
+      : latestTask.toLowerCase() === "continue"
+        || latestTask === checkpoint.task
+        || latestTask.startsWith("continue ");
     if (!shouldRestore) {
       return;
     }

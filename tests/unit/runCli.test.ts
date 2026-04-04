@@ -1,0 +1,124 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
+
+const hoisted = vi.hoisted(() => ({
+  renderSpy: vi.fn(),
+  checkpointLoadSpy: vi.fn().mockResolvedValue(null),
+  checkpointListSpy: vi.fn().mockResolvedValue([])
+}));
+
+vi.mock("ink", () => ({
+  render: hoisted.renderSpy
+}));
+
+vi.mock("../../src/llm/modelRouter.js", () => ({
+  createModelProviderFromEnv: () => ({
+    generate: vi.fn().mockResolvedValue({ text: "" })
+  })
+}));
+
+vi.mock("../../src/tools/registry.js", () => ({
+  createDefaultToolRegistry: () => ({ list: () => [] })
+}));
+
+vi.mock("../../src/services/configLoader.js", () => ({
+  loadRuntimeConfig: () => ({
+    config: JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG)),
+    sources: {
+      configTomlPath: "/repo/.nanocodin/config.toml",
+      agentsPath: "/repo/AGENTS.md",
+      contextPath: "/repo/.nanocodin/context.md",
+      memoryPath: "/repo/.nanocodin/memory.md"
+    }
+  })
+}));
+
+vi.mock("../../src/services/contextLoader.js", () => ({
+  loadContextSources: () => ({
+    sources: {
+      projectRules: [],
+      projectContext: null,
+      persistentMemory: null
+    },
+    paths: {
+      agentsPath: "/repo/AGENTS.md",
+      contextPath: "/repo/.nanocodin/context.md",
+      memoryPath: "/repo/.nanocodin/memory.md"
+    }
+  })
+}));
+
+vi.mock("../../src/services/repoIndexer.js", () => ({
+  RepoIndexer: class {
+    init() {
+      return Promise.resolve();
+    }
+  }
+}));
+
+vi.mock("../../src/core/permission.js", () => ({
+  PermissionController: class {}
+}));
+
+vi.mock("../../src/services/sessionCheckpoint.js", () => ({
+  FileSessionCheckpointStore: class {
+    load(sessionId?: string) {
+      return hoisted.checkpointLoadSpy(sessionId);
+    }
+
+    list() {
+      return hoisted.checkpointListSpy();
+    }
+
+    save() {
+      return Promise.resolve(null);
+    }
+
+    clear() {
+      return Promise.resolve();
+    }
+  }
+}));
+
+describe("runCli", () => {
+  beforeEach(() => {
+    hoisted.renderSpy.mockClear();
+    hoisted.checkpointLoadSpy.mockReset();
+    hoisted.checkpointLoadSpy.mockResolvedValue(null);
+    hoisted.checkpointListSpy.mockReset();
+    hoisted.checkpointListSpy.mockResolvedValue([]);
+  });
+
+  it("prints config without rendering the UI", async () => {
+    const { runCli } = await import("../../src/cli/runCli.js");
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const exitCode = await runCli(["--print-config"], {
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    }, process.cwd());
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("\n")).toContain("Effective config");
+    expect(stdout.join("\n")).toContain("configTomlPath");
+    expect(hoisted.renderSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns an error when a resume checkpoint is missing", async () => {
+    const { runCli } = await import("../../src/cli/runCli.js");
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const exitCode = await runCli(["--resume", "missing-id"], {
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    }, process.cwd());
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toEqual([]);
+    expect(stderr.join("\n")).toContain("Checkpoint not found: missing-id");
+    expect(hoisted.renderSpy).not.toHaveBeenCalled();
+  });
+});

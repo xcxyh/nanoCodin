@@ -23,6 +23,9 @@ import { isCtrlC, isCtrlE, useConsoleInput } from "./useConsoleInput.js";
 interface Props {
   graph: CodingAgentGraph;
   permissionController: PermissionController;
+  initialTask?: string;
+  resumeSessionId?: string;
+  disableCheckpointRestore?: boolean;
 }
 
 interface PermissionPromptState {
@@ -46,7 +49,7 @@ function resolvePermissionChoice(char: string): PermissionPromptChoice | null {
   return null;
 }
 
-export function ConsoleApp({ graph, permissionController }: Props) {
+export function ConsoleApp({ graph, permissionController, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
   const { exit } = useApp();
   const { input, cursor, inputRef, cursorRef, setInput, setCursor, reset, applyKey } = useConsoleInput();
 
@@ -54,6 +57,7 @@ export function ConsoleApp({ graph, permissionController }: Props) {
   const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptState | null>(null);
   const [exitArmedAt, setExitArmedAt] = useState<number | null>(null);
   const [filePicker, setFilePicker] = useState<FilePickerState | null>(null);
+  const bootstrappedRef = useRef(false);
 
   const exitArmedAtRef = useRef<number | null>(null);
   const activeRunIdRef = useRef(0);
@@ -166,6 +170,12 @@ export function ConsoleApp({ graph, permissionController }: Props) {
     try {
       const result = await graph.run({
         messages: initialMessages,
+        checkpointRestore: disableCheckpointRestore
+          ? "disabled"
+          : resumeSessionId
+            ? (resumeSessionId === "__LATEST__" ? "latest" : "session")
+            : "auto",
+        resumeSessionId: resumeSessionId && resumeSessionId !== "__LATEST__" ? resumeSessionId : undefined,
         onEvent: (event) => {
           if (runId !== activeRunIdRef.current) {
             return;
@@ -295,6 +305,17 @@ export function ConsoleApp({ graph, permissionController }: Props) {
       setFilePicker({ query: "", selectedIndex: 0, atPosition: cursorRef.current - 1 });
     }
   });
+
+  useEffect(() => {
+    if (bootstrappedRef.current) {
+      return;
+    }
+    if (!initialTask && !resumeSessionId) {
+      return;
+    }
+    bootstrappedRef.current = true;
+    void runTask(initialTask ?? "continue");
+  }, [initialTask, resumeSessionId]);
 
   useEffect(() => {
     const handler = async (request: PermissionRequest) => new Promise<PermissionPromptChoice>((resolve) => {
