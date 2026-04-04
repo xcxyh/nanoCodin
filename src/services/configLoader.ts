@@ -39,7 +39,7 @@ function parseRatio(value: string | undefined): number | undefined {
   return parsed;
 }
 
-function parseCliOverrides(argv: string[]): CliOverrides {
+export function parseCliOverrides(argv: string[]): CliOverrides {
   const overrides: CliOverrides = {};
   for (const rawArg of argv) {
     if (!rawArg.startsWith("--")) {
@@ -182,8 +182,8 @@ function loadEnvConfig(config: ResolvedRuntimeConfig): void {
   }
 }
 
-function loadCliOverrides(config: ResolvedRuntimeConfig): void {
-  const cli = parseCliOverrides(process.argv.slice(2));
+function loadCliOverrides(config: ResolvedRuntimeConfig, argv: string[]): void {
+  const cli = parseCliOverrides(argv);
   if (cli.maxSteps) {
     config.agent.maxSteps = cli.maxSteps;
   }
@@ -204,14 +204,14 @@ function loadCliOverrides(config: ResolvedRuntimeConfig): void {
   }
 }
 
-export function loadRuntimeConfig(cwd: string): ResolvedRuntimeConfigResult {
+export function loadRuntimeConfig(cwd: string, argv: string[] = process.argv.slice(2)): ResolvedRuntimeConfigResult {
   const config = cloneDefaultConfig();
   const configTomlPath = path.join(cwd, ".nanocodin", "config.toml");
   const context = loadContextSources(cwd);
 
   loadEnvConfig(config);
   loadTomlConfig(configTomlPath, config);
-  loadCliOverrides(config);
+  loadCliOverrides(config, argv);
   config.agentsGuidelines = context.sources.projectRules;
 
   if (config.agent.recursionLimit < config.agent.maxSteps + 2) {

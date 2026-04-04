@@ -117,6 +117,7 @@ export interface ToolContext {
 }
 
 export interface SessionCheckpoint {
+  id: string;
   task: string;
   updatedAt: number;
   sessionMemory: SessionMemory | null;
@@ -124,10 +125,17 @@ export interface SessionCheckpoint {
   latestVerification: string | null;
 }
 
+export interface SessionCheckpointSummary {
+  id: string;
+  task: string;
+  updatedAt: number;
+}
+
 export interface SessionCheckpointStore {
-  load(): Promise<SessionCheckpoint | null>;
-  save(checkpoint: SessionCheckpoint): Promise<void>;
+  load(sessionId?: string): Promise<SessionCheckpoint | null>;
+  save(checkpoint: Omit<SessionCheckpoint, "id">): Promise<SessionCheckpoint>;
   clear(): Promise<void>;
+  list(): Promise<SessionCheckpointSummary[]>;
 }
 
 export type ToolCapability =

@@ -8,7 +8,10 @@ const hoisted = vi.hoisted(() => {
   return {
     renderSpy: vi.fn(),
     initSpy: vi.fn().mockResolvedValue(undefined),
-    graphCtorSpy: vi.fn()
+    graphCtorSpy: vi.fn(),
+    consoleAppSpy: vi.fn(),
+    checkpointLoadSpy: vi.fn().mockResolvedValue(null),
+    checkpointListSpy: vi.fn().mockResolvedValue([])
   };
 });
 
@@ -31,7 +34,9 @@ vi.mock("../../src/services/configLoader.js", () => ({
     config: JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG)),
     sources: {
       configTomlPath: "",
-      agentsPath: ""
+      agentsPath: "",
+      contextPath: "",
+      memoryPath: ""
     }
   })
 }));
@@ -61,7 +66,30 @@ vi.mock("../../src/agent/agentGraph.js", () => ({
 }));
 
 vi.mock("../../src/ui/consoleApp.js", () => ({
-  ConsoleApp: () => null
+  ConsoleApp: (props: unknown) => {
+    hoisted.consoleAppSpy(props);
+    return null;
+  }
+}));
+
+vi.mock("../../src/services/sessionCheckpoint.js", () => ({
+  FileSessionCheckpointStore: class {
+    load(sessionId?: string) {
+      return hoisted.checkpointLoadSpy(sessionId);
+    }
+
+    list() {
+      return hoisted.checkpointListSpy();
+    }
+
+    save() {
+      return Promise.resolve(null);
+    }
+
+    clear() {
+      return Promise.resolve();
+    }
+  }
 }));
 
 const originalEnv = { ...process.env };
@@ -71,6 +99,9 @@ describe("index smoke", () => {
     hoisted.renderSpy.mockClear();
     hoisted.initSpy.mockClear();
     hoisted.graphCtorSpy.mockClear();
+    hoisted.consoleAppSpy.mockClear();
+    hoisted.checkpointLoadSpy.mockClear();
+    hoisted.checkpointListSpy.mockClear();
     process.env = { ...originalEnv };
   });
 
@@ -104,11 +135,36 @@ describe("index smoke", () => {
   it("main boots without crashing when dependencies are mocked", async () => {
     const { main } = await import("../../src/index.js");
 
-    main();
+    const exitCode = await main([]);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    expect(exitCode).toBe(0);
     expect(hoisted.initSpy).toHaveBeenCalledTimes(1);
     expect(hoisted.graphCtorSpy).toHaveBeenCalledTimes(1);
     expect(hoisted.renderSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("main returns help without starting the UI", async () => {
+    const { main } = await import("../../src/index.js");
+
+    const exitCode = await main(["--help"]);
+
+    expect(exitCode).toBe(0);
+    expect(hoisted.renderSpy).not.toHaveBeenCalled();
+    expect(hoisted.graphCtorSpy).not.toHaveBeenCalled();
+  });
+
+  it("passes initial prompt into ConsoleApp", async () => {
+    const { main } = await import("../../src/index.js");
+
+    const exitCode = await main(["--prompt", "fix failing tests"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(exitCode).toBe(0);
+    expect(hoisted.renderSpy).toHaveBeenCalledTimes(1);
+    const element = hoisted.renderSpy.mock.calls[0]?.[0];
+    expect(element?.props).toMatchObject({
+      initialTask: "fix failing tests"
+    });
   });
 });

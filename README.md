@@ -249,7 +249,40 @@ Notes:
 
 ## Usage
 
-Run `nano-codin`, type a coding task, then press Enter.
+Common entry points:
+
+```bash
+nano-codin
+nano-codin "fix the failing tests"
+nano-codin --prompt "inspect the repo and propose a plan"
+nano-codin --resume
+nano-codin --print-config
+nano-codin --help
+```
+
+Key flags:
+
+- `-h`, `--help`: show usage and exit
+- `-v`, `--version`: print version and exit
+- `--cwd <path>`: run against a different workspace
+- `--prompt <text>`: start with an initial task
+- `--resume [session-id]`: resume the latest or a named checkpoint
+- `--new-session`: ignore resumable checkpoint state
+- `--print-config`: print effective config and source paths
+- `--max-steps <n>`
+- `--recursion-limit <n>`
+- `--sandbox-policy <allow|ask|deny>`
+- `--sandbox-timeout-ms <n>`
+- `--compression-threshold <0..1>`
+- `--verify-keywords <a,b,c>`
+
+Config precedence:
+
+- CLI flags > `.nanocodin/config.toml` > `AGENTS.md` (guidelines only) > env > defaults
+
+Interactive mode:
+
+- Run `nano-codin`, type a coding task, then press Enter.
 
 Example prompts:
 
