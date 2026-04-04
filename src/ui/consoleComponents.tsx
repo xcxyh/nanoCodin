@@ -175,14 +175,17 @@ export function PermissionPromptBox({ request }: { request: PermissionRequest })
 }
 
 export function ConsoleInputBar({ input, cursor, busy }: { input: string; cursor: number; busy: boolean }) {
-  const caretColor = busy ? "gray" : BRAND_COLOR;
+  const before = input.slice(0, cursor);
+  const cursorChar = cursor < input.length ? input[cursor] : " ";
+  const after = cursor < input.length ? input.slice(cursor + 1) : "";
+  const cursorBg = busy ? "gray" : BRAND_COLOR;
 
   return (
     <Box marginTop={1} borderStyle="round" borderColor={BRAND_COLOR} paddingX={1}>
       <Text color={BRAND_COLOR}>{">"}</Text>
-      <Text> {input.slice(0, cursor)}</Text>
-      <Text color={caretColor}>▌</Text>
-      <Text>{input.slice(cursor)}</Text>
+      <Text>{" "}{before}</Text>
+      <Text backgroundColor={cursorBg} color="black">{cursorChar}</Text>
+      <Text>{after}</Text>
     </Box>
   );
 }

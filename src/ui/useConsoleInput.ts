@@ -122,10 +122,11 @@ export function applyInputKey(state: ConsoleInputState, char: string, key: Input
   }
 
   if (!key.ctrl && !key.meta && !key.return && char && !isEscapedInput(char)) {
-    const nextInput = currentInput.slice(0, currentCursor) + char + currentInput.slice(currentCursor);
+    const sanitized = char.replace(/[\r\n]+/g, " ");
+    const nextInput = currentInput.slice(0, currentCursor) + sanitized + currentInput.slice(currentCursor);
     return {
       input: nextInput,
-      cursor: clampCursor(currentCursor + char.length, nextInput)
+      cursor: clampCursor(currentCursor + sanitized.length, nextInput)
     };
   }
 
