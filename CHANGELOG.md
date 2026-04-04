@@ -6,6 +6,17 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-04-04
+
+### Fixed
+- CLI direct-run detection now resolves symlinked bin paths correctly, so `nano-codin` starts normally when installed via `npm link` or a global package symlink.
+- Added a smoke-test regression case covering symlinked `argv[1]` entry resolution.
+
+## [0.1.3] - 2026-04-04
+
+### Added
+- Minimal command shell support for the CLI runtime.
+
 ## [0.1.2] - 2026-04-04
 
 ### Added
