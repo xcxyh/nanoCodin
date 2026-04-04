@@ -1,5 +1,14 @@
 # Nano Codin
 
+[![CI](https://github.com/xcxyh/nanoCodin/actions/workflows/ci.yml/badge.svg)](https://github.com/xcxyh/nanoCodin/actions/workflows/ci.yml)
+[![Release](https://github.com/xcxyh/nanoCodin/actions/workflows/release.yml/badge.svg)](https://github.com/xcxyh/nanoCodin/actions/workflows/release.yml)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![LangGraph](https://img.shields.io/badge/Agent-LangGraph-1C3C3C)](https://www.langchain.com/langgraph)
+[![Ink](https://img.shields.io/badge/Terminal_UI-Ink-000000)](https://github.com/vadimdemedes/ink)
+[![React](https://img.shields.io/badge/Frontend-React_18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+
 [English](./README.md) | [中文](./README.zh-CN.md)
 
 ```text
@@ -249,7 +258,40 @@ export LANGSMITH_PROJECT=nano-codin
 
 ## 使用方式
 
-运行 `nano-codin`，输入编码任务后按 Enter。
+常见入口：
+
+```bash
+nano-codin
+nano-codin "fix the failing tests"
+nano-codin --prompt "inspect the repo and propose a plan"
+nano-codin --resume
+nano-codin --print-config
+nano-codin --help
+```
+
+常用参数：
+
+- `-h`, `--help`：显示帮助并退出
+- `-v`, `--version`：输出版本并退出
+- `--cwd <path>`：在指定工作区中运行
+- `--prompt <text>`：以初始任务启动
+- `--resume [session-id]`：恢复最近一次或指定 checkpoint
+- `--new-session`：忽略可恢复的 checkpoint 状态
+- `--print-config`：输出生效配置和来源路径
+- `--max-steps <n>`
+- `--recursion-limit <n>`
+- `--sandbox-policy <allow|ask|deny>`
+- `--sandbox-timeout-ms <n>`
+- `--compression-threshold <0..1>`
+- `--verify-keywords <a,b,c>`
+
+配置优先级：
+
+- CLI flags > `.nanocodin/config.toml` > `AGENTS.md`（仅指南）> env > defaults
+
+交互模式：
+
+- 运行 `nano-codin`，输入编码任务后按 Enter。
 
 示例提示词：
 
