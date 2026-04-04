@@ -170,6 +170,8 @@ export function useConsoleInput(initialValue = "") {
   return {
     input,
     cursor,
+    inputRef,
+    cursorRef,
     setInput,
     setCursor,
     reset,

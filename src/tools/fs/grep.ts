@@ -20,7 +20,7 @@ interface Hit {
   content: string;
 }
 
-async function collectFiles(root: string): Promise<string[]> {
+export async function collectFiles(root: string): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true });
   const files: string[] = [];
 

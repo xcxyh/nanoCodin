@@ -174,18 +174,48 @@ export function PermissionPromptBox({ request }: { request: PermissionRequest })
   );
 }
 
-export function ConsoleInputBar({ input, cursor, busy }: { input: string; cursor: number; busy: boolean }) {
+const MAX_VISIBLE_FILES = 10;
+
+export function ConsoleInputBar({
+  input,
+  cursor,
+  busy,
+  pickerFiles = [],
+  pickerSelectedIndex = 0
+}: {
+  input: string;
+  cursor: number;
+  busy: boolean;
+  pickerFiles?: string[];
+  pickerSelectedIndex?: number;
+}) {
   const before = input.slice(0, cursor);
   const cursorChar = cursor < input.length ? input[cursor] : " ";
   const after = cursor < input.length ? input.slice(cursor + 1) : "";
   const cursorBg = busy ? "gray" : BRAND_COLOR;
+  const showPicker = pickerFiles.length > 0;
 
   return (
-    <Box marginTop={1} borderStyle="round" borderColor={BRAND_COLOR} paddingX={1}>
-      <Text color={BRAND_COLOR}>{">"}</Text>
-      <Text>{" "}{before}</Text>
-      <Text backgroundColor={cursorBg} color="black">{cursorChar}</Text>
-      <Text>{after}</Text>
+    <Box marginTop={1} borderStyle="round" borderColor={BRAND_COLOR} paddingX={1} flexDirection="column">
+      {showPicker ? (
+        <Box flexDirection="column" marginBottom={1}>
+          {pickerFiles.slice(0, MAX_VISIBLE_FILES).map((file, idx) => (
+            <Text
+              key={file}
+              color={idx === pickerSelectedIndex ? "black" : "white"}
+              backgroundColor={idx === pickerSelectedIndex ? BRAND_COLOR : undefined}
+            >
+              {idx === pickerSelectedIndex ? "> " : "  "}{file}
+            </Text>
+          ))}
+        </Box>
+      ) : null}
+      <Box>
+        <Text color={BRAND_COLOR}>{">"}</Text>
+        <Text>{" "}{before}</Text>
+        <Text backgroundColor={cursorBg} color="black">{cursorChar}</Text>
+        <Text>{after}</Text>
+      </Box>
     </Box>
   );
 }

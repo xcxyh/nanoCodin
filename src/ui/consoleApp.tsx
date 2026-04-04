@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Box, useApp, useInput } from "ink";
+import path from "node:path";
 import { CodingAgentGraph } from "../agent/agentGraph.js";
 import type { Message } from "../core/messageTypes.js";
 import type { PermissionController, PermissionPromptChoice, PermissionRequest } from "../core/permission.js";
+import { collectFiles } from "../tools/fs/grep.js";
 import {
   ConsoleHeader,
   ConsoleInputBar,
   ConsoleLogList,
   PermissionPromptBox
 } from "./consoleComponents.js";
+import { clampFilePickerIndex, getFilePickerQuery } from "./filePicker.js";
 import {
   hasToggleableObservation,
   initialUiState,
@@ -27,6 +30,12 @@ interface PermissionPromptState {
   resolve: (choice: PermissionPromptChoice) => void;
 }
 
+interface FilePickerState {
+  query: string;
+  selectedIndex: number;
+  atPosition: number;
+}
+
 const EXIT_ARM_WINDOW_MS = 1500;
 
 function resolvePermissionChoice(char: string): PermissionPromptChoice | null {
@@ -39,14 +48,49 @@ function resolvePermissionChoice(char: string): PermissionPromptChoice | null {
 
 export function ConsoleApp({ graph, permissionController }: Props) {
   const { exit } = useApp();
-  const { input, cursor, reset, applyKey } = useConsoleInput();
+  const { input, cursor, inputRef, cursorRef, setInput, setCursor, reset, applyKey } = useConsoleInput();
 
   const [uiState, dispatch] = useReducer(uiReducer, initialUiState);
   const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptState | null>(null);
   const [exitArmedAt, setExitArmedAt] = useState<number | null>(null);
+  const [filePicker, setFilePicker] = useState<FilePickerState | null>(null);
 
   const exitArmedAtRef = useRef<number | null>(null);
   const activeRunIdRef = useRef(0);
+  const fileListRef = useRef<string[]>([]);
+  const fileListLoadedRef = useRef(false);
+  const fileListLoadingRef = useRef<Promise<void> | null>(null);
+  const [fileListVersion, setFileListVersion] = useState(0);
+
+  const filteredFiles = useMemo(() => {
+    if (!filePicker) return [];
+    const q = filePicker.query.toLowerCase();
+    return fileListRef.current
+      .filter(f => q === "" || f.toLowerCase().includes(q))
+      .slice(0, 10);
+  }, [filePicker, fileListVersion]);
+
+  async function loadFileList() {
+    if (fileListLoadedRef.current) return;
+    if (fileListLoadingRef.current) {
+      await fileListLoadingRef.current;
+      return;
+    }
+
+    fileListLoadingRef.current = (async () => {
+      const cwd = process.cwd();
+      const absolutePaths = await collectFiles(cwd);
+      fileListRef.current = absolutePaths.map(f => path.relative(cwd, f)).sort();
+      fileListLoadedRef.current = true;
+      setFileListVersion(version => version + 1);
+    })();
+
+    try {
+      await fileListLoadingRef.current;
+    } finally {
+      fileListLoadingRef.current = null;
+    }
+  }
 
   const clearExitArm = () => {
     if (exitArmedAtRef.current !== null) {
@@ -76,6 +120,9 @@ export function ConsoleApp({ graph, permissionController }: Props) {
     if (permissionPrompt) {
       return "Permission required. Press Y to allow once, A to allow all, N to deny.";
     }
+    if (filePicker) {
+      return "Type to filter. Up/Down to navigate, Enter to select, Esc to cancel.";
+    }
     if (uiState.busy) {
       return "Nano Codin is working. Press ESC to cancel.";
     }
@@ -83,7 +130,7 @@ export function ConsoleApp({ graph, permissionController }: Props) {
       return "Press Ctrl+C again to exit.";
     }
     return "Type a coding task and press Enter. Press Ctrl+E to expand/collapse latest output. Ctrl+C twice to exit.";
-  }, [permissionPrompt, uiState.busy, exitArmedAt]);
+  }, [permissionPrompt, filePicker, uiState.busy, exitArmedAt]);
 
   useEffect(() => {
     if (!uiState.busy && !uiState.thinkingVisible && !uiState.loadingVisible) {
@@ -147,6 +194,10 @@ export function ConsoleApp({ graph, permissionController }: Props) {
 
   useInput((char, key) => {
     if (key.escape) {
+      if (filePicker) {
+        setFilePicker(null);
+        return;
+      }
       if (uiState.busy) {
         activeRunIdRef.current += 1;
         dispatch({ type: "task_cancel" });
@@ -155,6 +206,10 @@ export function ConsoleApp({ graph, permissionController }: Props) {
     }
 
     if (isCtrlC(char, key)) {
+      if (filePicker) {
+        setFilePicker(null);
+        return;
+      }
       tryExit();
       return;
     }
@@ -174,6 +229,50 @@ export function ConsoleApp({ graph, permissionController }: Props) {
 
     clearExitArm();
 
+    if (filePicker) {
+      if (key.upArrow) {
+        setFilePicker(prev => prev && ({
+          ...prev,
+          selectedIndex: clampFilePickerIndex(prev.selectedIndex - 1, filteredFiles.length)
+        }));
+        return;
+      }
+      if (key.downArrow) {
+        setFilePicker(prev => prev && ({
+          ...prev,
+          selectedIndex: clampFilePickerIndex(prev.selectedIndex + 1, filteredFiles.length)
+        }));
+        return;
+      }
+      if (key.return) {
+        if (filteredFiles.length > 0) {
+          const selectedIndex = clampFilePickerIndex(filePicker.selectedIndex, filteredFiles.length);
+          const selected = filteredFiles[selectedIndex] ?? filteredFiles[0];
+          const atPos = filePicker.atPosition;
+          const beforeAt = inputRef.current.slice(0, atPos);
+          const afterQuery = inputRef.current.slice(atPos + 1 + filePicker.query.length);
+          const newInput = beforeAt + selected + " " + afterQuery;
+          setInput(newInput);
+          setCursor(beforeAt.length + selected.length + 1);
+        }
+        setFilePicker(null);
+        return;
+      }
+
+      applyKey(char, key);
+
+      const currentInput = inputRef.current;
+      const atPos = filePicker.atPosition;
+      const newQuery = getFilePickerQuery(currentInput, atPos, cursorRef.current);
+      if (newQuery === null) {
+        setFilePicker(null);
+        return;
+      }
+
+      setFilePicker(prev => prev && ({ ...prev, query: newQuery, selectedIndex: 0 }));
+      return;
+    }
+
     if (isCtrlE(char, key) && hasToggleableObservation(uiState.logs)) {
       dispatch({ type: "toggle_latest_observation" });
       return;
@@ -190,6 +289,11 @@ export function ConsoleApp({ graph, permissionController }: Props) {
     }
 
     applyKey(char, key);
+
+    if (char === "@" && !filePicker) {
+      void loadFileList();
+      setFilePicker({ query: "", selectedIndex: 0, atPosition: cursorRef.current - 1 });
+    }
   });
 
   useEffect(() => {
@@ -208,7 +312,13 @@ export function ConsoleApp({ graph, permissionController }: Props) {
       <ConsoleHeader hint={hint} snapshot={uiState.latestSnapshot} />
       <ConsoleLogList logs={uiState.logs} thinkingTick={uiState.thinkingTick} />
       {permissionPrompt ? <PermissionPromptBox request={permissionPrompt.request} /> : null}
-      <ConsoleInputBar input={input} cursor={cursor} busy={uiState.busy} />
+      <ConsoleInputBar
+        input={input}
+        cursor={cursor}
+        busy={uiState.busy}
+        pickerFiles={filePicker ? filteredFiles : []}
+        pickerSelectedIndex={filePicker?.selectedIndex ?? 0}
+      />
     </Box>
   );
 }
