@@ -6,3 +6,7 @@ coverage
 .nanoCodin/config.toml
 .nanoCodin/index.json
 tmp.txt
+.omx/context/
+.omx/interviews/
+.omx/logs/
+.omx/state/
