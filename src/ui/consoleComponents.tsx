@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import type { PermissionRequest } from "../core/permission.js";
 import type { LogEntry, LogKind } from "./consoleState.js";
 import type { AgentExecutionSnapshot } from "../agent/reactLoop.js";
+import { formatTokenUsageText } from "./tokenUsage.js";
 
 export const BRAND_COLOR = "#38bdf8";
 
@@ -126,6 +127,7 @@ function renderLogEntry(entry: LogEntry, thinkingTick: number): React.ReactNode 
 }
 
 export function ConsoleHeader({ hint, snapshot }: { hint: string; snapshot: AgentExecutionSnapshot | null }) {
+  const tokenUsageText = snapshot ? formatTokenUsageText(snapshot.tokenUsage) : null;
   return (
     <Box marginBottom={1} flexDirection="column">
       {BANNER_LINES.map((line, idx) => (
@@ -142,6 +144,7 @@ export function ConsoleHeader({ hint, snapshot }: { hint: string; snapshot: Agen
           <Text color="gray">Verification: {snapshot.verificationGoal || "(none)"} / {snapshot.verificationStatus}</Text>
           <Text color="gray">Commands: {snapshot.verificationCommands.join(" | ") || "(none)"}</Text>
           <Text color="gray">Latest check: {snapshot.latestVerification ?? "(none)"}</Text>
+          {tokenUsageText ? <Text color="gray">{tokenUsageText}</Text> : null}
           <Text color="gray">Subtasks: {snapshot.subtaskSummaries.join(" | ") || "(none)"}</Text>
           <Text color="gray">Next: {snapshot.sessionNextAction ?? "(none)"}</Text>
           <Text color="gray">Touched: {snapshot.touchedFiles.join(", ") || "(none)"}</Text>

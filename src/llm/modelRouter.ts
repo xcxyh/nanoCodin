@@ -1,7 +1,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
-import type { Message, ModelResponse } from "../core/messageTypes.js";
+import type { Message, ModelResponse, TokenUsage } from "../core/messageTypes.js";
 
 export interface ModelProvider {
   generate(messages: Message[]): Promise<ModelResponse>;
@@ -9,6 +9,53 @@ export interface ModelProvider {
 
 function toPrompt(messages: Message[]): string {
   return messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
+}
+
+function estimateTokenCount(text: string): number {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return 0;
+  }
+  return Math.max(1, Math.ceil(trimmed.length / 4));
+}
+
+export function estimateUsage(prompt: string, text: string): TokenUsage {
+  const promptTokens = estimateTokenCount(prompt);
+  const completionTokens = estimateTokenCount(text);
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    source: "estimated"
+  };
+}
+
+export function normalizeUsage(
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined,
+  prompt: string,
+  text: string
+): TokenUsage {
+  if (!usage) {
+    return estimateUsage(prompt, text);
+  }
+
+  return {
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    totalTokens: usage.totalTokens,
+    source: "actual"
+  };
+}
+
+function toModelResponse(
+  prompt: string,
+  text: string,
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined
+): ModelResponse {
+  return {
+    text,
+    usage: normalizeUsage(usage, prompt, text)
+  };
 }
 
 function formatProviderError(
@@ -76,12 +123,13 @@ class OpenAIProvider implements ModelProvider {
       const openai = createOpenAI({ apiKey, baseURL });
       const modelFactory = openai(this.modelName);
 
-      const { text } = await generateText({
+      const prompt = toPrompt(messages);
+      const { text, usage } = await generateText({
         model: modelFactory,
-        prompt: toPrompt(messages)
+        prompt
       });
 
-      return { text };
+      return toModelResponse(prompt, text, usage);
     } catch (error) {
       throw formatProviderError("openai", this.modelName, baseURL, error);
     }
@@ -106,23 +154,25 @@ class AnthropicProvider implements ModelProvider {
       const anthropic = createAnthropic({ apiKey, baseURL });
       const modelFactory = anthropic(this.modelName);
 
-      const { text } = await generateText({
+      const prompt = toPrompt(messages);
+      const { text, usage } = await generateText({
         model: modelFactory,
-        prompt: toPrompt(messages)
+        prompt
       });
 
-      return { text };
+      return toModelResponse(prompt, text, usage);
     } catch (error) {
       if (baseURL && isNotFoundError(error) && !baseURL.replace(/\/+$/, "").endsWith("/v1")) {
         const fallbackBaseURL = normalizeAnthropicBaseURL(baseURL);
         try {
           const anthropic = createAnthropic({ apiKey, baseURL: fallbackBaseURL });
           const modelFactory = anthropic(this.modelName);
-          const { text } = await generateText({
+          const prompt = toPrompt(messages);
+          const { text, usage } = await generateText({
             model: modelFactory,
-            prompt: toPrompt(messages)
+            prompt
           });
-          return { text };
+          return toModelResponse(prompt, text, usage);
         } catch (retryError) {
           throw formatProviderError("anthropic", this.modelName, fallbackBaseURL, retryError);
         }

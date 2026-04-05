@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -51,5 +51,40 @@ describe("FileSessionCheckpointStore", () => {
 
     expect(loaded?.id).toBe(first.id);
     expect(loaded?.task).toBe("resume me");
+  });
+
+  it("ignores unknown token usage fields when loading older checkpoints", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-checkpoint-"));
+    const checkpointDir = path.join(cwd, ".nanocodin");
+    await mkdir(checkpointDir, { recursive: true });
+    await writeFile(path.join(checkpointDir, "session-checkpoint.json"), JSON.stringify({
+      id: "session-1",
+      task: "resume me",
+      updatedAt: Date.now(),
+      sessionMemory: null,
+      todos: {
+        items: [],
+        verification: {
+          goal: "",
+          commands: [],
+          latestCommand: null,
+          latestSummary: null,
+          status: "pending"
+        },
+        taskBundle: { primaryTask: null, subtasks: [], results: [] }
+      },
+      latestVerification: null,
+      tokenUsage: {
+        promptTokens: 11,
+        completionTokens: 7,
+        totalTokens: 18,
+        source: "mixed"
+      }
+    }, null, 2));
+
+    const loaded = await new FileSessionCheckpointStore(cwd).load();
+
+    expect(loaded?.task).toBe("resume me");
+    expect(loaded?.latestVerification).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { AgentStep, Message, ToolCall } from "../core/messageTypes.js";
+import type { AgentStep, Message, TokenUsage, ToolCall } from "../core/messageTypes.js";
 import type { ContextSources, SessionMemory, TodoState, ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { renderTemplate } from "../prompts/templateEngine.js";
@@ -34,6 +34,7 @@ export interface AgentExecutionSnapshot {
   verificationCommands: string[];
   verificationStatus: string;
   latestVerification: string | null;
+  tokenUsage: TokenUsage | null;
   subtaskSummaries: string[];
   sessionNextAction: string | null;
   touchedFiles: string[];
@@ -191,7 +192,8 @@ export function buildAgentExecutionSnapshot(
   phase: AgentPhase,
   todos: TodoState,
   sessionMemory: SessionMemory | null,
-  latestVerification: string | null
+  latestVerification: string | null,
+  tokenUsage: TokenUsage | null
 ): AgentExecutionSnapshot {
   return {
     phase,
@@ -200,6 +202,7 @@ export function buildAgentExecutionSnapshot(
     verificationCommands: [...todos.verification.commands],
     verificationStatus: todos.verification.status,
     latestVerification,
+    tokenUsage,
     subtaskSummaries: todos.taskBundle.results.map((result) => `${result.status} ${result.task}: ${result.summary}`),
     sessionNextAction: sessionMemory?.nextAction ?? null,
     touchedFiles: sessionMemory?.touchedFiles ?? []

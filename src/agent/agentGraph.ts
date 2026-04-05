@@ -1,6 +1,6 @@
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import type { RunnableConfig } from "@langchain/core/runnables";
-import type { AgentStep, Message, ToolCall } from "../core/messageTypes.js";
+import { accumulateTokenUsage, type AgentStep, type Message, type TokenUsage, type ToolCall } from "../core/messageTypes.js";
 import type { ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import {
@@ -69,6 +69,10 @@ const AgentStateAnnotation = Annotation.Root({
     default: () => []
   }),
   latestVerification: Annotation<string | null>({
+    reducer: (_, right) => right,
+    default: () => null
+  }),
+  tokenUsage: Annotation<TokenUsage | null>({
     reducer: (_, right) => right,
     default: () => null
   })
@@ -143,7 +147,8 @@ export class CodingAgentGraph {
       stepRecoveryCount: 0,
       recoverySignatures: [],
       recoveryHistory: [],
-      latestVerification: null
+      latestVerification: null,
+      tokenUsage: null
     };
 
     const runnableConfig = createLangSmithRunnableConfig("coding-agent-run", {
@@ -201,7 +206,92 @@ export class CodingAgentGraph {
       );
       const response = await this.model.generate(messages);
       responseText = response.text;
+      const nextTokenUsage = accumulateTokenUsage(state.tokenUsage, response.usage);
       parsed = parseAgentResponse(responseText);
+
+      const actionName = parsed.action.toLowerCase();
+
+      this.onEvent?.({ type: "thought", thought: parsed.thought });
+
+      if (actionName === "final") {
+        if (state.requiresVerify && !state.hasVerified) {
+          const observation = "ERROR: Verification required before final answer. Run test/lint/typecheck or equivalent validation first.";
+          this.onEvent?.({ type: "observation", observation });
+          this.emitStateSnapshot("verify", state.latestVerification, nextTokenUsage);
+          return {
+            messages: [{ role: "tool", name: "verification_guard", content: observation }],
+            stepCount: state.stepCount + 1,
+            pending_action: null,
+            phase: "verify" as AgentPhase,
+            phaseVisits: this.bumpPhaseVisit(state.phaseVisits, "verify"),
+            tokenUsage: nextTokenUsage,
+            intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, observation, phase: "verify" }]
+          };
+        }
+
+        const answer = typeof parsed.actionInput.answer === "string"
+          ? parsed.actionInput.answer
+          : responseText;
+        const summary = buildFinalSummary({
+          sessionMemory: this.toolContext.sessionMemory,
+          todos: this.toolContext.todos,
+          subtasks: this.toolContext.todos.taskBundle.results,
+          latestVerification: state.latestVerification
+        });
+        const finalAnswer = `${answer}\n\nExecution summary:\n${summary}`;
+        await this.toolContext.checkpoint?.clear();
+
+        this.emitStateSnapshot("finalize", state.latestVerification, nextTokenUsage);
+        this.onEvent?.({ type: "final", answer: finalAnswer });
+        return {
+          finalAnswer,
+          pending_action: null,
+          stepCount: state.stepCount + 1,
+          phase: "finalize" as AgentPhase,
+          phaseVisits: this.bumpPhaseVisit(state.phaseVisits, "finalize"),
+          tokenUsage: nextTokenUsage,
+          intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, phase: "finalize" }],
+          messages: [{ role: "assistant", content: finalAnswer }]
+        };
+      }
+
+      const pendingAction: ToolCall = {
+        name: parsed.action,
+        input: parsed.actionInput
+      };
+
+      this.onEvent?.({ type: "action", action: pendingAction });
+
+      const nextPhase = this.inferPhase(state, pendingAction);
+      const phaseVisits = this.bumpPhaseVisit(state.phaseVisits, nextPhase);
+      if (!this.withinPhaseBudget(phaseVisits)) {
+        const finalAnswer = this.buildPhaseBudgetFailure(phaseVisits);
+        this.onEvent?.({ type: "error", error: finalAnswer });
+        return {
+          finalAnswer,
+          pending_action: null,
+          stepCount: state.stepCount + 1,
+          tokenUsage: nextTokenUsage
+        };
+      }
+
+      this.emitStateSnapshot(nextPhase, state.latestVerification, nextTokenUsage);
+
+      const plannerHint = this.buildPlannerHintIfNeeded(state, nextPhase, pendingAction);
+      if (plannerHint) {
+        this.onEvent?.({ type: "observation", observation: plannerHint });
+      }
+
+      return {
+        pending_action: pendingAction,
+        phase: nextPhase,
+        phaseVisits,
+        stepCount: state.stepCount + 1,
+        stepRecoveryCount: 0,
+        tokenUsage: nextTokenUsage,
+        messages: plannerHint ? [{ role: "tool", name: "planner_hint", content: `HINT: ${plannerHint}` }] : [],
+        intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, action: pendingAction, phase: nextPhase }]
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const finalAnswer = `Agent failed before selecting action: ${message}`;
@@ -214,82 +304,6 @@ export class CodingAgentGraph {
         messages: [{ role: "assistant", content: finalAnswer }]
       };
     }
-
-    const actionName = parsed.action.toLowerCase();
-
-    this.onEvent?.({ type: "thought", thought: parsed.thought });
-
-    if (actionName === "final") {
-      if (state.requiresVerify && !state.hasVerified) {
-        const observation = "ERROR: Verification required before final answer. Run test/lint/typecheck or equivalent validation first.";
-        this.onEvent?.({ type: "observation", observation });
-        return {
-          messages: [{ role: "tool", name: "verification_guard", content: observation }],
-          stepCount: state.stepCount + 1,
-          pending_action: null,
-          phase: "verify" as AgentPhase,
-          phaseVisits: this.bumpPhaseVisit(state.phaseVisits, "verify"),
-          intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, observation, phase: "verify" }]
-        };
-      }
-
-      const answer = typeof parsed.actionInput.answer === "string"
-        ? parsed.actionInput.answer
-        : responseText;
-      const summary = buildFinalSummary({
-        sessionMemory: this.toolContext.sessionMemory,
-        todos: this.toolContext.todos,
-        subtasks: this.toolContext.todos.taskBundle.results,
-        latestVerification: state.latestVerification
-      });
-      const finalAnswer = `${answer}\n\nExecution summary:\n${summary}`;
-      await this.toolContext.checkpoint?.clear();
-
-      this.onEvent?.({ type: "final", answer: finalAnswer });
-      return {
-        finalAnswer,
-        pending_action: null,
-        stepCount: state.stepCount + 1,
-        phase: "finalize" as AgentPhase,
-        phaseVisits: this.bumpPhaseVisit(state.phaseVisits, "finalize"),
-        intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, phase: "finalize" }],
-        messages: [{ role: "assistant", content: finalAnswer }]
-      };
-    }
-
-    const pendingAction: ToolCall = {
-      name: parsed.action,
-      input: parsed.actionInput
-    };
-
-    this.onEvent?.({ type: "action", action: pendingAction });
-
-    const nextPhase = this.inferPhase(state, pendingAction);
-    const phaseVisits = this.bumpPhaseVisit(state.phaseVisits, nextPhase);
-    if (!this.withinPhaseBudget(phaseVisits)) {
-      const finalAnswer = this.buildPhaseBudgetFailure(phaseVisits);
-      this.onEvent?.({ type: "error", error: finalAnswer });
-      return {
-        finalAnswer,
-        pending_action: null,
-        stepCount: state.stepCount + 1
-      };
-    }
-
-    const plannerHint = this.buildPlannerHintIfNeeded(state, nextPhase, pendingAction);
-    if (plannerHint) {
-      this.onEvent?.({ type: "observation", observation: plannerHint });
-    }
-
-    return {
-      pending_action: pendingAction,
-      phase: nextPhase,
-      phaseVisits,
-      stepCount: state.stepCount + 1,
-      stepRecoveryCount: 0,
-      messages: plannerHint ? [{ role: "tool", name: "planner_hint", content: `HINT: ${plannerHint}` }] : [],
-      intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, action: pendingAction, phase: nextPhase }]
-    };
   }
 
   private async toolsNode(state: AgentGraphState) {
@@ -371,7 +385,7 @@ export class CodingAgentGraph {
     this.updateVerificationState(state.pending_action, observation, result.ok);
     this.updateSessionMemoryFromAction(state.pending_action, observation);
     await this.maybeSaveCheckpoint(state.messages, state.pending_action, latestVerification);
-    this.emitStateSnapshot(state.phase, latestVerification);
+    this.emitStateSnapshot(state.phase, latestVerification, state.tokenUsage);
 
     if (!result.ok) {
       const recovered = await this.tryRecovery(state, observation);
@@ -610,13 +624,13 @@ export class CodingAgentGraph {
     }
     this.toolContext.sessionMemory = checkpoint.sessionMemory;
     this.toolContext.todos = checkpoint.todos;
-    this.emitStateSnapshot("plan", checkpoint.latestVerification);
+    this.emitStateSnapshot("plan", checkpoint.latestVerification, null);
   }
 
-  private emitStateSnapshot(phase: AgentPhase, latestVerification: string | null): void {
+  private emitStateSnapshot(phase: AgentPhase, latestVerification: string | null, tokenUsage: TokenUsage | null): void {
     this.onEvent?.({
       type: "state",
-      snapshot: buildAgentExecutionSnapshot(phase, this.toolContext.todos, this.toolContext.sessionMemory, latestVerification)
+      snapshot: buildAgentExecutionSnapshot(phase, this.toolContext.todos, this.toolContext.sessionMemory, latestVerification, tokenUsage)
     });
   }
 

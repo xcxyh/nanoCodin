@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentExecutionSnapshot } from "../agent/reactLoop.js";
+import { formatTaskCompletedText } from "./tokenUsage.js";
 
 export type LogKind =
   | "user"
@@ -170,7 +171,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       thinkingTick: 0,
       logs: clearEphemeralPlaceholders(state.logs),
       pendingToolName: null,
-      latestSnapshot: state.latestSnapshot
+      latestSnapshot: null
     };
     next = appendLog(next, "meta", SEPARATOR);
     next = appendLog(next, "user", action.task);
@@ -189,7 +190,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
       pendingToolName: null,
       latestSnapshot: state.latestSnapshot
     };
-    next = appendLog(next, "meta", `Completed in ${action.stepCount} step(s).`);
+    next = appendLog(next, "meta", formatTaskCompletedText(action.stepCount, state.latestSnapshot?.tokenUsage ?? null));
     return next;
   }
 
