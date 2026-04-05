@@ -6,6 +6,19 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- Task-level token usage tracking for agent runs, including provider-reported usage with heuristic fallback when the SDK omits usage metadata.
+- New unit and integration coverage for token usage normalization, mixed-source aggregation, final-only snapshot emission, header formatting, and task-start reset behavior.
+
+### Changed
+- Console header now shows live task token usage while the agent runs and keeps the final total visible after completion.
+- Token usage display now formats values in `k` units with a `tokens` suffix and preserves `estimated` / `mixed` source markers when applicable.
+- Completion status lines now append the current task's total token usage after `Completed in x step(s)`.
+
+### Fixed
+- Final-only model responses now still emit a last token snapshot, so the header does not miss the final total when no tool observation follows.
+- Starting a new task now clears the previous task's snapshot before the next token total appears, preventing stale token carry-over in the header.
+
 ## [0.1.4] - 2026-04-04
 
 ### Fixed
