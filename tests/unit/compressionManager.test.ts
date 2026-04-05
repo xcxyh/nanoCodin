@@ -30,4 +30,32 @@ describe("CompressionManager", () => {
     expect(result.stepsForPrompt.some((step) => (step.observation ?? "").includes("ERROR: test failed"))).toBe(true);
     expect(result.stepsForPrompt.length).toBeLessThan(steps.length);
   });
+
+  it("compresses before the fourth LLM request even when under the token threshold", () => {
+    const manager = new CompressionManager({
+      enabled: true,
+      tokenThresholdRatio: 0.9,
+      retainRecentRatio: 0.6,
+      contextTokenBudget: 10_000
+    });
+
+    const messages: Message[] = [
+      { role: "user", content: "Make the change." },
+      { role: "tool", content: "OK: opened file" },
+      { role: "tool", content: "OK: updated file" },
+      { role: "tool", content: "OK: prepared verification" }
+    ];
+    const steps: AgentStep[] = [
+      { thought: "inspect", action: { name: "view", input: { path: "src/a.ts" } }, observation: "OK: opened file" },
+      { thought: "edit", action: { name: "str_replace", input: { path: "src/a.ts" } }, observation: "OK: updated file" },
+      { thought: "verify", action: { name: "bash", input: { command: "npm run test" } }, observation: "OK: prepared verification" }
+    ];
+
+    const result = manager.maybeCompress(messages, steps, null);
+
+    expect(result.compressed).toBe(true);
+    expect(result.stepsForPrompt).toHaveLength(2);
+    expect(result.stepsForPrompt[0]?.thought).toBe("edit");
+    expect(result.sessionMemory?.decisions).toContain("inspect");
+  });
 });

@@ -48,7 +48,7 @@ function renderSubtaskResults(results: { task: string; summary: string }[]): str
 
 function renderTodoState(context: Parameters<Tool<Input>["execute"]>[1]): string {
   return [
-    renderTodos(context.todos.items),
+    "\n" + renderTodos(context.todos.items),
     renderVerificationPlan(context.todos.verification),
     renderSubtaskResults(context.todos.taskBundle.results)
   ].join("\n");

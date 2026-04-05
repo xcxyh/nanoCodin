@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { CodingAgentGraph } from "../../src/agent/agentGraph.js";
 import { ToolRegistry } from "../../src/tools/registry.js";
 import type { ModelProvider } from "../../src/llm/modelRouter.js";
 import { createToolContext } from "../fixtures/runtime.js";
 import { createTool } from "../../src/tools/edit/create.js";
+import type { Message } from "../../src/core/messageTypes.js";
 
 class AlwaysFinalModel implements ModelProvider {
   async generate() {
@@ -105,6 +107,34 @@ class UsageFinalOnlyModel implements ModelProvider {
         totalTokens: 7,
         source: "actual" as const
       }
+    };
+  }
+}
+
+class FourStepCaptureModel implements ModelProvider {
+  calls = 0;
+  prompts: string[] = [];
+
+  async generate(messages: Message[]) {
+    this.calls += 1;
+    this.prompts.push(messages[1]?.content ?? "");
+
+    if (this.calls <= 3) {
+      return {
+        text: [
+          `Thought: perform step ${this.calls}`,
+          "Action: mutate",
+          `Action Input: {\"note\":\"step-${this.calls}\"}`
+        ].join("\n")
+      };
+    }
+
+    return {
+      text: [
+        "Thought: done",
+        "Action: final",
+        "Action Input: {\"answer\":\"all done\"}"
+      ].join("\n")
     };
   }
 }
@@ -246,5 +276,69 @@ describe("CodingAgentGraph verification guard", () => {
 
     expect(result.finalAnswer).toContain("all done");
     expect(snapshots.at(-1)).toBe(7);
+  });
+
+  it("compresses step history before the fourth model call", async () => {
+    const model = new FourStepCaptureModel();
+    const baseContext = createToolContext();
+    const context = createToolContext({
+      runtimeConfig: {
+        ...baseContext.runtimeConfig,
+        agent: {
+          ...baseContext.runtimeConfig.agent,
+          verifyRequiredKeywords: [],
+          compression: {
+            ...baseContext.runtimeConfig.agent.compression,
+            contextTokenBudget: 10_000,
+            tokenThresholdRatio: 0.95
+          }
+        }
+      },
+      todos: {
+        items: [{ id: "1", content: "edit file", completed: false }],
+        verification: {
+          goal: "",
+          commands: [],
+          latestCommand: null,
+          latestSummary: null,
+          status: "pending"
+        },
+        taskBundle: { primaryTask: "edit file", subtasks: [], results: [] }
+      }
+    });
+    const mutateTool = {
+      name: "mutate",
+      description: "Return a long observation for regression testing",
+      schema: z.object({ note: z.string() }),
+      capabilities: ["mutating"] as const,
+      async execute(input: { note: string }) {
+        return {
+          ok: true,
+          output: `${input.note}\n${"line\n".repeat(90)}`
+        };
+      }
+    };
+    const graph = new CodingAgentGraph(
+      model,
+      new ToolRegistry([mutateTool]),
+      context,
+      8,
+      12
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "make this change" }]
+    });
+
+    expect(result.finalAnswer).toContain("all done");
+    expect(model.prompts).toHaveLength(4);
+    expect(model.prompts[2]).toContain("Step 1");
+    expect(model.prompts[3]).not.toContain("Action: mutate {&quot;note&quot;:&quot;step-1&quot;}");
+    expect(model.prompts[3]).not.toContain("Observation: OK: step-1");
+    expect(model.prompts[3]).toContain("Session memory summary:");
+    expect(model.prompts[3]).toContain("&quot;decisions&quot;:");
+    expect(model.prompts[3]).toContain("&quot;perform step 1&quot;");
+    expect(model.prompts[3]).toContain("&quot;goal&quot;: &quot;make this change&quot;");
+    expect(model.prompts[3]).not.toContain("&quot;goal&quot;: &quot;OK: step-3");
   });
 });
