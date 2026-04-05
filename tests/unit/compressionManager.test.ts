@@ -31,7 +31,7 @@ describe("CompressionManager", () => {
     expect(result.stepsForPrompt.length).toBeLessThan(steps.length);
   });
 
-  it("compresses before the fourth LLM request even when under the token threshold", () => {
+  it("does not compress before enough steps accumulate under the token threshold", () => {
     const manager = new CompressionManager({
       enabled: true,
       tokenThresholdRatio: 0.9,
@@ -53,9 +53,8 @@ describe("CompressionManager", () => {
 
     const result = manager.maybeCompress(messages, steps, null);
 
-    expect(result.compressed).toBe(true);
-    expect(result.stepsForPrompt).toHaveLength(2);
-    expect(result.stepsForPrompt[0]?.thought).toBe("edit");
-    expect(result.sessionMemory?.decisions).toContain("inspect");
+    expect(result.compressed).toBe(false);
+    expect(result.stepsForPrompt).toEqual(steps);
+    expect(result.sessionMemory).toBeNull();
   });
 });

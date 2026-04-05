@@ -278,7 +278,7 @@ describe("CodingAgentGraph verification guard", () => {
     expect(snapshots.at(-1)).toBe(7);
   });
 
-  it("compresses step history before the fourth model call", async () => {
+  it("retains full step history through the fourth model call when compression has not started", async () => {
     const model = new FourStepCaptureModel();
     const baseContext = createToolContext();
     const context = createToolContext({
@@ -333,12 +333,11 @@ describe("CodingAgentGraph verification guard", () => {
     expect(result.finalAnswer).toContain("all done");
     expect(model.prompts).toHaveLength(4);
     expect(model.prompts[2]).toContain("Step 1");
-    expect(model.prompts[3]).not.toContain("Action: mutate {&quot;note&quot;:&quot;step-1&quot;}");
-    expect(model.prompts[3]).not.toContain("Observation: OK: step-1");
+    expect(model.prompts[3]).toContain("TOOL: OK: step-1");
+    expect(model.prompts[3]).toContain("Action: mutate {&quot;note&quot;:&quot;step-1&quot;}");
+    expect(model.prompts[3]).toContain("Observation: OK: step-1");
     expect(model.prompts[3]).toContain("Session memory summary:");
-    expect(model.prompts[3]).toContain("&quot;decisions&quot;:");
-    expect(model.prompts[3]).toContain("&quot;perform step 1&quot;");
-    expect(model.prompts[3]).toContain("&quot;goal&quot;: &quot;make this change&quot;");
-    expect(model.prompts[3]).not.toContain("&quot;goal&quot;: &quot;OK: step-3");
+    expect(model.prompts[3]).toContain("&quot;goal&quot;: &quot;Complete the current coding task.&quot;");
+    expect(model.prompts[3]).toContain("&quot;decisions&quot;: []");
   });
 });
