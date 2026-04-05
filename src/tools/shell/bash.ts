@@ -11,6 +11,12 @@ const schema = z.object({
 
 type Input = z.infer<typeof schema>;
 
+function createAbortError(): Error {
+  const error = new Error("Command execution aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
 function cutTail(text: string, maxBytes: number): string {
   if (Buffer.byteLength(text, "utf8") <= maxBytes) {
     return text;
@@ -61,6 +67,9 @@ export const bashTool: Tool<Input> = {
   schema,
   execute: async (input, context) => {
     const startedAt = Date.now();
+    if (context.abortSignal?.aborted) {
+      throw createAbortError();
+    }
     let policyDecision = decidePolicy(input.command, context);
     if (input.confirmed && policyDecision !== "deny") {
       policyDecision = "allow";
@@ -96,6 +105,7 @@ export const bashTool: Tool<Input> = {
       const result = await execa("bash", ["-lc", input.command], {
         cwd: context.cwd,
         timeout: timeoutMs,
+        cancelSignal: context.abortSignal,
         reject: false
       });
 
@@ -122,6 +132,9 @@ export const bashTool: Tool<Input> = {
 
       return { ok: result.exitCode === 0, output };
     } catch (error) {
+      if (context.abortSignal?.aborted || (typeof error === "object" && error !== null && "isCanceled" in error && (error as { isCanceled?: unknown }).isCanceled === true)) {
+        throw createAbortError();
+      }
       const message = error instanceof Error ? error.message : String(error);
       const durationMs = Date.now() - startedAt;
       const output = JSON.stringify({

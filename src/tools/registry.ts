@@ -123,7 +123,7 @@ export class ToolRegistry {
       if (tool.name === "bash") {
         const command = typeof parsedInput.command === "string" ? parsedInput.command : "";
         const policyDecision = decidePolicy(command, context);
-        if (policyDecision !== "deny") {
+        if (policyDecision === "ask") {
           const decision = await context.permission.request({
             toolName: tool.name,
             input: parsedInput,

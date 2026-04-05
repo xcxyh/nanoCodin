@@ -25,6 +25,7 @@ export interface LogEntry {
 export interface UiState {
   logs: LogEntry[];
   busy: boolean;
+  cancelRequested: boolean;
   thinkingVisible: boolean;
   loadingVisible: boolean;
   thinkingTick: number;
@@ -35,6 +36,7 @@ export interface UiState {
 
 export type UiAction =
   | { type: "task_start"; task: string }
+  | { type: "task_cancel_requested" }
   | { type: "task_success"; stepCount: number }
   | { type: "task_failure"; message: string }
   | { type: "task_cancel" }
@@ -142,6 +144,7 @@ function appendLog(
 export const initialUiState: UiState = {
   logs: [],
   busy: false,
+  cancelRequested: false,
   thinkingVisible: false,
   loadingVisible: false,
   thinkingTick: 0,
@@ -166,6 +169,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
     let next: UiState = {
       ...state,
       busy: true,
+      cancelRequested: false,
       thinkingVisible: false,
       loadingVisible: true,
       thinkingTick: 0,
@@ -183,6 +187,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
     let next: UiState = {
       ...state,
       busy: false,
+      cancelRequested: false,
       thinkingVisible: false,
       loadingVisible: false,
       thinkingTick: 0,
@@ -194,10 +199,27 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
     return next;
   }
 
+  if (action.type === "task_cancel_requested") {
+    let next: UiState = {
+      ...state,
+      busy: true,
+      cancelRequested: true,
+      thinkingVisible: false,
+      loadingVisible: false,
+      thinkingTick: 0,
+      logs: clearEphemeralPlaceholders(state.logs),
+      pendingToolName: null,
+      latestSnapshot: state.latestSnapshot
+    };
+    next = appendLog(next, "meta", "Cancelling...");
+    return next;
+  }
+
   if (action.type === "task_failure") {
     let next: UiState = {
       ...state,
       busy: false,
+      cancelRequested: false,
       thinkingVisible: false,
       loadingVisible: false,
       thinkingTick: 0,
@@ -213,6 +235,7 @@ export function uiReducer(state: UiState, action: UiAction): UiState {
     let next: UiState = {
       ...state,
       busy: false,
+      cancelRequested: false,
       thinkingVisible: false,
       loadingVisible: false,
       thinkingTick: 0,

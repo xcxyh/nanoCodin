@@ -110,6 +110,7 @@ export interface ToolContext {
   commandLogs: CommandExecutionLog[];
   sessionMemory: SessionMemory | null;
   contextSources: ContextSources;
+  abortSignal?: AbortSignal;
   permission?: PermissionController;
   runSubtask?: (input: RunSubtaskInput) => Promise<SubtaskResult>;
   delegationDepth?: number;

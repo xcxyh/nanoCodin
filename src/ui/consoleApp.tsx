@@ -49,6 +49,10 @@ function resolvePermissionChoice(char: string): PermissionPromptChoice | null {
   return null;
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 export function ConsoleApp({ graph, permissionController, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
   const { exit } = useApp();
   const { input, cursor, inputRef, cursorRef, setInput, setCursor, reset, applyKey } = useConsoleInput();
@@ -61,6 +65,8 @@ export function ConsoleApp({ graph, permissionController, initialTask, resumeSes
 
   const exitArmedAtRef = useRef<number | null>(null);
   const activeRunIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const cancelRequestedRef = useRef(false);
   const fileListRef = useRef<string[]>([]);
   const fileListLoadedRef = useRef(false);
   const fileListLoadingRef = useRef<Promise<void> | null>(null);
@@ -128,13 +134,16 @@ export function ConsoleApp({ graph, permissionController, initialTask, resumeSes
       return "Type to filter. Up/Down to navigate, Enter to select, Esc to cancel.";
     }
     if (uiState.busy) {
+      if (uiState.cancelRequested) {
+        return "Cancelling current task...";
+      }
       return "Nano Codin is working. Press ESC to cancel.";
     }
     if (exitArmedAt) {
       return "Press Ctrl+C again to exit.";
     }
     return "Type a coding task and press Enter. Press Ctrl+E to expand/collapse latest output. Ctrl+C twice to exit.";
-  }, [permissionPrompt, filePicker, uiState.busy, exitArmedAt]);
+  }, [permissionPrompt, filePicker, uiState.busy, uiState.cancelRequested, exitArmedAt]);
 
   useEffect(() => {
     if (!uiState.busy && !uiState.thinkingVisible && !uiState.loadingVisible) {
@@ -161,6 +170,9 @@ export function ConsoleApp({ graph, permissionController, initialTask, resumeSes
   async function runTask(task: string) {
     const runId = activeRunIdRef.current + 1;
     activeRunIdRef.current = runId;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    cancelRequestedRef.current = false;
 
     dispatch({ type: "task_start", task });
     reset();
@@ -176,8 +188,9 @@ export function ConsoleApp({ graph, permissionController, initialTask, resumeSes
             ? (resumeSessionId === "__LATEST__" ? "latest" : "session")
             : "auto",
         resumeSessionId: resumeSessionId && resumeSessionId !== "__LATEST__" ? resumeSessionId : undefined,
+        abortSignal: abortController.signal,
         onEvent: (event) => {
-          if (runId !== activeRunIdRef.current) {
+          if (runId !== activeRunIdRef.current || cancelRequestedRef.current) {
             return;
           }
 
@@ -192,13 +205,27 @@ export function ConsoleApp({ graph, permissionController, initialTask, resumeSes
         return;
       }
 
+      if (abortController.signal.aborted || cancelRequestedRef.current) {
+        dispatch({ type: "task_cancel" });
+        return;
+      }
+
       dispatch({ type: "task_success", stepCount: result.steps.length });
     } catch (error) {
       if (runId !== activeRunIdRef.current) {
         return;
       }
+      if (abortController.signal.aborted || cancelRequestedRef.current || isAbortError(error)) {
+        dispatch({ type: "task_cancel" });
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       dispatch({ type: "task_failure", message });
+    } finally {
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
+      cancelRequestedRef.current = false;
     }
   }
 
@@ -209,8 +236,11 @@ export function ConsoleApp({ graph, permissionController, initialTask, resumeSes
         return;
       }
       if (uiState.busy) {
-        activeRunIdRef.current += 1;
-        dispatch({ type: "task_cancel" });
+        if (!cancelRequestedRef.current) {
+          cancelRequestedRef.current = true;
+          abortControllerRef.current?.abort();
+          dispatch({ type: "task_cancel_requested" });
+        }
       }
       return;
     }

@@ -105,6 +105,32 @@ describe("ToolRegistry.execute", () => {
     expect(result.output).toBe("true");
   });
 
+  it("does not prompt for bash commands allowed by allow prefixes", async () => {
+    let prompted = false;
+    const registry = new ToolRegistry([
+      {
+        name: "bash",
+        description: "bash",
+        schema: z.object({ command: z.string(), confirmed: z.boolean().optional() }),
+        execute: async ({ confirmed }) => ({ ok: true, output: String(confirmed ?? false) })
+      }
+    ]);
+
+    const permission = new PermissionController();
+    permission.setPromptHandler(async () => {
+      prompted = true;
+      return "deny";
+    });
+    const context = createToolContext({ permission });
+    context.runtimeConfig.sandbox.allowPrefixes = ["echo safe"];
+
+    const result = await registry.execute("bash", { command: "echo safe" }, context);
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toBe("false");
+    expect(prompted).toBe(false);
+  });
+
   it("passes a reason into permission prompts", async () => {
     const registry = new ToolRegistry([
       {

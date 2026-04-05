@@ -102,6 +102,16 @@ describe("console state helpers", () => {
     expect(next.latestSnapshot).toBeNull();
   });
 
+  it("stays busy while cancellation is in progress", () => {
+    const state = uiReducer(initialUiState, { type: "task_start", task: "slow task" });
+
+    const next = uiReducer(state, { type: "task_cancel_requested" });
+
+    expect(next.busy).toBe(true);
+    expect(next.cancelRequested).toBe(true);
+    expect(next.logs.at(-1)?.text).toBe("Cancelling...");
+  });
+
   it("keeps the latest snapshot after task success", () => {
     const state = uiReducer(initialUiState, {
       type: "set_snapshot",

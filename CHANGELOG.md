@@ -18,6 +18,8 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 ### Fixed
 - Final-only model responses now still emit a last token snapshot, so the header does not miss the final total when no tool observation follows.
 - Starting a new task now clears the previous task's snapshot before the next token total appears, preventing stale token carry-over in the header.
+- `sandbox.allow_prefixes` commands now bypass the permission prompt correctly instead of being treated like `ask` policy commands.
+- Pressing `Esc` now triggers a real run cancellation path through the model and shell execution chain, so a cancelled task no longer keeps running in the background while a new task starts.
 
 ## [0.1.4] - 2026-04-04
 

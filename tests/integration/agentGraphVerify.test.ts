@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { CodingAgentGraph } from "../../src/agent/agentGraph.js";
 import { ToolRegistry } from "../../src/tools/registry.js";
-import type { ModelProvider } from "../../src/llm/modelRouter.js";
+import type { ModelGenerateOptions, ModelProvider } from "../../src/llm/modelRouter.js";
 import { createToolContext } from "../fixtures/runtime.js";
 import { createTool } from "../../src/tools/edit/create.js";
 import type { Message } from "../../src/core/messageTypes.js";
@@ -136,6 +136,29 @@ class FourStepCaptureModel implements ModelProvider {
         "Action Input: {\"answer\":\"all done\"}"
       ].join("\n")
     };
+  }
+}
+
+class AbortableModel implements ModelProvider {
+  async generate(_messages: Message[], options?: ModelGenerateOptions) {
+    return new Promise<never>((_, reject) => {
+      const signal = options?.abortSignal;
+      if (!signal) {
+        reject(new Error("Missing abort signal"));
+        return;
+      }
+      if (signal.aborted) {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+        return;
+      }
+      signal.addEventListener("abort", () => {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+      }, { once: true });
+    });
   }
 }
 
@@ -339,5 +362,23 @@ describe("CodingAgentGraph verification guard", () => {
     expect(model.prompts[3]).toContain("Session memory summary:");
     expect(model.prompts[3]).toContain("&quot;goal&quot;: &quot;Complete the current coding task.&quot;");
     expect(model.prompts[3]).toContain("&quot;decisions&quot;: []");
+  });
+
+  it("rejects with AbortError when the run is aborted", async () => {
+    const controller = new AbortController();
+    const graph = new CodingAgentGraph(
+      new AbortableModel(),
+      new ToolRegistry([]),
+      createToolContext(),
+      2,
+      8
+    );
+
+    queueMicrotask(() => controller.abort());
+
+    await expect(graph.run({
+      messages: [{ role: "user", content: "cancel this run" }],
+      abortSignal: controller.signal
+    })).rejects.toMatchObject({ name: "AbortError" });
   });
 });

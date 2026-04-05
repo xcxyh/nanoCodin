@@ -3,8 +3,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import type { Message, ModelResponse, TokenUsage } from "../core/messageTypes.js";
 
+export interface ModelGenerateOptions {
+  abortSignal?: AbortSignal;
+}
+
 export interface ModelProvider {
-  generate(messages: Message[]): Promise<ModelResponse>;
+  generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse>;
 }
 
 function toPrompt(messages: Message[]): string {
@@ -56,6 +60,16 @@ function toModelResponse(
     text,
     usage: normalizeUsage(usage, prompt, text)
   };
+}
+
+function isAbortError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return true;
+  }
+  return "isCanceled" in error && (error as { isCanceled?: unknown }).isCanceled === true;
 }
 
 function formatProviderError(
@@ -112,7 +126,7 @@ class OpenAIProvider implements ModelProvider {
     this.modelName = modelName;
   }
 
-  async generate(messages: Message[]): Promise<ModelResponse> {
+  async generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY is required when MODEL_PROVIDER=openai");
@@ -126,11 +140,15 @@ class OpenAIProvider implements ModelProvider {
       const prompt = toPrompt(messages);
       const { text, usage } = await generateText({
         model: modelFactory,
-        prompt
+        prompt,
+        abortSignal: options?.abortSignal
       });
 
       return toModelResponse(prompt, text, usage);
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
       throw formatProviderError("openai", this.modelName, baseURL, error);
     }
   }
@@ -143,7 +161,7 @@ class AnthropicProvider implements ModelProvider {
     this.modelName = modelName;
   }
 
-  async generate(messages: Message[]): Promise<ModelResponse> {
+  async generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY is required when MODEL_PROVIDER=anthropic");
@@ -157,11 +175,15 @@ class AnthropicProvider implements ModelProvider {
       const prompt = toPrompt(messages);
       const { text, usage } = await generateText({
         model: modelFactory,
-        prompt
+        prompt,
+        abortSignal: options?.abortSignal
       });
 
       return toModelResponse(prompt, text, usage);
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
       if (baseURL && isNotFoundError(error) && !baseURL.replace(/\/+$/, "").endsWith("/v1")) {
         const fallbackBaseURL = normalizeAnthropicBaseURL(baseURL);
         try {
@@ -170,10 +192,14 @@ class AnthropicProvider implements ModelProvider {
           const prompt = toPrompt(messages);
           const { text, usage } = await generateText({
             model: modelFactory,
-            prompt
+            prompt,
+            abortSignal: options?.abortSignal
           });
           return toModelResponse(prompt, text, usage);
         } catch (retryError) {
+          if (isAbortError(retryError)) {
+            throw retryError;
+          }
           throw formatProviderError("anthropic", this.modelName, fallbackBaseURL, retryError);
         }
       }

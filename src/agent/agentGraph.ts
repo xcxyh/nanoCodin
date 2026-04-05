@@ -85,6 +85,7 @@ export interface RunOptions {
   onEvent?: (event: AgentEvent) => void;
   checkpointRestore?: "auto" | "disabled" | "latest" | "session";
   resumeSessionId?: string;
+  abortSignal?: AbortSignal;
 }
 
 export class CodingAgentGraph {
@@ -129,6 +130,8 @@ export class CodingAgentGraph {
 
   async run(options: RunOptions): Promise<{ finalAnswer: string; steps: AgentStep[] }> {
     this.onEvent = options.onEvent;
+    const previousAbortSignal = this.toolContext.abortSignal;
+    this.toolContext.abortSignal = options.abortSignal;
     await this.restoreCheckpointIfNeeded(
       options.messages,
       options.checkpointRestore ?? "auto",
@@ -162,17 +165,22 @@ export class CodingAgentGraph {
       ? { ...runnableConfig, recursionLimit: this.recursionLimit }
       : { recursionLimit: this.recursionLimit };
 
-    const result = await this.graph.invoke(input, invocationConfig);
+    try {
+      this.throwIfAborted();
+      const result = await this.graph.invoke(input, invocationConfig);
 
-    this.onEvent = undefined;
-
-    return {
-      finalAnswer: result.finalAnswer ?? "No final answer produced.",
-      steps: result.intermediate_steps
-    };
+      return {
+        finalAnswer: result.finalAnswer ?? "No final answer produced.",
+        steps: result.intermediate_steps
+      };
+    } finally {
+      this.toolContext.abortSignal = previousAbortSignal;
+      this.onEvent = undefined;
+    }
   }
 
   private async agentNode(state: AgentGraphState) {
+    this.throwIfAborted();
     if (state.stepCount >= this.maxSteps) {
       const finalAnswer = this.buildFailureSummary(state);
       this.onEvent?.({ type: "error", error: finalAnswer });
@@ -204,7 +212,8 @@ export class CodingAgentGraph {
         formatExecutionStateForPrompt(this.toolContext.todos, state.latestVerification),
         buildToolHelp(this.tools.list(), state.phase)
       );
-      const response = await this.model.generate(messages);
+      const response = await this.model.generate(messages, { abortSignal: this.toolContext.abortSignal });
+      this.throwIfAborted();
       responseText = response.text;
       const nextTokenUsage = accumulateTokenUsage(state.tokenUsage, response.usage);
       parsed = parseAgentResponse(responseText);
@@ -293,6 +302,9 @@ export class CodingAgentGraph {
         intermediate_steps: [...state.intermediate_steps, { thought: parsed.thought, action: pendingAction, phase: nextPhase }]
       };
     } catch (error) {
+      if (this.isAbortError(error)) {
+        throw this.createAbortError();
+      }
       const message = error instanceof Error ? error.message : String(error);
       const finalAnswer = `Agent failed before selecting action: ${message}`;
       this.onEvent?.({ type: "error", error: finalAnswer });
@@ -307,6 +319,7 @@ export class CodingAgentGraph {
   }
 
   private async toolsNode(state: AgentGraphState) {
+    this.throwIfAborted();
     if (!state.pending_action) {
       return {};
     }
@@ -339,7 +352,11 @@ export class CodingAgentGraph {
         state.pending_action.input,
         this.toolContext
       );
+      this.throwIfAborted();
     } catch (error) {
+      if (this.isAbortError(error)) {
+        throw this.createAbortError();
+      }
       const message = error instanceof Error ? error.message : String(error);
       const observation = `ERROR: Tool execution threw exception: ${message}`;
       this.onEvent?.({ type: "observation", observation });
@@ -661,7 +678,8 @@ export class CodingAgentGraph {
       Math.max(8, Math.min(this.recursionLimit, 20))
     );
     const result = await subgraph.run({
-      messages: [{ role: "user", content: input.task }]
+      messages: [{ role: "user", content: input.task }],
+      abortSignal: this.toolContext.abortSignal
     });
     const evidence = result.steps
       .map((step) => step.observation ?? "")
@@ -697,5 +715,27 @@ export class CodingAgentGraph {
         : "Review the subtask output before relying on it.",
       status
     };
+  }
+
+  private createAbortError(): Error {
+    const error = new Error("Agent run aborted.");
+    error.name = "AbortError";
+    return error;
+  }
+
+  private isAbortError(error: unknown): boolean {
+    if (this.toolContext.abortSignal?.aborted) {
+      return true;
+    }
+    if (error instanceof Error && error.name === "AbortError") {
+      return true;
+    }
+    return typeof error === "object" && error !== null && "isCanceled" in error && (error as { isCanceled?: unknown }).isCanceled === true;
+  }
+
+  private throwIfAborted(): void {
+    if (this.toolContext.abortSignal?.aborted) {
+      throw this.createAbortError();
+    }
   }
 }
