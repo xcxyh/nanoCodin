@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-04-06
+
 ### Added
 - Task-level token usage tracking for agent runs, including provider-reported usage with heuristic fallback when the SDK omits usage metadata.
 - New unit and integration coverage for token usage normalization, mixed-source aggregation, final-only snapshot emission, header formatting, and task-start reset behavior.
