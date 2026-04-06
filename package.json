@@ -1,6 +1,6 @@
 {
   "name": "nano-codin",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Minimal ReAct-style coding agent CLI built with TypeScript, LangGraph, and Ink.",
   "private": false,
   "type": "module",
