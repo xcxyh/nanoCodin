@@ -1,6 +1,6 @@
 ---
 name: release-publish
-description: Publish a new nano-codin version. Use when the user asks to release, publish, cut, or ship a version such as v0.1.5. This skill follows the repo's exact release flow: update CHANGELOG, align package.json/package-lock.json to the target version, verify locally, then push a release/vX.Y.Z branch so GitHub Actions publishes to npm.
+description: Publish a new nano-codin version. Use when the user asks to release, publish, cut, or ship a version such as v0.1.5. This skill follows the repo's exact release flow:update CHANGELOG, align package.json/package-lock.json to the target version, verify locally, then push a release/vX.Y.Z branch so GitHub Actions publishes to npm.
 ---
 
 # Release Publish
