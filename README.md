@@ -5,7 +5,6 @@
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![LangGraph](https://img.shields.io/badge/Agent-LangGraph-1C3C3C)](https://www.langchain.com/langgraph)
 [![Ink](https://img.shields.io/badge/Terminal_UI-Ink-000000)](https://github.com/vadimdemedes/ink)
 [![React](https://img.shields.io/badge/Frontend-React_18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 
@@ -20,11 +19,11 @@
 ```
 
 Nano Codin is a TypeScript-based coding agent CLI with a minimal, production-oriented architecture.
-It uses a ReAct loop (Thought -> Action -> Observation), LangGraph orchestration, tool execution, and a terminal UI.
+It uses a plain TypeScript ReAct loop (Thought -> Action -> Observation), tool execution, and a terminal UI.
 
 ## Highlights
 
-- ReAct single-agent loop built on LangGraph
+- ReAct single-agent loop implemented directly in TypeScript
 - Pluggable tool registry (`fs`, `edit`, `shell`, `planning`)
 - Repo index cache with `repo_index_query` for faster repo understanding
 - Layered prompt context from `AGENTS.md`, `.nanocodin/context.md`, and `.nanocodin/memory.md`
@@ -185,7 +184,7 @@ AGENT_RECURSION_LIMIT=32
 Notes:
 
 - `AGENT_MAX_STEPS` controls the ReAct loop stop condition.
-- `AGENT_RECURSION_LIMIT` controls LangGraph recursion guard. Default is derived from `AGENT_MAX_STEPS`.
+- `AGENT_RECURSION_LIMIT` controls the local agent/tool transition guard. Default is derived from `AGENT_MAX_STEPS`.
 
 ### Project Personalization (`AGENTS.md` + `.nanocodin`)
 
@@ -238,23 +237,6 @@ token_threshold_ratio = 0.7
 retain_recent_ratio = 0.6
 context_token_budget = 6000
 ```
-
-### LangSmith Tracing (Optional)
-
-Enable LangSmith tracing for LangGraph runs:
-
-```bash
-export LANGSMITH_TRACING=true
-export LANGSMITH_API_KEY=lsv2_xxx
-export LANGSMITH_PROJECT=nano-codin
-# optional:
-# export LANGSMITH_ENDPOINT=https://api.smith.langchain.com
-```
-
-Notes:
-
-- Tracing is enabled only when both `LANGSMITH_TRACING=true` and an API key (`LANGSMITH_API_KEY` or `LANGCHAIN_API_KEY`) are set.
-- The agent sends LangGraph run metadata (`cwd`, `maxSteps`, `initialMessageCount`) with each traced run.
 
 ## Usage
 

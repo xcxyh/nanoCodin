@@ -31,6 +31,21 @@ class AlwaysCreateModel implements ModelProvider {
   }
 }
 
+class AlwaysReadModel implements ModelProvider {
+  calls = 0;
+
+  async generate() {
+    this.calls += 1;
+    return {
+      text: [
+        "Thought: inspect repeatedly",
+        "Action: read",
+        "Action Input: {\"note\":\"again\"}"
+      ].join("\n")
+    };
+  }
+}
+
 class CreateThenFinalModel implements ModelProvider {
   private calls = 0;
 
@@ -179,6 +194,39 @@ describe("CodingAgentGraph verification guard", () => {
 
     expect(result.finalAnswer).toContain("Stopped after maxSteps=2 without reaching final.");
     expect(result.steps.some((step) => (step.observation ?? "").includes("Verification required before final answer"))).toBe(true);
+  });
+
+  it("counts agent and tool transitions for the local recursion guard", async () => {
+    const model = new AlwaysReadModel();
+    const readTool = {
+      name: "read",
+      description: "Return a stable read-only observation",
+      schema: z.object({ note: z.string() }),
+      capabilities: ["read_only"] as const,
+      async execute(input: { note: string }) {
+        return {
+          ok: true,
+          output: input.note
+        };
+      }
+    };
+    const graph = new CodingAgentGraph(
+      model,
+      new ToolRegistry([readTool]),
+      createToolContext(),
+      2,
+      4
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "inspect until the recursion guard stops" }]
+    });
+
+    expect(result.finalAnswer).toContain("Stopped after recursionLimit=4 agent/tool transitions without reaching final.");
+    expect(result.finalAnswer).not.toContain("Stopped after maxSteps=2 without reaching final.");
+    expect(model.calls).toBe(2);
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps.every((step) => step.action?.name === "read")).toBe(true);
   });
 
   it("allows mutating actions with a todo plan even before verification commands are filled in", async () => {

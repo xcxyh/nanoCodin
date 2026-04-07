@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- Replaced external graph orchestration with a plain TypeScript ReAct loop while preserving the existing agent runtime API.
+
+### Removed
+- Removed optional external tracing integration and its dependency chain to keep the CLI runtime minimal.
+
 ## [0.1.5] - 2026-04-06
 
 ### Added

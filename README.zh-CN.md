@@ -5,7 +5,6 @@
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![LangGraph](https://img.shields.io/badge/Agent-LangGraph-1C3C3C)](https://www.langchain.com/langgraph)
 [![Ink](https://img.shields.io/badge/Terminal_UI-Ink-000000)](https://github.com/vadimdemedes/ink)
 [![React](https://img.shields.io/badge/Frontend-React_18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 
@@ -20,11 +19,11 @@
 ```
 
 Nano Codin 是一个基于 TypeScript 的 Coding Agent CLI，采用简洁且面向生产的架构。
-它使用 ReAct 循环（Thought -> Action -> Observation）、LangGraph 编排、工具执行以及终端 UI。
+它使用纯 TypeScript ReAct 循环（Thought -> Action -> Observation）、工具执行以及终端 UI。
 
 ## 核心特性
 
-- 基于 LangGraph 的 ReAct 单代理循环
+- 直接用 TypeScript 实现的 ReAct 单代理循环
 - 可插拔工具注册表（`fs`、`edit`、`shell`、`planning`）
 - 通过 `repo_index_query` 仓库索引缓存提升仓库理解速度
 - 从 `AGENTS.md`、`.nanocodin/context.md`、`.nanocodin/memory.md` 分层注入提示词上下文
@@ -185,7 +184,7 @@ AGENT_RECURSION_LIMIT=32
 说明：
 
 - `AGENT_MAX_STEPS` 控制 ReAct 循环停止条件。
-- `AGENT_RECURSION_LIMIT` 控制 LangGraph 递归保护，默认值由 `AGENT_MAX_STEPS` 推导。
+- `AGENT_RECURSION_LIMIT` 控制本地 agent/tool 转换安全保护，默认值由 `AGENT_MAX_STEPS` 推导。
 
 ### 项目个性化（`AGENTS.md` + `.nanocodin`）
 
@@ -238,23 +237,6 @@ token_threshold_ratio = 0.7
 retain_recent_ratio = 0.6
 context_token_budget = 6000
 ```
-
-### LangSmith Tracing（可选）
-
-为 LangGraph 运行开启 LangSmith tracing：
-
-```bash
-export LANGSMITH_TRACING=true
-export LANGSMITH_API_KEY=lsv2_xxx
-export LANGSMITH_PROJECT=nano-codin
-# optional:
-# export LANGSMITH_ENDPOINT=https://api.smith.langchain.com
-```
-
-说明：
-
-- 仅当同时设置 `LANGSMITH_TRACING=true` 且提供 API key（`LANGSMITH_API_KEY` 或 `LANGCHAIN_API_KEY`）时，才会开启 tracing。
-- Agent 会在每次 traced run 中上报 LangGraph 元数据（`cwd`、`maxSteps`、`initialMessageCount`）。
 
 ## 使用方式
 

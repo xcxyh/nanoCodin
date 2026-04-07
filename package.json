@@ -1,7 +1,7 @@
 {
   "name": "nano-codin",
   "version": "0.1.5",
-  "description": "Minimal ReAct-style coding agent CLI built with TypeScript, LangGraph, and Ink.",
+  "description": "Minimal ReAct-style coding agent CLI built with TypeScript, a plain agent loop, and Ink.",
   "private": false,
   "type": "module",
   "bin": {
@@ -34,7 +34,6 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.18",
     "@ai-sdk/openai": "^1.1.18",
-    "@langchain/langgraph": "^0.2.39",
     "ai": "^4.1.46",
     "execa": "^9.5.2",
     "handlebars": "^4.7.8",

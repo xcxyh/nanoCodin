@@ -1,5 +1,3 @@
-import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
-import type { RunnableConfig } from "@langchain/core/runnables";
 import { accumulateTokenUsage, type AgentStep, type Message, type TokenUsage, type ToolCall } from "../core/messageTypes.js";
 import type { ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
@@ -12,73 +10,28 @@ import {
   type AgentPhase
 } from "./reactLoop.js";
 import { ToolRegistry } from "../tools/registry.js";
-import { createLangSmithRunnableConfig } from "../observability/langsmith.js";
 import { CompressionManager } from "../services/compressionManager.js";
 import { buildFinalSummary, classifyVerificationResult, isVerificationAction as isVerificationToolAction } from "../services/executionSummary.js";
 import { RecoveryEngine } from "../services/recoveryEngine.js";
 import type { RunSubtaskInput, SubtaskResult } from "../core/toolTypes.js";
-import { buildToolHelp, canExecuteAction, inferPhaseForAction, isDelegationTool, isMutatingTool, isReadOnlyTool, isSummaryTool, isVerificationTool } from "../services/agentPolicy.js";
+import { buildToolHelp, canExecuteAction, inferPhaseForAction, isMutatingTool, isReadOnlyTool, isSummaryTool, isVerificationTool } from "../services/agentPolicy.js";
 
-const AgentStateAnnotation = Annotation.Root({
-  messages: Annotation<Message[]>({
-    reducer: (left, right) => left.concat(right),
-    default: () => []
-  }),
-  intermediate_steps: Annotation<AgentStep[]>({
-    reducer: (_, right) => right,
-    default: () => []
-  }),
-  pending_action: Annotation<ToolCall | null>({
-    reducer: (_, right) => right,
-    default: () => null
-  }),
-  finalAnswer: Annotation<string | null>({
-    reducer: (_, right) => right,
-    default: () => null
-  }),
-  stepCount: Annotation<number>({
-    reducer: (_, right) => right,
-    default: () => 0
-  }),
-  phase: Annotation<AgentPhase>({
-    reducer: (_, right) => right,
-    default: () => "discover"
-  }),
-  phaseVisits: Annotation<Record<string, number>>({
-    reducer: (_, right) => right,
-    default: () => ({ discover: 0, plan: 0, execute: 0, verify: 0, finalize: 0 })
-  }),
-  requiresVerify: Annotation<boolean>({
-    reducer: (_, right) => right,
-    default: () => false
-  }),
-  hasVerified: Annotation<boolean>({
-    reducer: (_, right) => right,
-    default: () => false
-  }),
-  stepRecoveryCount: Annotation<number>({
-    reducer: (_, right) => right,
-    default: () => 0
-  }),
-  recoverySignatures: Annotation<string[]>({
-    reducer: (_, right) => right,
-    default: () => []
-  }),
-  recoveryHistory: Annotation<string[]>({
-    reducer: (_, right) => right,
-    default: () => []
-  }),
-  latestVerification: Annotation<string | null>({
-    reducer: (_, right) => right,
-    default: () => null
-  }),
-  tokenUsage: Annotation<TokenUsage | null>({
-    reducer: (_, right) => right,
-    default: () => null
-  })
-});
-
-type AgentGraphState = typeof AgentStateAnnotation.State;
+interface AgentLoopState {
+  messages: Message[];
+  intermediate_steps: AgentStep[];
+  pending_action: ToolCall | null;
+  finalAnswer: string | null;
+  stepCount: number;
+  phase: AgentPhase;
+  phaseVisits: Record<string, number>;
+  requiresVerify: boolean;
+  hasVerified: boolean;
+  stepRecoveryCount: number;
+  recoverySignatures: string[];
+  recoveryHistory: string[];
+  latestVerification: string | null;
+  tokenUsage: TokenUsage | null;
+}
 
 export interface RunOptions {
   messages: Message[];
@@ -89,7 +42,6 @@ export interface RunOptions {
 }
 
 export class CodingAgentGraph {
-  private readonly graph;
   private onEvent?: (event: AgentEvent) => void;
   private readonly maxSteps: number;
   private readonly recursionLimit: number;
@@ -112,20 +64,6 @@ export class CodingAgentGraph {
       this.tools.list().filter((tool) => this.isReadOnlyTool(tool.name))
     );
     this.toolContext.runSubtask = this.runSubtask.bind(this);
-
-    const graphBuilder = new StateGraph(AgentStateAnnotation)
-      .addNode("agent", this.agentNode.bind(this))
-      .addNode("tools", this.toolsNode.bind(this))
-      .addEdge(START, "agent")
-      .addConditionalEdges("agent", (state) => {
-        if (state.finalAnswer) {
-          return END;
-        }
-        return "tools";
-      })
-      .addEdge("tools", "agent");
-
-    this.graph = graphBuilder.compile();
   }
 
   async run(options: RunOptions): Promise<{ finalAnswer: string; steps: AgentStep[] }> {
@@ -137,41 +75,34 @@ export class CodingAgentGraph {
       options.checkpointRestore ?? "auto",
       options.resumeSessionId
     );
-    const input = {
-      messages: options.messages,
-      intermediate_steps: [],
-      pending_action: null,
-      finalAnswer: null,
-      stepCount: 0,
-      phase: "discover" as AgentPhase,
-      phaseVisits: { discover: 0, plan: 0, execute: 0, verify: 0, finalize: 0 },
-      requiresVerify: this.requiresVerify(options.messages),
-      hasVerified: false,
-      stepRecoveryCount: 0,
-      recoverySignatures: [],
-      recoveryHistory: [],
-      latestVerification: null,
-      tokenUsage: null
-    };
-
-    const runnableConfig = createLangSmithRunnableConfig("coding-agent-run", {
-      cwd: this.toolContext.cwd,
-      maxSteps: this.maxSteps,
-      recursionLimit: this.recursionLimit,
-      initialMessageCount: options.messages.length
-    });
-
-    const invocationConfig: RunnableConfig = runnableConfig
-      ? { ...runnableConfig, recursionLimit: this.recursionLimit }
-      : { recursionLimit: this.recursionLimit };
+    let state = this.createInitialState(options.messages);
+    let loopTransitions = 0;
 
     try {
       this.throwIfAborted();
-      const result = await this.graph.invoke(input, invocationConfig);
+      while (!state.finalAnswer) {
+        const beforeAgentLimit = this.buildRecursionLimitFailure(state, loopTransitions);
+        if (beforeAgentLimit) {
+          state = this.mergeState(state, beforeAgentLimit);
+          break;
+        }
+        loopTransitions += 1;
 
+        state = this.mergeState(state, await this.agentNode(state));
+        if (state.finalAnswer) {
+          break;
+        }
+        const beforeToolsLimit = this.buildRecursionLimitFailure(state, loopTransitions);
+        if (beforeToolsLimit) {
+          state = this.mergeState(state, beforeToolsLimit);
+          break;
+        }
+        loopTransitions += 1;
+        state = this.mergeState(state, await this.toolsNode(state));
+      }
       return {
-        finalAnswer: result.finalAnswer ?? "No final answer produced.",
-        steps: result.intermediate_steps
+        finalAnswer: state.finalAnswer ?? "No final answer produced.",
+        steps: state.intermediate_steps
       };
     } finally {
       this.toolContext.abortSignal = previousAbortSignal;
@@ -179,7 +110,53 @@ export class CodingAgentGraph {
     }
   }
 
-  private async agentNode(state: AgentGraphState) {
+  private createInitialState(messages: Message[]): AgentLoopState {
+    return {
+      messages,
+      intermediate_steps: [],
+      pending_action: null,
+      finalAnswer: null,
+      stepCount: 0,
+      phase: "discover",
+      phaseVisits: { discover: 0, plan: 0, execute: 0, verify: 0, finalize: 0 },
+      requiresVerify: this.requiresVerify(messages),
+      hasVerified: false,
+      stepRecoveryCount: 0,
+      recoverySignatures: [],
+      recoveryHistory: [],
+      latestVerification: null,
+      tokenUsage: null
+    };
+  }
+
+  private mergeState(state: AgentLoopState, patch: Partial<AgentLoopState>): AgentLoopState {
+    return {
+      ...state,
+      ...patch,
+      messages: patch.messages !== undefined ? state.messages.concat(patch.messages) : state.messages,
+      intermediate_steps: patch.intermediate_steps ?? state.intermediate_steps
+    };
+  }
+
+  private buildRecursionLimitFailure(state: AgentLoopState, loopTransitions: number): Partial<AgentLoopState> | null {
+    if (loopTransitions < this.recursionLimit) {
+      return null;
+    }
+    const lastStep = state.intermediate_steps[state.intermediate_steps.length - 1];
+    const recovery = state.recoveryHistory.length > 0 ? state.recoveryHistory.join(" | ") : "none";
+    const finalAnswer = [
+      `Stopped after recursionLimit=${this.recursionLimit} agent/tool transitions without reaching final.`,
+      `Current phase: ${state.phase}`,
+      `Last action: ${lastStep?.action ? `${lastStep.action.name} ${JSON.stringify(lastStep.action.input)}` : "(none)"}`,
+      `Last observation: ${lastStep?.observation ?? "(none)"}`,
+      `Recovery Tried: ${recovery}`,
+      "Suggested next step: inspect the last tool error and issue a narrower follow-up task."
+    ].join("\n");
+    this.onEvent?.({ type: "error", error: finalAnswer });
+    return { finalAnswer };
+  }
+
+  private async agentNode(state: AgentLoopState): Promise<Partial<AgentLoopState>> {
     this.throwIfAborted();
     if (state.stepCount >= this.maxSteps) {
       const finalAnswer = this.buildFailureSummary(state);
@@ -318,7 +295,7 @@ export class CodingAgentGraph {
     }
   }
 
-  private async toolsNode(state: AgentGraphState) {
+  private async toolsNode(state: AgentLoopState): Promise<Partial<AgentLoopState>> {
     this.throwIfAborted();
     if (!state.pending_action) {
       return {};
@@ -429,7 +406,7 @@ export class CodingAgentGraph {
     return this.toolContext.runtimeConfig.agent.verifyRequiredKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
-  private inferPhase(state: AgentGraphState, action: ToolCall): AgentPhase {
+  private inferPhase(state: AgentLoopState, action: ToolCall): AgentPhase {
     const tool = this.tools.getToolByName(action.name);
     if (action.name === "todo") {
       const input = action.input as { operation?: unknown };
@@ -442,7 +419,7 @@ export class CodingAgentGraph {
     return inferPhaseForAction(state.phaseVisits, action, tool);
   }
 
-  private buildPlannerHintIfNeeded(state: AgentGraphState, nextPhase: AgentPhase, action: ToolCall): string | null {
+  private buildPlannerHintIfNeeded(state: AgentLoopState, nextPhase: AgentPhase, action: ToolCall): string | null {
     if (action.name === "todo") {
       return null;
     }
@@ -494,7 +471,7 @@ export class CodingAgentGraph {
     ].join("\n");
   }
 
-  private buildFailureSummary(state: AgentGraphState): string {
+  private buildFailureSummary(state: AgentLoopState): string {
     const lastStep = state.intermediate_steps[state.intermediate_steps.length - 1];
     const recovery = state.recoveryHistory.length > 0 ? state.recoveryHistory.join(" | ") : "none";
     return [
@@ -507,7 +484,7 @@ export class CodingAgentGraph {
     ].join("\n");
   }
 
-  private async tryRecovery(state: AgentGraphState, observation: string) {
+  private async tryRecovery(state: AgentLoopState, observation: string): Promise<Partial<AgentLoopState> | null> {
     const signature = this.recoveryEngine.createSignature(state.pending_action!, observation);
     const recent = state.recoverySignatures.slice(-this.toolContext.runtimeConfig.recovery.dedupeWindowSteps);
     if (!this.recoveryEngine.shouldAttempt(state.stepRecoveryCount, recent, signature)) {
