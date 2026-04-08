@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { ToolRegistry } from "../../src/tools/registry.js";
 
 const hoisted = vi.hoisted(() => ({
   generateTextSpy: vi.fn(),
@@ -77,5 +79,107 @@ describe("modelRouter token usage", () => {
     expect(result.usage?.promptTokens).toBeGreaterThan(0);
     expect(result.usage?.completionTokens).toBeGreaterThan(0);
     expect(result.usage?.totalTokens).toBe((result.usage?.promptTokens ?? 0) + (result.usage?.completionTokens ?? 0));
+  });
+
+  it("maps AI SDK tool calls into model responses", async () => {
+    process.env.MODEL_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "test-key";
+    hoisted.generateTextSpy.mockResolvedValue({
+      text: "selecting a tool",
+      finishReason: "tool-calls",
+      toolCalls: [{ type: "tool-call", toolCallId: "1", toolName: "echo", args: { text: "hello" } }],
+      usage: {
+        promptTokens: 3,
+        completionTokens: 2,
+        totalTokens: 5
+      }
+    });
+    const tools = new ToolRegistry([
+      {
+        name: "echo",
+        description: "Echo text",
+        schema: z.object({ text: z.string() }),
+        execute: async ({ text }) => ({ ok: true, output: text })
+      }
+    ]);
+
+    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const provider = createModelProviderFromEnv();
+    const result = await provider.generate([
+      { role: "system", content: "system prompt" },
+      { role: "user", content: "hello world" }
+    ], { tools });
+
+    expect(result.structured).toBe(true);
+    expect(result.finishReason).toBe("tool-calls");
+    expect(result.toolCall).toEqual({ name: "echo", input: { text: "hello" } });
+    expect(hoisted.generateTextSpy).toHaveBeenCalledWith(expect.objectContaining({
+      system: "system prompt",
+      prompt: "USER: hello world",
+      toolChoice: "required",
+      maxSteps: 1,
+      tools: expect.objectContaining({
+        echo: expect.objectContaining({ description: "Echo text" }),
+        final: expect.any(Object)
+      })
+    }));
+  });
+
+  it("falls back to text ReAct when structured tool calling is unsupported", async () => {
+    process.env.MODEL_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "test-key";
+    hoisted.generateTextSpy
+      .mockRejectedValueOnce(new Error("tools unsupported by this endpoint"))
+      .mockResolvedValueOnce({
+        text: "Thought: done\nAction: final\nAction Input: {\"answer\":\"ok\"}"
+      });
+    const tools = new ToolRegistry([
+      {
+        name: "echo",
+        description: "Echo text",
+        schema: z.object({ text: z.string() }),
+        execute: async ({ text }) => ({ ok: true, output: text })
+      }
+    ]);
+
+    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const provider = createModelProviderFromEnv();
+    const result = await provider.generate([{ role: "user", content: "hello world" }], { tools });
+
+    expect(result.structured).toBeUndefined();
+    expect(result.toolCall).toBeUndefined();
+    expect(result.text).toContain("Action: final");
+    expect(hoisted.generateTextSpy).toHaveBeenCalledTimes(2);
+    expect(hoisted.generateTextSpy.mock.calls[1]?.[0]).toMatchObject({
+      prompt: "USER: hello world"
+    });
+  });
+
+  it("honors the text ReAct override even when tools are available", async () => {
+    process.env.MODEL_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.NANOCODIN_TEXT_REACT = "1";
+    hoisted.generateTextSpy.mockResolvedValue({
+      text: "Thought: done\nAction: final\nAction Input: {\"answer\":\"ok\"}"
+    });
+    const tools = new ToolRegistry([
+      {
+        name: "echo",
+        description: "Echo text",
+        schema: z.object({ text: z.string() }),
+        execute: async ({ text }) => ({ ok: true, output: text })
+      }
+    ]);
+
+    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const provider = createModelProviderFromEnv();
+    const result = await provider.generate([{ role: "user", content: "hello world" }], { tools });
+
+    expect(result.structured).toBeUndefined();
+    expect(result.toolCall).toBeUndefined();
+    expect(hoisted.generateTextSpy).toHaveBeenCalledTimes(1);
+    expect(hoisted.generateTextSpy).toHaveBeenCalledWith(expect.not.objectContaining({
+      tools: expect.anything()
+    }));
   });
 });

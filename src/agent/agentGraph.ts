@@ -189,11 +189,21 @@ export class CodingAgentGraph {
         formatExecutionStateForPrompt(this.toolContext.todos, state.latestVerification),
         buildToolHelp(this.tools.list(), state.phase)
       );
-      const response = await this.model.generate(messages, { abortSignal: this.toolContext.abortSignal });
+      const response = await this.model.generate(messages, {
+        abortSignal: this.toolContext.abortSignal,
+        tools: this.tools,
+        toolChoice: "required"
+      });
       this.throwIfAborted();
       responseText = response.text;
       const nextTokenUsage = accumulateTokenUsage(state.tokenUsage, response.usage);
-      parsed = parseAgentResponse(responseText);
+      parsed = response.toolCall
+        ? {
+          thought: responseText.trim() || "Selected structured tool call.",
+          action: response.toolCall.name,
+          actionInput: this.toActionInputRecord(response.toolCall.input)
+        }
+        : parseAgentResponse(responseText);
 
       const actionName = parsed.action.toLowerCase();
 
@@ -438,6 +448,13 @@ export class CodingAgentGraph {
   private isVerificationAction(action: ToolCall): boolean {
     const tool = this.tools.getToolByName(action.name);
     return isVerificationTool(tool) && isVerificationToolAction(action);
+  }
+
+  private toActionInputRecord(input: unknown): Record<string, unknown> {
+    if (input && typeof input === "object" && !Array.isArray(input)) {
+      return input as Record<string, unknown>;
+    }
+    return {};
   }
 
   private canExecuteAction(phase: AgentPhase, action: ToolCall): { ok: boolean; reason?: string } {

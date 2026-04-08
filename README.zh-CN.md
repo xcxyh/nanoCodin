@@ -24,6 +24,7 @@ Nano Codin 是一个基于 TypeScript 的 Coding Agent CLI，采用简洁且面�
 ## 核心特性
 
 - 直接用 TypeScript 实现的 ReAct 单代理循环
+- 使用 AI SDK structured tool calling 选择工具，并保留文本 ReAct fallback
 - 可插拔工具注册表（`fs`、`edit`、`shell`、`planning`）
 - 通过 `repo_index_query` 仓库索引缓存提升仓库理解速度
 - 从 `AGENTS.md`、`.nanocodin/context.md`、`.nanocodin/memory.md` 分层注入提示词上下文
@@ -179,12 +180,15 @@ MODEL_NAME=...
 ```bash
 AGENT_MAX_STEPS=12
 AGENT_RECURSION_LIMIT=32
+# optional: 强制使用旧文本 ReAct，而不是 structured tool calling
+NANOCODIN_TEXT_REACT=1
 ```
 
 说明：
 
 - `AGENT_MAX_STEPS` 控制 ReAct 循环停止条件。
 - `AGENT_RECURSION_LIMIT` 控制本地 agent/tool 转换安全保护，默认值由 `AGENT_MAX_STEPS` 推导。
+- `NANOCODIN_TEXT_REACT=1` 会关闭 AI SDK structured tool calling，用于不支持 tools 的 Provider。
 
 ### 项目个性化（`AGENTS.md` + `.nanocodin`）
 

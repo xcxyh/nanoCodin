@@ -30,6 +30,9 @@ export interface TokenUsage {
 export interface ModelResponse {
   text: string;
   usage?: TokenUsage;
+  toolCall?: ToolCall;
+  finishReason?: string;
+  structured?: boolean;
 }
 
 function mergeTokenUsageSource(left: TokenUsageSource, right: TokenUsageSource): TokenUsageSource {

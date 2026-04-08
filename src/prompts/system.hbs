@@ -17,7 +17,12 @@ Persistent memory:
 Tool help:
 {{toolHelp}}
 
-Output format (strict):
+Tool-calling mode:
+- When structured tool calling is available, select exactly one tool call directly.
+- Use the `final` tool with {"answer":"..."} when the task is complete.
+- The text format below is only for fallback text ReAct mode.
+
+Fallback text output format (strict):
 Thought: <your reasoning in 1-2 sentences>
 Action: <tool name or final>
 Action Input: <valid JSON object>

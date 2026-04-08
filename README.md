@@ -24,6 +24,7 @@ It uses a plain TypeScript ReAct loop (Thought -> Action -> Observation), tool e
 ## Highlights
 
 - ReAct single-agent loop implemented directly in TypeScript
+- AI SDK structured tool calling for tool selection, with text ReAct fallback
 - Pluggable tool registry (`fs`, `edit`, `shell`, `planning`)
 - Repo index cache with `repo_index_query` for faster repo understanding
 - Layered prompt context from `AGENTS.md`, `.nanocodin/context.md`, and `.nanocodin/memory.md`
@@ -179,12 +180,15 @@ Optional runtime controls:
 ```bash
 AGENT_MAX_STEPS=12
 AGENT_RECURSION_LIMIT=32
+# optional: force legacy text ReAct instead of structured tool calling
+NANOCODIN_TEXT_REACT=1
 ```
 
 Notes:
 
 - `AGENT_MAX_STEPS` controls the ReAct loop stop condition.
 - `AGENT_RECURSION_LIMIT` controls the local agent/tool transition guard. Default is derived from `AGENT_MAX_STEPS`.
+- `NANOCODIN_TEXT_REACT=1` disables AI SDK structured tool calling for providers that do not support tools.
 
 ### Project Personalization (`AGENTS.md` + `.nanocodin`)
 

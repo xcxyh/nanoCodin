@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ### Changed
 - Replaced external graph orchestration with a plain TypeScript ReAct loop while preserving the existing agent runtime API.
+- Added AI SDK structured tool calling for tool selection while preserving the local tool execution path and text ReAct fallback.
 
 ### Removed
 - Removed optional external tracing integration and its dependency chain to keep the CLI runtime minimal.

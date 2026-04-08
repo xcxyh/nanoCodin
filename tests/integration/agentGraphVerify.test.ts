@@ -1,3 +1,6 @@
+import { mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { CodingAgentGraph } from "../../src/agent/agentGraph.js";
@@ -120,6 +123,47 @@ class UsageFinalOnlyModel implements ModelProvider {
         promptTokens: 4,
         completionTokens: 3,
         totalTokens: 7,
+        source: "actual" as const
+      }
+    };
+  }
+}
+
+class StructuredCreateThenFinalModel implements ModelProvider {
+  private calls = 0;
+  sawTools = false;
+
+  constructor(private readonly filePath: string) {}
+
+  async generate(_messages: Message[], options?: ModelGenerateOptions) {
+    this.calls += 1;
+    this.sawTools = this.sawTools || Boolean(options?.tools);
+    if (this.calls === 1) {
+      return {
+        text: "Use a structured create tool call.",
+        toolCall: {
+          name: "create",
+          input: { path: this.filePath, content: "hello" }
+        },
+        usage: {
+          promptTokens: 3,
+          completionTokens: 2,
+          totalTokens: 5,
+          source: "actual" as const
+        }
+      };
+    }
+
+    return {
+      text: "Use a structured final answer.",
+      toolCall: {
+        name: "final",
+        input: { answer: "all done" }
+      },
+      usage: {
+        promptTokens: 2,
+        completionTokens: 2,
+        totalTokens: 4,
         source: "actual" as const
       }
     };
@@ -347,6 +391,52 @@ describe("CodingAgentGraph verification guard", () => {
 
     expect(result.finalAnswer).toContain("all done");
     expect(snapshots.at(-1)).toBe(7);
+  });
+
+  it("executes structured tool calls while preserving the registry execution path", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-structured-tools-"));
+    const model = new StructuredCreateThenFinalModel("tmp.txt");
+    const baseContext = createToolContext();
+    const context = createToolContext({
+      cwd,
+      runtimeConfig: {
+        ...baseContext.runtimeConfig,
+        agent: {
+          ...baseContext.runtimeConfig.agent,
+          verifyRequiredKeywords: []
+        }
+      },
+      todos: {
+        items: [{ id: "1", content: "edit file", completed: false }],
+        verification: {
+          goal: "",
+          commands: [],
+          latestCommand: null,
+          latestSummary: null,
+          status: "pending"
+        },
+        taskBundle: { primaryTask: "edit file", subtasks: [], results: [] }
+      }
+    });
+    const graph = new CodingAgentGraph(
+      model,
+      new ToolRegistry([createTool]),
+      context,
+      4,
+      8
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "make this change" }]
+    });
+
+    expect(model.sawTools).toBe(true);
+    expect(result.finalAnswer).toContain("all done");
+    expect(result.steps[0]?.action).toEqual({
+      name: "create",
+      input: { path: "tmp.txt", content: "hello" }
+    });
+    expect(result.steps[0]?.observation).toContain("Created file: tmp.txt");
   });
 
   it("retains full step history through the fourth model call when compression has not started", async () => {

@@ -1,10 +1,16 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
+import type { LanguageModel, ToolChoice, ToolSet } from "ai";
 import type { Message, ModelResponse, TokenUsage } from "../core/messageTypes.js";
+import { buildAiSdkToolSet } from "./aiSdkTools.js";
+import type { ToolRegistry } from "../tools/registry.js";
 
 export interface ModelGenerateOptions {
   abortSignal?: AbortSignal;
+  tools?: ToolRegistry;
+  toolChoice?: "auto" | "required" | "none";
+  structuredToolCalling?: boolean;
 }
 
 export interface ModelProvider {
@@ -13,6 +19,19 @@ export interface ModelProvider {
 
 function toPrompt(messages: Message[]): string {
   return messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
+}
+
+function splitSystemAndPrompt(messages: Message[]): { system: string | undefined; prompt: string } {
+  const systemMessages = messages.filter((m) => m.role === "system").map((m) => m.content);
+  const prompt = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+
+  return {
+    system: systemMessages.length > 0 ? systemMessages.join("\n\n") : undefined,
+    prompt
+  };
 }
 
 function estimateTokenCount(text: string): number {
@@ -60,6 +79,79 @@ function toModelResponse(
     text,
     usage: normalizeUsage(usage, prompt, text)
   };
+}
+
+function normalizeToolChoice(toolChoice: ModelGenerateOptions["toolChoice"]): ToolChoice<ToolSet> {
+  return toolChoice ?? "required";
+}
+
+function isStructuredToolCallingDisabled(options?: ModelGenerateOptions): boolean {
+  if (!options?.tools) {
+    return true;
+  }
+  if (options.structuredToolCalling === false) {
+    return true;
+  }
+  const override = process.env.NANOCODIN_TEXT_REACT?.trim().toLowerCase();
+  return override === "1" || override === "true" || override === "yes" || override === "on";
+}
+
+function isStructuredToolCallingUnsupported(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /tool|function|schema|unsupported|not support|not available|invalid.*tool|tool.*not/i.test(message);
+}
+
+function toStructuredModelResponse(
+  prompt: string,
+  result: {
+    text: string;
+    usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+    toolCalls?: Array<{ toolName: string; args: unknown }>;
+    finishReason?: string;
+  }
+): ModelResponse {
+  const toolCall = result.toolCalls?.[0];
+  return {
+    text: result.text,
+    usage: normalizeUsage(result.usage, prompt, result.text),
+    structured: true,
+    finishReason: result.finishReason,
+    toolCall: toolCall ? { name: toolCall.toolName, input: toolCall.args } : undefined
+  };
+}
+
+async function tryGenerateWithStructuredTools(
+  model: LanguageModel,
+  messages: Message[],
+  options?: ModelGenerateOptions
+): Promise<ModelResponse | null> {
+  const structuredTools = options?.tools;
+  if (isStructuredToolCallingDisabled(options) || !structuredTools) {
+    return null;
+  }
+
+  const { system, prompt } = splitSystemAndPrompt(messages);
+  const aiTools = buildAiSdkToolSet(structuredTools);
+  try {
+    const result = await generateText({
+      model,
+      system,
+      prompt,
+      tools: aiTools,
+      toolChoice: normalizeToolChoice(options.toolChoice),
+      maxSteps: 1,
+      abortSignal: options.abortSignal
+    });
+    return toStructuredModelResponse(prompt, result);
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    if (!isStructuredToolCallingUnsupported(error)) {
+      throw error;
+    }
+    return null;
+  }
 }
 
 function isAbortError(error: unknown): boolean {
@@ -137,6 +229,11 @@ class OpenAIProvider implements ModelProvider {
       const openai = createOpenAI({ apiKey, baseURL });
       const modelFactory = openai(this.modelName);
 
+      const structured = await tryGenerateWithStructuredTools(modelFactory, messages, options);
+      if (structured) {
+        return structured;
+      }
+
       const prompt = toPrompt(messages);
       const { text, usage } = await generateText({
         model: modelFactory,
@@ -172,6 +269,11 @@ class AnthropicProvider implements ModelProvider {
       const anthropic = createAnthropic({ apiKey, baseURL });
       const modelFactory = anthropic(this.modelName);
 
+      const structured = await tryGenerateWithStructuredTools(modelFactory, messages, options);
+      if (structured) {
+        return structured;
+      }
+
       const prompt = toPrompt(messages);
       const { text, usage } = await generateText({
         model: modelFactory,
@@ -189,6 +291,10 @@ class AnthropicProvider implements ModelProvider {
         try {
           const anthropic = createAnthropic({ apiKey, baseURL: fallbackBaseURL });
           const modelFactory = anthropic(this.modelName);
+          const structured = await tryGenerateWithStructuredTools(modelFactory, messages, options);
+          if (structured) {
+            return structured;
+          }
           const prompt = toPrompt(messages);
           const { text, usage } = await generateText({
             model: modelFactory,
