@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTokenCountK, formatTokenUsageText } from "../../src/ui/tokenUsage.js";
+import { formatTokenCountK, formatTotalTokenUsageText, formatTokenUsageText } from "../../src/ui/utils/tokenUsage.js";
 
 describe("token usage formatting", () => {
   it("formats token counts in k units", () => {
@@ -35,5 +35,21 @@ describe("token usage formatting", () => {
       totalTokens: 20,
       source: "mixed"
     })).toContain("total tokens (mixed)");
+  });
+
+  it("formats footer token total text", () => {
+    expect(formatTotalTokenUsageText(null)).toBe("0");
+    expect(formatTotalTokenUsageText({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      source: "actual"
+    })).toBe("0");
+    expect(formatTotalTokenUsageText({
+      promptTokens: 12,
+      completionTokens: 8,
+      totalTokens: 20,
+      source: "mixed"
+    })).toBe("0.02k (mixed)");
   });
 });

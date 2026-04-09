@@ -1,375 +1,89 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Box, useApp, useInput } from "ink";
-import path from "node:path";
-import { CodingAgentGraph } from "../agent/agentGraph.js";
-import type { Message } from "../core/messageTypes.js";
-import type { PermissionController, PermissionPromptChoice, PermissionRequest } from "../core/permission.js";
-import { collectFiles } from "../tools/fs/grep.js";
-import {
-  ConsoleHeader,
-  ConsoleInputBar,
-  ConsoleLogList,
-  PermissionPromptBox
-} from "./consoleComponents.js";
-import { clampFilePickerIndex, getFilePickerQuery } from "./filePicker.js";
-import {
-  hasToggleableObservation,
-  initialUiState,
-  mapAgentEventToUiActions,
-  uiReducer
-} from "./consoleState.js";
-import { isCtrlC, isCtrlE, useConsoleInput } from "./useConsoleInput.js";
+import React from "react";
+import { Box, useApp } from "ink";
+import type { CodingAgentGraph } from "../agent/agentGraph.js";
+import type { PermissionController } from "../core/permission.js";
+import { ConsoleFooter } from "./components/ConsoleFooter.js";
+import { ConsoleHeader } from "./components/ConsoleHeader.js";
+import { ConsoleInputBar } from "./components/ConsoleInputBar.js";
+import { ConsoleMessagePane } from "./components/ConsoleMessagePane.js";
+import { ConsoleTodoPane } from "./components/ConsoleTodoPane.js";
+import { PermissionPromptBox } from "./components/PermissionPromptBox.js";
+import { useConsoleBootstrap } from "./hooks/useConsoleBootstrap.js";
+import { useConsoleKeyboard } from "./hooks/useConsoleKeyboard.js";
+import { useConsoleTaskRunner } from "./hooks/useConsoleTaskRunner.js";
+import { useExitArm } from "./hooks/useExitArm.js";
+import { usePermissionPrompt } from "./hooks/usePermissionPrompt.js";
 
 interface Props {
   graph: CodingAgentGraph;
   permissionController: PermissionController;
+  modelName: string;
   initialTask?: string;
   resumeSessionId?: string;
   disableCheckpointRestore?: boolean;
 }
 
-interface PermissionPromptState {
-  request: PermissionRequest;
-  resolve: (choice: PermissionPromptChoice) => void;
-}
-
-interface FilePickerState {
-  query: string;
-  selectedIndex: number;
-  atPosition: number;
-}
-
-const EXIT_ARM_WINDOW_MS = 1500;
-
-function resolvePermissionChoice(char: string): PermissionPromptChoice | null {
-  const normalized = char.toLowerCase();
-  if (normalized === "y") return "allow_once";
-  if (normalized === "a") return "allow_all";
-  if (normalized === "n") return "deny";
-  return null;
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError";
-}
-
-export function ConsoleApp({ graph, permissionController, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
+export function ConsoleApp({ graph, permissionController, modelName, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
   const { exit } = useApp();
-  const { input, cursor, inputRef, cursorRef, setInput, setCursor, reset, applyKey } = useConsoleInput();
-
-  const [uiState, dispatch] = useReducer(uiReducer, initialUiState);
-  const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptState | null>(null);
-  const [exitArmedAt, setExitArmedAt] = useState<number | null>(null);
-  const [filePicker, setFilePicker] = useState<FilePickerState | null>(null);
-  const bootstrappedRef = useRef(false);
-
-  const exitArmedAtRef = useRef<number | null>(null);
-  const activeRunIdRef = useRef(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const cancelRequestedRef = useRef(false);
-  const fileListRef = useRef<string[]>([]);
-  const fileListLoadedRef = useRef(false);
-  const fileListLoadingRef = useRef<Promise<void> | null>(null);
-  const [fileListVersion, setFileListVersion] = useState(0);
-
-  const filteredFiles = useMemo(() => {
-    if (!filePicker) return [];
-    const q = filePicker.query.toLowerCase();
-    return fileListRef.current
-      .filter(f => q === "" || f.toLowerCase().includes(q))
-      .slice(0, 10);
-  }, [filePicker, fileListVersion]);
-
-  async function loadFileList() {
-    if (fileListLoadedRef.current) return;
-    if (fileListLoadingRef.current) {
-      await fileListLoadingRef.current;
-      return;
-    }
-
-    fileListLoadingRef.current = (async () => {
-      const cwd = process.cwd();
-      const absolutePaths = await collectFiles(cwd);
-      fileListRef.current = absolutePaths.map(f => path.relative(cwd, f)).sort();
-      fileListLoadedRef.current = true;
-      setFileListVersion(version => version + 1);
-    })();
-
-    try {
-      await fileListLoadingRef.current;
-    } finally {
-      fileListLoadingRef.current = null;
-    }
-  }
-
-  const clearExitArm = () => {
-    if (exitArmedAtRef.current !== null) {
-      exitArmedAtRef.current = null;
-      setExitArmedAt(null);
-    }
-  };
-
-  const armExit = () => {
-    const now = Date.now();
-    exitArmedAtRef.current = now;
-    setExitArmedAt(now);
-  };
-
-  const tryExit = () => {
-    const armedAt = exitArmedAtRef.current;
-    const now = Date.now();
-    if (armedAt && now - armedAt <= EXIT_ARM_WINDOW_MS) {
-      exit();
-      return true;
-    }
-    armExit();
-    return false;
-  };
-
-  const hint = useMemo(() => {
-    if (permissionPrompt) {
-      return "Permission required. Press Y to allow once, A to allow all, N to deny.";
-    }
-    if (filePicker) {
-      return "Type to filter. Up/Down to navigate, Enter to select, Esc to cancel.";
-    }
-    if (uiState.busy) {
-      if (uiState.cancelRequested) {
-        return "Cancelling current task...";
-      }
-      return "Nano Codin is working. Press ESC to cancel.";
-    }
-    if (exitArmedAt) {
-      return "Press Ctrl+C again to exit.";
-    }
-    return "Type a coding task and press Enter. Press Ctrl+E to expand/collapse latest output. Ctrl+C twice to exit.";
-  }, [permissionPrompt, filePicker, uiState.busy, uiState.cancelRequested, exitArmedAt]);
-
-  useEffect(() => {
-    if (!uiState.busy && !uiState.thinkingVisible && !uiState.loadingVisible) {
-      return undefined;
-    }
-    const timer = setInterval(() => {
-      dispatch({ type: "thinking_tick" });
-    }, 300);
-    return () => clearInterval(timer);
-  }, [uiState.busy, uiState.thinkingVisible, uiState.loadingVisible]);
-
-  useEffect(() => {
-    if (exitArmedAt === null) {
-      return undefined;
-    }
-    const timeout = setTimeout(() => {
-      if (exitArmedAtRef.current === exitArmedAt) {
-        clearExitArm();
-      }
-    }, EXIT_ARM_WINDOW_MS);
-    return () => clearTimeout(timeout);
-  }, [exitArmedAt]);
-
-  async function runTask(task: string) {
-    const runId = activeRunIdRef.current + 1;
-    activeRunIdRef.current = runId;
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-    cancelRequestedRef.current = false;
-
-    dispatch({ type: "task_start", task });
-    reset();
-
-    const initialMessages: Message[] = [{ role: "user", content: task }];
-
-    try {
-      const result = await graph.run({
-        messages: initialMessages,
-        checkpointRestore: disableCheckpointRestore
-          ? "disabled"
-          : resumeSessionId
-            ? (resumeSessionId === "__LATEST__" ? "latest" : "session")
-            : "auto",
-        resumeSessionId: resumeSessionId && resumeSessionId !== "__LATEST__" ? resumeSessionId : undefined,
-        abortSignal: abortController.signal,
-        onEvent: (event) => {
-          if (runId !== activeRunIdRef.current || cancelRequestedRef.current) {
-            return;
-          }
-
-          const actions = mapAgentEventToUiActions(event);
-          for (const uiAction of actions) {
-            dispatch(uiAction);
-          }
-        }
-      });
-
-      if (runId !== activeRunIdRef.current) {
-        return;
-      }
-
-      if (abortController.signal.aborted || cancelRequestedRef.current) {
-        dispatch({ type: "task_cancel" });
-        return;
-      }
-
-      dispatch({ type: "task_success", stepCount: result.steps.length });
-    } catch (error) {
-      if (runId !== activeRunIdRef.current) {
-        return;
-      }
-      if (abortController.signal.aborted || cancelRequestedRef.current || isAbortError(error)) {
-        dispatch({ type: "task_cancel" });
-        return;
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      dispatch({ type: "task_failure", message });
-    } finally {
-      if (abortControllerRef.current === abortController) {
-        abortControllerRef.current = null;
-      }
-      cancelRequestedRef.current = false;
-    }
-  }
-
-  useInput((char, key) => {
-    if (key.escape) {
-      if (filePicker) {
-        setFilePicker(null);
-        return;
-      }
-      if (uiState.busy) {
-        if (!cancelRequestedRef.current) {
-          cancelRequestedRef.current = true;
-          abortControllerRef.current?.abort();
-          dispatch({ type: "task_cancel_requested" });
-        }
-      }
-      return;
-    }
-
-    if (isCtrlC(char, key)) {
-      if (filePicker) {
-        setFilePicker(null);
-        return;
-      }
-      tryExit();
-      return;
-    }
-
-    if (permissionPrompt) {
-      const choice = resolvePermissionChoice(char);
-      if (choice) {
-        permissionPrompt.resolve(choice);
-        setPermissionPrompt(null);
-      }
-      return;
-    }
-
-    if (uiState.busy) {
-      return;
-    }
-
-    clearExitArm();
-
-    if (filePicker) {
-      if (key.upArrow) {
-        setFilePicker(prev => prev && ({
-          ...prev,
-          selectedIndex: clampFilePickerIndex(prev.selectedIndex - 1, filteredFiles.length)
-        }));
-        return;
-      }
-      if (key.downArrow) {
-        setFilePicker(prev => prev && ({
-          ...prev,
-          selectedIndex: clampFilePickerIndex(prev.selectedIndex + 1, filteredFiles.length)
-        }));
-        return;
-      }
-      if (key.return) {
-        if (filteredFiles.length > 0) {
-          const selectedIndex = clampFilePickerIndex(filePicker.selectedIndex, filteredFiles.length);
-          const selected = filteredFiles[selectedIndex] ?? filteredFiles[0];
-          const atPos = filePicker.atPosition;
-          const beforeAt = inputRef.current.slice(0, atPos);
-          const afterQuery = inputRef.current.slice(atPos + 1 + filePicker.query.length);
-          const newInput = beforeAt + selected + " " + afterQuery;
-          setInput(newInput);
-          setCursor(beforeAt.length + selected.length + 1);
-        }
-        setFilePicker(null);
-        return;
-      }
-
-      applyKey(char, key);
-
-      const currentInput = inputRef.current;
-      const atPos = filePicker.atPosition;
-      const newQuery = getFilePickerQuery(currentInput, atPos, cursorRef.current);
-      if (newQuery === null) {
-        setFilePicker(null);
-        return;
-      }
-
-      setFilePicker(prev => prev && ({ ...prev, query: newQuery, selectedIndex: 0 }));
-      return;
-    }
-
-    if (isCtrlE(char, key) && hasToggleableObservation(uiState.logs)) {
-      dispatch({ type: "toggle_latest_observation" });
-      return;
-    }
-
-    if (key.return) {
-      const task = input.trim();
-      if (task.length === 0) {
-        return;
-      }
-
-      void runTask(task);
-      return;
-    }
-
-    applyKey(char, key);
-
-    if (char === "@" && !filePicker) {
-      void loadFileList();
-      setFilePicker({ query: "", selectedIndex: 0, atPosition: cursorRef.current - 1 });
-    }
+  const { exitArmedAt, clearExitArm, shouldExit } = useExitArm();
+  const { permissionPrompt, setPermissionPrompt } = usePermissionPrompt(permissionController);
+  const { uiState, runTask, requestCancel } = useConsoleTaskRunner({
+    graph,
+    resumeSessionId,
+    disableCheckpointRestore
   });
 
-  useEffect(() => {
-    if (bootstrappedRef.current) {
-      return;
-    }
-    if (!initialTask && !resumeSessionId) {
-      return;
-    }
-    bootstrappedRef.current = true;
-    void runTask(initialTask ?? "continue");
-  }, [initialTask, resumeSessionId]);
+  const keyboard = useConsoleKeyboard({
+    busy: uiState.busy,
+    permissionPrompt,
+    clearPermissionPrompt: () => setPermissionPrompt(null),
+    onSubmit: (task) => {
+      void runTask(task);
+    },
+    onCancel: requestCancel,
+    onExit: () => {
+      if (shouldExit()) {
+        exit();
+      }
+    },
+    clearExitArm
+  });
 
-  useEffect(() => {
-    const handler = async (request: PermissionRequest) => new Promise<PermissionPromptChoice>((resolve) => {
-      setPermissionPrompt({ request, resolve });
-    });
+  useConsoleBootstrap({
+    initialTask,
+    resumeSessionId,
+    runTask
+  });
 
-    permissionController.setPromptHandler(handler);
-    return () => {
-      permissionController.setPromptHandler(null);
-    };
-  }, [permissionController]);
+  const hint = permissionPrompt
+    ? "Permission required. Press Y to allow once, A to allow all, N to deny."
+    : keyboard.filePickerActive
+      ? "Type to filter. Up/Down to navigate, Enter to select, Esc to cancel."
+      : uiState.busy
+        ? (uiState.cancelRequested ? "Cancelling current task..." : "Running current task. Press ESC to cancel.")
+        : exitArmedAt
+          ? "Press Ctrl+C again to exit."
+          : "Enter a task and press Enter. Use @ to insert file paths.";
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <ConsoleHeader hint={hint} snapshot={uiState.latestSnapshot} />
-      <ConsoleLogList logs={uiState.logs} thinkingTick={uiState.thinkingTick} />
+      <ConsoleHeader hint={hint} />
+      <ConsoleMessagePane
+        history={uiState.history}
+        currentTurn={uiState.currentTurn}
+        busy={uiState.busy}
+        pendingToolName={uiState.pendingToolName}
+      />
+      <ConsoleTodoPane snapshot={uiState.latestSnapshot} />
       {permissionPrompt ? <PermissionPromptBox request={permissionPrompt.request} /> : null}
       <ConsoleInputBar
-        input={input}
-        cursor={cursor}
+        input={keyboard.input}
+        cursor={keyboard.cursor}
         busy={uiState.busy}
-        pickerFiles={filePicker ? filteredFiles : []}
-        pickerSelectedIndex={filePicker?.selectedIndex ?? 0}
+        pickerFiles={keyboard.filteredFiles}
+        pickerSelectedIndex={keyboard.pickerSelectedIndex}
       />
+      <ConsoleFooter modelName={modelName} tokenUsage={uiState.latestSnapshot?.tokenUsage ?? null} />
     </Box>
   );
 }

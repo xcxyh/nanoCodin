@@ -1,5 +1,5 @@
 import type { AgentStep, Message, TokenUsage, ToolCall } from "../core/messageTypes.js";
-import type { ContextSources, SessionMemory, TodoState, ToolContext } from "../core/toolTypes.js";
+import type { ContextSources, SessionMemory, TodoItem, TodoState, ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { renderTemplate } from "../prompts/templateEngine.js";
 import type { ToolRegistry } from "../tools/registry.js";
@@ -29,7 +29,7 @@ export type AgentEvent =
 
 export interface AgentExecutionSnapshot {
   phase: AgentPhase;
-  todos: string[];
+  todos: TodoItem[];
   verificationGoal: string;
   verificationCommands: string[];
   verificationStatus: string;
@@ -197,7 +197,11 @@ export function buildAgentExecutionSnapshot(
 ): AgentExecutionSnapshot {
   return {
     phase,
-    todos: todos.items.map((item) => `${item.completed ? "[x]" : "[ ]"} ${item.content}`),
+    todos: todos.items.map((item) => ({
+      id: item.id,
+      content: item.content,
+      completed: item.completed
+    })),
     verificationGoal: todos.verification.goal,
     verificationCommands: [...todos.verification.commands],
     verificationStatus: todos.verification.status,

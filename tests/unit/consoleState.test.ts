@@ -1,31 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { hasToggleableObservation, uiReducer, initialUiState } from "../../src/ui/consoleState.js";
+import { initialUiState, uiReducer } from "../../src/ui/state/consoleUiReducer.js";
+import { mapAgentEventToUiActions } from "../../src/ui/state/eventMapper.js";
 
-describe("console state helpers", () => {
-  it("detects latest toggleable observation", () => {
-    const state = uiReducer(initialUiState, { type: "append_action", name: "bash", input: { command: "ls" } });
-    const withObservation = uiReducer(state, { type: "append_observation", text: "line1\nline2" });
-
-    expect(hasToggleableObservation(withObservation.logs)).toBe(true);
-  });
-
-  it("does not treat todo observation as toggleable", () => {
-    const state = {
-      ...initialUiState,
-      pendingToolName: "todo"
-    };
-
-    const withObservation = uiReducer(state, { type: "append_observation", text: "line1\nline2" });
-
-    expect(hasToggleableObservation(withObservation.logs)).toBe(false);
-  });
-
-  it("stores latest execution snapshot", () => {
+describe("console state", () => {
+  it("stores the latest execution snapshot with structured todos", () => {
     const next = uiReducer(initialUiState, {
       type: "set_snapshot",
       snapshot: {
         phase: "verify",
-        todos: ["[ ] edit file"],
+        todos: [{ id: "todo-1", content: "edit file", completed: false }],
         verificationGoal: "Run tests",
         verificationCommands: ["npm run test"],
         verificationStatus: "pending",
@@ -43,39 +26,11 @@ describe("console state helpers", () => {
     });
 
     expect(next.latestSnapshot?.phase).toBe("verify");
-    expect(next.latestSnapshot?.verificationCommands).toEqual(["npm run test"]);
+    expect(next.latestSnapshot?.todos).toEqual([{ id: "todo-1", content: "edit file", completed: false }]);
     expect(next.latestSnapshot?.tokenUsage?.totalTokens).toBe(15);
   });
 
-  it("renders empty action input without trailing empty object", () => {
-    const next = uiReducer(initialUiState, { type: "append_action", name: "view", input: {} });
-
-    expect(next.logs.at(-2)?.text).toBe("view");
-  });
-
-  it("summarizes bash json observation with stderr detail", () => {
-    const state = uiReducer(initialUiState, {
-      type: "append_action",
-      name: "bash",
-      input: { command: "npm run typecheck" }
-    });
-    const next = uiReducer(state, {
-      type: "append_observation",
-      text: [
-        "ERROR: {",
-        "  \"exit_code\": 2,",
-        "  \"stdout_tail\": \"\",",
-        "  \"stderr_tail\": \"tsc: found 3 errors\",",
-        "  \"duration_ms\": 123,",
-        "  \"policy_decision\": \"allow\"",
-        "}"
-      ].join("\n")
-    });
-
-    expect(next.logs.at(-1)?.summary).toContain("detail=tsc: found 3 errors");
-  });
-
-  it("clears the previous snapshot when a new task starts", () => {
+  it("starts a new current turn and clears the previous snapshot", () => {
     const state = uiReducer(initialUiState, {
       type: "set_snapshot",
       snapshot: {
@@ -99,101 +54,131 @@ describe("console state helpers", () => {
 
     const next = uiReducer(state, { type: "task_start", task: "new task" });
 
+    expect(next.currentTurn?.user).toBe("new task");
     expect(next.latestSnapshot).toBeNull();
   });
 
-  it("stays busy while cancellation is in progress", () => {
-    const state = uiReducer(initialUiState, { type: "task_start", task: "slow task" });
+  it("records tool activity without exposing thought messages", () => {
+    const state = uiReducer(initialUiState, { type: "task_start", task: "inspect files" });
+    const next = uiReducer(state, { type: "append_action", name: "view", input: { path: "src/index.ts" } });
 
-    const next = uiReducer(state, { type: "task_cancel_requested" });
-
-    expect(next.busy).toBe(true);
-    expect(next.cancelRequested).toBe(true);
-    expect(next.logs.at(-1)?.text).toBe("Cancelling...");
+    expect(next.currentTurn?.activity).toEqual([
+      expect.objectContaining({
+        kind: "tool",
+        text: "Read file",
+        detail: "src/index.ts"
+      })
+    ]);
   });
 
-  it("keeps the latest snapshot after task success", () => {
-    const state = uiReducer(initialUiState, {
-      type: "set_snapshot",
-      snapshot: {
-        phase: "finalize",
-        todos: [],
-        verificationGoal: "",
-        verificationCommands: [],
-        verificationStatus: "passed",
-        latestVerification: "PASS",
-        tokenUsage: {
-          promptTokens: 12,
-          completionTokens: 8,
-          totalTokens: 20,
-          source: "mixed"
-        },
-        subtaskSummaries: [],
-        sessionNextAction: null,
-        touchedFiles: []
-      }
-    });
+  it("stores thought messages in the current activity stream", () => {
+    const state = uiReducer(initialUiState, { type: "task_start", task: "inspect files" });
+    const next = uiReducer(state, { type: "append_thought", text: "我来帮你看一下当前实现。" });
 
-    const next = uiReducer(state, { type: "task_success", stepCount: 3 });
-
-    expect(next.latestSnapshot?.tokenUsage?.totalTokens).toBe(20);
-    expect(next.latestSnapshot?.tokenUsage?.source).toBe("mixed");
-    expect(next.logs.at(-1)?.text).toBe("Completed in 3 step(s). 0.02k tokens.");
+    expect(next.currentTurn?.activity).toEqual([
+      expect.objectContaining({
+        kind: "thinking",
+        text: "我来帮你看一下当前实现。"
+      })
+    ]);
   });
 
-  it("keeps the latest snapshot after task failure", () => {
-    const state = uiReducer(initialUiState, {
-      type: "set_snapshot",
-      snapshot: {
-        phase: "finalize",
-        todos: [],
-        verificationGoal: "",
-        verificationCommands: [],
-        verificationStatus: "failed",
-        latestVerification: "FAIL",
-        tokenUsage: {
-          promptTokens: 7,
-          completionTokens: 3,
-          totalTokens: 10,
-          source: "estimated"
-        },
-        subtaskSummaries: [],
-        sessionNextAction: null,
-        touchedFiles: []
-      }
+  it("does not add todo observations to the visible activity list", () => {
+    const state = uiReducer({
+      ...initialUiState,
+      currentTurn: {
+        id: "turn-1",
+        user: "do work",
+        activity: [],
+        finalText: null
+      },
+      pendingToolName: "todo"
+    }, {
+      type: "append_observation",
+      text: "updated todo"
     });
 
-    const next = uiReducer(state, { type: "task_failure", message: "boom" });
-
-    expect(next.latestSnapshot?.tokenUsage?.totalTokens).toBe(10);
-    expect(next.latestSnapshot?.tokenUsage?.source).toBe("estimated");
+    expect(state.currentTurn?.activity).toEqual([]);
+    expect(state.pendingToolName).toBeNull();
   });
 
-  it("keeps the latest snapshot after task cancel", () => {
-    const state = uiReducer(initialUiState, {
-      type: "set_snapshot",
-      snapshot: {
-        phase: "execute",
-        todos: [],
-        verificationGoal: "",
-        verificationCommands: [],
-        verificationStatus: "pending",
-        latestVerification: null,
-        tokenUsage: {
-          promptTokens: 9,
-          completionTokens: 1,
-          totalTokens: 10,
-          source: "actual"
-        },
-        subtaskSummaries: [],
-        sessionNextAction: null,
-        touchedFiles: []
-      }
+  it("summarizes bash observations into activity lines", () => {
+    const withTurn = uiReducer(initialUiState, { type: "task_start", task: "typecheck" });
+    const withAction = uiReducer(withTurn, {
+      type: "append_action",
+      name: "bash",
+      input: { command: "npm run typecheck" }
+    });
+    const next = uiReducer(withAction, {
+      type: "append_observation",
+      text: [
+        "ERROR: {",
+        "  \"exit_code\": 2,",
+        "  \"stdout_tail\": \"\",",
+        "  \"stderr_tail\": \"tsc: found 3 errors\",",
+        "  \"duration_ms\": 123,",
+        "  \"policy_decision\": \"allow\"",
+        "}"
+      ].join("\n")
     });
 
-    const next = uiReducer(state, { type: "task_cancel" });
+    expect(next.currentTurn?.activity.at(-1)?.text).toContain("tsc: found 3 errors");
+  });
 
-    expect(next.latestSnapshot?.tokenUsage?.totalTokens).toBe(10);
-    expect(next.latestSnapshot?.phase).toBe("execute");
+  it("compresses a successful turn into history and clears activity", () => {
+    const started = uiReducer(initialUiState, { type: "task_start", task: "build it" });
+    const withFinal = uiReducer(started, { type: "append_final", text: "Done.\n\nExecution summary:\n..." });
+    const next = uiReducer(withFinal, { type: "task_success", stepCount: 3 });
+
+    expect(next.currentTurn).toBeNull();
+    expect(next.history).toEqual([
+      expect.objectContaining({
+        user: "build it",
+        result: "Done.\n\nExecution summary:\n...",
+        status: "final"
+      })
+    ]);
+  });
+
+  it("keeps the latest snapshot after success, failure, and cancel", () => {
+    const snapshot = {
+      phase: "finalize" as const,
+      todos: [],
+      verificationGoal: "",
+      verificationCommands: [],
+      verificationStatus: "passed",
+      latestVerification: "PASS",
+      tokenUsage: {
+        promptTokens: 12,
+        completionTokens: 8,
+        totalTokens: 20,
+        source: "mixed" as const
+      },
+      subtaskSummaries: [],
+      sessionNextAction: null,
+      touchedFiles: []
+    };
+
+    const success = uiReducer(
+      uiReducer(uiReducer(initialUiState, { type: "task_start", task: "ok" }), { type: "set_snapshot", snapshot }),
+      { type: "task_success", stepCount: 1 }
+    );
+    const failure = uiReducer(
+      uiReducer(uiReducer(initialUiState, { type: "task_start", task: "boom" }), { type: "set_snapshot", snapshot }),
+      { type: "task_failure", message: "boom" }
+    );
+    const cancel = uiReducer(
+      uiReducer(uiReducer(initialUiState, { type: "task_start", task: "cancel" }), { type: "set_snapshot", snapshot }),
+      { type: "task_cancel" }
+    );
+
+    expect(success.latestSnapshot?.tokenUsage?.totalTokens).toBe(20);
+    expect(failure.latestSnapshot?.tokenUsage?.source).toBe("mixed");
+    expect(cancel.latestSnapshot?.phase).toBe("finalize");
+  });
+
+  it("maps thought events to no UI actions", () => {
+    const actions = mapAgentEventToUiActions({ type: "thought", thought: "hidden" });
+    expect(actions).toEqual([{ type: "append_thought", text: "hidden" }]);
   });
 });

@@ -17,6 +17,20 @@ export interface ModelProvider {
   generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse>;
 }
 
+export function getConfiguredModelNameFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  const provider = (env.MODEL_PROVIDER ?? "openai").toLowerCase();
+
+  if (provider === "openai") {
+    return env.MODEL_NAME ?? env.OPENAI_MODEL ?? "gpt-4o-mini";
+  }
+
+  if (provider === "anthropic") {
+    return env.MODEL_NAME ?? env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest";
+  }
+
+  throw new Error(`Unsupported MODEL_PROVIDER: ${provider}. Use 'openai' or 'anthropic'.`);
+}
+
 function toPrompt(messages: Message[]): string {
   return messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
 }
@@ -318,12 +332,12 @@ export function createModelProviderFromEnv(): ModelProvider {
   const provider = (process.env.MODEL_PROVIDER ?? "openai").toLowerCase();
 
   if (provider === "openai") {
-    const modelName = process.env.MODEL_NAME ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+    const modelName = getConfiguredModelNameFromEnv(process.env);
     return new OpenAIProvider(modelName);
   }
 
   if (provider === "anthropic") {
-    const modelName = process.env.MODEL_NAME ?? process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest";
+    const modelName = getConfiguredModelNameFromEnv(process.env);
     return new AnthropicProvider(modelName);
   }
 

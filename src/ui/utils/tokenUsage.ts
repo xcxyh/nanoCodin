@@ -1,4 +1,4 @@
-import type { TokenUsage } from "../core/messageTypes.js";
+import type { TokenUsage } from "../../core/messageTypes.js";
 
 function trimTrailingZeros(value: string): string {
   return value.replace(/\.0+$|(\.\d*?)0+$/g, "$1");
@@ -19,6 +19,18 @@ export function formatTokenUsageText(tokenUsage: TokenUsage | null): string | nu
     : ` (${tokenUsage.source})`;
 
   return `Tokens: ${formatTokenCountK(tokenUsage.promptTokens)} input / ${formatTokenCountK(tokenUsage.completionTokens)} output / ${formatTokenCountK(tokenUsage.totalTokens)} total tokens${sourceSuffix}`;
+}
+
+export function formatTotalTokenUsageText(tokenUsage: TokenUsage | null): string {
+  if (!tokenUsage || tokenUsage.totalTokens === 0) {
+    return "0";
+  }
+
+  const sourceSuffix = tokenUsage.source === "actual"
+    ? ""
+    : ` (${tokenUsage.source})`;
+
+  return `${formatTokenCountK(tokenUsage.totalTokens)}${sourceSuffix}`;
 }
 
 export function formatTaskCompletedText(stepCount: number, tokenUsage: TokenUsage | null): string {

@@ -14,7 +14,8 @@ vi.mock("ink", () => ({
 vi.mock("../../src/llm/modelRouter.js", () => ({
   createModelProviderFromEnv: () => ({
     generate: vi.fn().mockResolvedValue({ text: "" })
-  })
+  }),
+  getConfiguredModelNameFromEnv: () => "gpt-5.4-mini"
 }));
 
 vi.mock("../../src/tools/registry.js", () => ({
@@ -120,5 +121,20 @@ describe("runCli", () => {
     expect(stdout).toEqual([]);
     expect(stderr.join("\n")).toContain("Checkpoint not found: missing-id");
     expect(hoisted.renderSpy).not.toHaveBeenCalled();
+  });
+
+  it("passes modelName into ConsoleApp", async () => {
+    const { runCli } = await import("../../src/cli/runCli.js");
+
+    const exitCode = await runCli([], {
+      stdout: () => undefined,
+      stderr: () => undefined
+    }, process.cwd());
+
+    expect(exitCode).toBe(0);
+    const element = hoisted.renderSpy.mock.calls[0]?.[0];
+    expect(element?.props).toMatchObject({
+      modelName: "gpt-5.4-mini"
+    });
   });
 });

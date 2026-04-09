@@ -182,4 +182,18 @@ describe("modelRouter token usage", () => {
       tools: expect.anything()
     }));
   });
+
+  it("derives configured model names from env", async () => {
+    const { getConfiguredModelNameFromEnv } = await import("../../src/llm/modelRouter.js");
+
+    expect(getConfiguredModelNameFromEnv({
+      MODEL_PROVIDER: "openai",
+      OPENAI_MODEL: "gpt-4.1-mini"
+    } as NodeJS.ProcessEnv)).toBe("gpt-4.1-mini");
+
+    expect(getConfiguredModelNameFromEnv({
+      MODEL_PROVIDER: "anthropic",
+      ANTHROPIC_MODEL: "claude-sonnet"
+    } as NodeJS.ProcessEnv)).toBe("claude-sonnet");
+  });
 });

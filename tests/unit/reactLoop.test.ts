@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentMessagesWithContext, parseAgentResponse } from "../../src/agent/reactLoop.js";
+import { buildAgentExecutionSnapshot, buildAgentMessagesWithContext, parseAgentResponse } from "../../src/agent/reactLoop.js";
 
 describe("parseAgentResponse", () => {
   it("parses standard Thought/Action/Action Input", () => {
@@ -74,5 +74,37 @@ describe("parseAgentResponse", () => {
     expect(messages[0]?.content).toContain("Persistent memory:");
     expect(messages[1]?.content).toContain("Session memory summary:");
     expect(messages[1]?.content).toContain("&quot;nextAction&quot;: &quot;Read the entrypoint&quot;");
+  });
+
+  it("emits structured todo items in execution snapshots", () => {
+    const snapshot = buildAgentExecutionSnapshot(
+      "execute",
+      {
+        items: [
+          { id: "todo-1", content: "Refactor UI", completed: false },
+          { id: "todo-2", content: "Run tests", completed: true }
+        ],
+        verification: {
+          goal: "Run tests",
+          commands: ["npm test"],
+          latestCommand: null,
+          latestSummary: null,
+          status: "pending"
+        },
+        taskBundle: {
+          primaryTask: null,
+          subtasks: [],
+          results: []
+        }
+      },
+      null,
+      null,
+      null
+    );
+
+    expect(snapshot.todos).toEqual([
+      { id: "todo-1", content: "Refactor UI", completed: false },
+      { id: "todo-2", content: "Run tests", completed: true }
+    ]);
   });
 });

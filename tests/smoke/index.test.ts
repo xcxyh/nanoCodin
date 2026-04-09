@@ -23,7 +23,8 @@ vi.mock("ink", () => ({
 vi.mock("../../src/llm/modelRouter.js", () => ({
   createModelProviderFromEnv: () => ({
     generate: vi.fn().mockResolvedValue({ text: "" })
-  })
+  }),
+  getConfiguredModelNameFromEnv: () => "gpt-5.4-mini"
 }));
 
 vi.mock("../../src/tools/registry.js", () => ({
@@ -180,6 +181,19 @@ describe("index smoke", () => {
     const element = hoisted.renderSpy.mock.calls[0]?.[0];
     expect(element?.props).toMatchObject({
       initialTask: "fix failing tests"
+    });
+  });
+
+  it("passes modelName into ConsoleApp", async () => {
+    const { main } = await import("../../src/index.js");
+
+    const exitCode = await main([]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(exitCode).toBe(0);
+    const element = hoisted.renderSpy.mock.calls[0]?.[0];
+    expect(element?.props).toMatchObject({
+      modelName: "gpt-5.4-mini"
     });
   });
 });

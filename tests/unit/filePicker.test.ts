@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampFilePickerIndex, getFilePickerQuery } from "../../src/ui/filePicker.js";
+import { clampFilePickerIndex, getFilePickerQuery } from "../../src/ui/utils/filePicker.js";
 
 describe("getFilePickerQuery", () => {
   it("returns the active query after the @ trigger", () => {

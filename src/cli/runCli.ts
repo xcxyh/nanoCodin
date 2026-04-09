@@ -2,7 +2,7 @@ import path from "node:path";
 import { render } from "ink";
 import React from "react";
 import { CodingAgentGraph } from "../agent/agentGraph.js";
-import { createModelProviderFromEnv } from "../llm/modelRouter.js";
+import { createModelProviderFromEnv, getConfiguredModelNameFromEnv } from "../llm/modelRouter.js";
 import type { ToolContext } from "../core/toolTypes.js";
 import { createDefaultToolRegistry } from "../tools/registry.js";
 import { ConsoleApp } from "../ui/consoleApp.js";
@@ -73,6 +73,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   }
 
   const context = loadContextSources(args.cwd);
+  const modelName = getConfiguredModelNameFromEnv();
   const model = createModelProviderFromEnv();
   const repoIndexer = new RepoIndexer(args.cwd, runtime.config.repoIndex);
   const tools = createDefaultToolRegistry();
@@ -108,6 +109,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   render(React.createElement(ConsoleApp, {
     graph,
     permissionController,
+    modelName,
     initialTask: args.prompt ?? undefined,
     resumeSessionId: args.resume.enabled ? (args.resume.sessionId ?? "__LATEST__") : undefined,
     disableCheckpointRestore: args.newSession
