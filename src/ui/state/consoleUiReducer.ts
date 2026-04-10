@@ -21,6 +21,7 @@ export interface UiState {
 }
 
 export type UiAction =
+  | { type: "reset" }
   | { type: "task_start"; task: string }
   | { type: "task_cancel_requested" }
   | { type: "task_success"; stepCount: number }
@@ -177,6 +178,12 @@ export const initialUiState: UiState = {
 };
 
 export function uiReducer(state: UiState, action: UiAction): UiState {
+  if (action.type === "reset") {
+    return {
+      ...initialUiState
+    };
+  }
+
   if (action.type === "task_start") {
     return {
       ...state,

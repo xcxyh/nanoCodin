@@ -20,6 +20,7 @@ describe("loadContextSources", () => {
     expect(loaded.sources.projectRules).toEqual(["Keep diffs small", "Verify before final"]);
     expect(loaded.sources.projectContext).toBe("Architecture overview");
     expect(loaded.sources.persistentMemory).toBe("Remember the test command");
+    expect(loaded.sources.availableSkills).toBeNull();
   });
 
   it("returns empty values when optional files are missing", async () => {
@@ -31,5 +32,6 @@ describe("loadContextSources", () => {
     expect(loaded.sources.projectRules).toEqual([]);
     expect(loaded.sources.projectContext).toBeNull();
     expect(loaded.sources.persistentMemory).toBeNull();
+    expect(loaded.sources.availableSkills).toBeNull();
   });
 });

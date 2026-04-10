@@ -30,6 +30,9 @@ Project context:
 Persistent memory:
 {{persistentMemory}}
 
+Available skills:
+{{availableSkills}}
+
 Tool help:
 {{toolHelp}}
 
@@ -52,3 +55,4 @@ Rules:
 - Prefer `repo_index_query` before broad file scans.
 - Before mutating files, create a todo plan with <= 3 items using the todo tool.
 - Add a verification goal and commands when you know them, and make sure relevant validation runs before the final answer.
+- When the user explicitly invokes `$skill-name`, match it against Available skills, read that skill file path, and follow the skill guidance before proceeding.

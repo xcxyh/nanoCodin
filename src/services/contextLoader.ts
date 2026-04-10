@@ -55,7 +55,8 @@ export function loadContextSources(cwd: string): { sources: ContextSources; path
     sources: {
       projectRules: parseAgentsGuidelines(paths.agentsPath),
       projectContext: readOptionalText(paths.contextPath),
-      persistentMemory: readOptionalText(paths.memoryPath)
+      persistentMemory: readOptionalText(paths.memoryPath),
+      availableSkills: null
     },
     paths
   };

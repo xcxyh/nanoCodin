@@ -63,7 +63,8 @@ describe("parseAgentResponse", () => {
       {
         projectRules: ["Keep diffs small"],
         projectContext: "Use npm run typecheck for TS checks.",
-        persistentMemory: "Avoid broad scans."
+        persistentMemory: "Avoid broad scans.",
+        availableSkills: "$frontend-design | Build polished UI | /Users/test/.agents/skills/frontend-design/SKILL.md"
       },
       "Todo state:\n(none)",
       "- Read-only tools: view"
@@ -72,6 +73,8 @@ describe("parseAgentResponse", () => {
     expect(messages[0]?.content).toContain("Project rules:");
     expect(messages[0]?.content).toContain("Keep diffs small");
     expect(messages[0]?.content).toContain("Persistent memory:");
+    expect(messages[0]?.content).toContain("Available skills:");
+    expect(messages[0]?.content).toContain("$frontend-design");
     expect(messages[1]?.content).toContain("Session memory summary:");
     expect(messages[1]?.content).toContain("&quot;nextAction&quot;: &quot;Read the entrypoint&quot;");
   });

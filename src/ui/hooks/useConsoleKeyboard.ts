@@ -3,6 +3,13 @@ import path from "node:path";
 import { useRef, useState } from "react";
 import type { PermissionPromptChoice } from "../../core/permission.js";
 import { collectFiles } from "../../tools/fs/grep.js";
+import {
+  buildSlashCommandTemplate,
+  filterSlashCommands,
+  getSlashCommandQuery,
+  resolveSlashSubmission,
+  type SlashCommandItem
+} from "../utils/slashCommands.js";
 import { clampFilePickerIndex, getFilePickerQuery } from "../utils/filePicker.js";
 import { isCtrlC, useConsoleInput, type InputKey } from "../useConsoleInput.js";
 
@@ -10,6 +17,11 @@ interface FilePickerState {
   query: string;
   selectedIndex: number;
   atPosition: number;
+}
+
+interface CommandPickerState {
+  query: string;
+  selectedIndex: number;
 }
 
 function resolvePermissionChoice(char: string): PermissionPromptChoice | null {
@@ -35,21 +47,28 @@ export function useConsoleKeyboard({
   busy,
   permissionPrompt,
   clearPermissionPrompt,
+  slashCommands,
   onSubmit,
+  onClearSession,
   onCancel,
   onExit,
+  onQuit,
   clearExitArm
 }: {
   busy: boolean;
   permissionPrompt: { resolve: (choice: PermissionPromptChoice) => void } | null;
   clearPermissionPrompt: () => void;
+  slashCommands: SlashCommandItem[];
   onSubmit: (task: string) => void;
+  onClearSession: () => void;
   onCancel: () => void;
   onExit: () => void;
+  onQuit: () => void;
   clearExitArm: () => void;
 }) {
   const inputState = useConsoleInput();
   const [filePicker, setFilePicker] = useState<FilePickerState | null>(null);
+  const [commandPicker, setCommandPicker] = useState<CommandPickerState | null>(null);
   const [files, setFiles] = useState<string[]>([]);
   const filesLoadedRef = useRef(false);
   const loadingPromiseRef = useRef<Promise<void> | null>(null);
@@ -105,6 +124,33 @@ export function useConsoleKeyboard({
   }
 
   const filteredFiles = filterFiles(files, filePicker);
+  const filteredCommands = commandPicker ? filterSlashCommands(slashCommands, commandPicker.query).slice(0, 10) : [];
+
+  function syncCommandPicker() {
+    const nextQuery = getSlashCommandQuery(inputState.inputRef.current, inputState.cursorRef.current);
+    if (nextQuery === null) {
+      setCommandPicker(null);
+      return;
+    }
+
+    setCommandPicker((prev) => ({
+      query: nextQuery,
+      selectedIndex: prev ? clampFilePickerIndex(prev.selectedIndex, filterSlashCommands(slashCommands, nextQuery).length) : 0
+    }));
+  }
+
+  function executeBuiltinCommand(commandName: string) {
+    if (commandName === "clear") {
+      inputState.reset();
+      onClearSession();
+      return;
+    }
+
+    if (commandName === "quit") {
+      inputState.reset();
+      onQuit();
+    }
+  }
 
   useInput((char, key: InputKey & {
     escape?: boolean;
@@ -112,6 +158,10 @@ export function useConsoleKeyboard({
     downArrow?: boolean;
   }) => {
     if (key.escape) {
+      if (commandPicker) {
+        setCommandPicker(null);
+        return;
+      }
       if (filePicker) {
         setFilePicker(null);
         return;
@@ -123,6 +173,10 @@ export function useConsoleKeyboard({
     }
 
     if (isCtrlC(char, key)) {
+      if (commandPicker) {
+        setCommandPicker(null);
+        return;
+      }
       if (filePicker) {
         setFilePicker(null);
         return;
@@ -178,6 +232,7 @@ export function useConsoleKeyboard({
       }
 
       inputState.applyKey(char, key);
+      setCommandPicker(null);
       const nextQuery = getFilePickerQuery(inputState.inputRef.current, filePicker.atPosition, inputState.cursorRef.current);
       if (nextQuery === null) {
         setFilePicker(null);
@@ -192,14 +247,50 @@ export function useConsoleKeyboard({
       return;
     }
 
+    if (commandPicker) {
+      if (key.upArrow) {
+        setCommandPicker((prev) => prev && ({
+          ...prev,
+          selectedIndex: clampFilePickerIndex(prev.selectedIndex - 1, filteredCommands.length)
+        }));
+        return;
+      }
+
+      if (key.downArrow) {
+        setCommandPicker((prev) => prev && ({
+          ...prev,
+          selectedIndex: clampFilePickerIndex(prev.selectedIndex + 1, filteredCommands.length)
+        }));
+        return;
+      }
+
+      if (key.return && filteredCommands.length > 0) {
+        const selectedIndex = clampFilePickerIndex(commandPicker.selectedIndex, filteredCommands.length);
+        const selected = filteredCommands[selectedIndex] ?? filteredCommands[0];
+        const nextInput = buildSlashCommandTemplate(selected);
+        inputState.setInput(nextInput);
+        inputState.setCursor(nextInput.length);
+        setCommandPicker(null);
+        setFilePicker(null);
+        return;
+      }
+    }
+
     if (key.return) {
       const task = inputState.input.trim();
       if (task.length === 0) {
         return;
       }
 
+      const resolved = resolveSlashSubmission(task, slashCommands);
       inputState.reset();
-      onSubmit(task);
+      setCommandPicker(null);
+      if (resolved.kind === "builtin" && resolved.commandName) {
+        executeBuiltinCommand(resolved.commandName);
+        return;
+      }
+
+      onSubmit(resolved.task ?? task);
       return;
     }
 
@@ -207,19 +298,25 @@ export function useConsoleKeyboard({
 
     if (char === "@") {
       void loadFileList();
+      setCommandPicker(null);
       setFilePicker({
         query: "",
         selectedIndex: 0,
         atPosition: inputState.cursorRef.current - 1
       });
+      return;
     }
+
+    syncCommandPicker();
   });
 
   return {
     input: inputState.input,
     cursor: inputState.cursor,
     filePickerActive: filePicker !== null,
+    commandPickerActive: commandPicker !== null,
     filteredFiles,
-    pickerSelectedIndex: filePicker?.selectedIndex ?? 0
+    filteredCommands,
+    pickerSelectedIndex: filePicker?.selectedIndex ?? commandPicker?.selectedIndex ?? 0
   };
 }

@@ -53,7 +53,8 @@ vi.mock("../../src/services/contextLoader.js", () => ({
     sources: {
       projectRules: [],
       projectContext: null,
-      persistentMemory: null
+      persistentMemory: null,
+      availableSkills: null
     },
     paths: {
       agentsPath: "/repo/AGENTS.md",

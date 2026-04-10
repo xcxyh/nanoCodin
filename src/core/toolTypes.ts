@@ -67,6 +67,7 @@ export interface ContextSources {
   projectRules: string[];
   projectContext: string | null;
   persistentMemory: string | null;
+  availableSkills: string | null;
 }
 
 export interface SubtaskResult {

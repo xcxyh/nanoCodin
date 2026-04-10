@@ -3,6 +3,13 @@ import { initialUiState, uiReducer } from "../../src/ui/state/consoleUiReducer.j
 import { mapAgentEventToUiActions } from "../../src/ui/state/eventMapper.js";
 
 describe("console state", () => {
+  it("resets to the initial state", () => {
+    const started = uiReducer(initialUiState, { type: "task_start", task: "build it" });
+    const reset = uiReducer(started, { type: "reset" });
+
+    expect(reset).toEqual(initialUiState);
+  });
+
   it("stores the latest execution snapshot with structured todos", () => {
     const next = uiReducer(initialUiState, {
       type: "set_snapshot",

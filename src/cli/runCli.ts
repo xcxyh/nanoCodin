@@ -11,7 +11,9 @@ import { loadContextSources } from "../services/contextLoader.js";
 import { RepoIndexer } from "../services/repoIndexer.js";
 import { PermissionController } from "../core/permission.js";
 import { FileSessionCheckpointStore } from "../services/sessionCheckpoint.js";
+import { formatSkillsForPrompt, loadSkills } from "../services/skills.js";
 import { ensureWorkspaceState } from "../services/workspaceState.js";
+import { buildSlashCommands } from "../ui/utils/slashCommands.js";
 import { parsePositiveIntEnv } from "./runtimeEnv.js";
 import { formatConfigText, formatHelpText, getCliVersion } from "./help.js";
 import { parseCliArgs } from "./parseArgs.js";
@@ -79,6 +81,9 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   }
 
   const context = loadContextSources(args.cwd);
+  const skills = await loadSkills(args.cwd);
+  const slashCommands = buildSlashCommands(skills);
+  context.sources.availableSkills = formatSkillsForPrompt(skills);
   const version = getCliVersion();
   const modelName = getConfiguredModelName(runtime.config.model);
   const model = createModelProvider(runtime.config.model);
@@ -119,6 +124,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     modelName,
     version,
     cwd: args.cwd,
+    checkpoint,
+    slashCommands,
     initialTask: args.prompt ?? undefined,
     resumeSessionId: args.resume.enabled ? (args.resume.sessionId ?? "__LATEST__") : undefined,
     disableCheckpointRestore: args.newSession

@@ -33,7 +33,8 @@ export function createToolContext(overrides?: Partial<ToolContext>): ToolContext
     contextSources: {
       projectRules: [],
       projectContext: null,
-      persistentMemory: null
+      persistentMemory: null,
+      availableSkills: null
     },
     delegationDepth: 0
   };

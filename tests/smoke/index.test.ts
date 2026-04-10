@@ -11,6 +11,15 @@ const hoisted = vi.hoisted(() => {
     initSpy: vi.fn().mockResolvedValue(undefined),
     graphCtorSpy: vi.fn(),
     consoleAppSpy: vi.fn(),
+    loadSkillsSpy: vi.fn().mockResolvedValue([
+      {
+        name: "release-publish",
+        description: "Publish a release",
+        sourcePath: "/tmp/release-publish/SKILL.md",
+        sourceScope: "workspace",
+        command: "/release-publish"
+      }
+    ]),
     checkpointLoadSpy: vi.fn().mockResolvedValue(null),
     checkpointListSpy: vi.fn().mockResolvedValue([]),
     ensureWorkspaceStateSpy: vi.fn().mockResolvedValue(undefined),
@@ -108,6 +117,14 @@ vi.mock("../../src/services/sessionCheckpoint.js", () => ({
   }
 }));
 
+vi.mock("../../src/services/skills.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/services/skills.js")>();
+  return {
+    ...actual,
+    loadSkills: (...args: unknown[]) => hoisted.loadSkillsSpy(...args)
+  };
+});
+
 vi.mock("../../src/services/workspaceState.js", () => ({
   ensureWorkspaceState: (...args: unknown[]) => hoisted.ensureWorkspaceStateSpy(...args)
 }));
@@ -124,6 +141,7 @@ describe("index smoke", () => {
     hoisted.initSpy.mockClear();
     hoisted.graphCtorSpy.mockClear();
     hoisted.consoleAppSpy.mockClear();
+    hoisted.loadSkillsSpy.mockClear();
     hoisted.checkpointLoadSpy.mockClear();
     hoisted.checkpointListSpy.mockClear();
     hoisted.ensureWorkspaceStateSpy.mockClear();
@@ -208,5 +226,20 @@ describe("index smoke", () => {
       version: "0.1.6",
       cwd: process.cwd()
     });
+  });
+
+  it("passes slash commands into ConsoleApp", async () => {
+    const { main } = await import("../../src/index.js");
+
+    const exitCode = await main([]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(exitCode).toBe(0);
+    const element = hoisted.renderSpy.mock.calls[0]?.[0];
+    expect(element?.props?.slashCommands).toEqual([
+      expect.objectContaining({ name: "clear", kind: "builtin" }),
+      expect.objectContaining({ name: "quit", kind: "builtin" }),
+      expect.objectContaining({ name: "release-publish", kind: "skill" })
+    ]);
   });
 });

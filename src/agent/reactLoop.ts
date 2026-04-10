@@ -153,7 +153,8 @@ export async function buildAgentMessages(messages: Message[], steps: AgentStep[]
   return buildAgentMessagesWithContext(messages, steps, toolsDescription, "discover", null, {
     projectRules: [],
     projectContext: null,
-    persistentMemory: null
+    persistentMemory: null,
+    availableSkills: null
   }, "(none)", "(none)");
 }
 
@@ -172,6 +173,7 @@ export async function buildAgentMessagesWithContext(
     projectRules: formatProjectRules(contextSources.projectRules),
     projectContext: formatSourceText(contextSources.projectContext),
     persistentMemory: formatSourceText(contextSources.persistentMemory),
+    availableSkills: formatSourceText(contextSources.availableSkills),
     toolHelp
   });
   const reactPrompt = await renderTemplate("react", {

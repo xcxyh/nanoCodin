@@ -2,6 +2,7 @@ import React from "react";
 import { Box, useApp } from "ink";
 import type { CodingAgentGraph } from "../agent/agentGraph.js";
 import type { PermissionController } from "../core/permission.js";
+import type { SessionCheckpointStore } from "../core/toolTypes.js";
 import { ConsoleFooter } from "./components/ConsoleFooter.js";
 import { ConsoleHeader } from "./components/ConsoleHeader.js";
 import { ConsoleInputBar } from "./components/ConsoleInputBar.js";
@@ -13,6 +14,7 @@ import { useConsoleKeyboard } from "./hooks/useConsoleKeyboard.js";
 import { useConsoleTaskRunner } from "./hooks/useConsoleTaskRunner.js";
 import { useExitArm } from "./hooks/useExitArm.js";
 import { usePermissionPrompt } from "./hooks/usePermissionPrompt.js";
+import type { SlashCommandItem } from "./utils/slashCommands.js";
 
 interface Props {
   graph: CodingAgentGraph;
@@ -20,17 +22,20 @@ interface Props {
   modelName: string;
   version: string;
   cwd: string;
+  checkpoint?: SessionCheckpointStore;
+  slashCommands: SlashCommandItem[];
   initialTask?: string;
   resumeSessionId?: string;
   disableCheckpointRestore?: boolean;
 }
 
-export function ConsoleApp({ graph, permissionController, modelName, version, cwd, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
+export function ConsoleApp({ graph, permissionController, modelName, version, cwd, checkpoint, slashCommands, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
   const { exit } = useApp();
   const { exitArmedAt, clearExitArm, shouldExit } = useExitArm();
   const { permissionPrompt, setPermissionPrompt } = usePermissionPrompt(permissionController);
-  const { uiState, runTask, requestCancel } = useConsoleTaskRunner({
+  const { uiState, runTask, requestCancel, clearSession } = useConsoleTaskRunner({
     graph,
+    checkpoint,
     resumeSessionId,
     disableCheckpointRestore
   });
@@ -39,14 +44,21 @@ export function ConsoleApp({ graph, permissionController, modelName, version, cw
     busy: uiState.busy,
     permissionPrompt,
     clearPermissionPrompt: () => setPermissionPrompt(null),
+    slashCommands,
     onSubmit: (task) => {
       void runTask(task);
+    },
+    onClearSession: () => {
+      void clearSession();
     },
     onCancel: requestCancel,
     onExit: () => {
       if (shouldExit()) {
         exit();
       }
+    },
+    onQuit: () => {
+      exit();
     },
     clearExitArm
   });
@@ -61,6 +73,8 @@ export function ConsoleApp({ graph, permissionController, modelName, version, cw
     ? "Permission required. Press Y to allow once, A to allow all, N to deny."
     : keyboard.filePickerActive
       ? "Type to filter. Up/Down to navigate, Enter to select, Esc to cancel."
+      : keyboard.commandPickerActive
+        ? "Type a slash command. Up/Down to navigate, Enter to insert, Esc to cancel."
       : uiState.busy
         ? (uiState.cancelRequested ? "Cancelling current task..." : "Running current task. Press ESC to cancel.")
         : exitArmedAt
@@ -83,6 +97,7 @@ export function ConsoleApp({ graph, permissionController, modelName, version, cw
         cursor={keyboard.cursor}
         busy={uiState.busy}
         pickerFiles={keyboard.filteredFiles}
+        commandSuggestions={keyboard.filteredCommands}
         pickerSelectedIndex={keyboard.pickerSelectedIndex}
       />
       <ConsoleFooter modelName={modelName} tokenUsage={uiState.latestSnapshot?.tokenUsage ?? null} />

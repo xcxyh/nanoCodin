@@ -1,6 +1,7 @@
 import { useReducer, useRef } from "react";
 import type { CodingAgentGraph } from "../../agent/agentGraph.js";
 import type { Message } from "../../core/messageTypes.js";
+import type { SessionCheckpointStore } from "../../core/toolTypes.js";
 import {
   initialUiState,
   uiReducer
@@ -13,10 +14,12 @@ function isAbortError(error: unknown): boolean {
 
 export function useConsoleTaskRunner({
   graph,
+  checkpoint,
   resumeSessionId,
   disableCheckpointRestore
 }: {
   graph: CodingAgentGraph;
+  checkpoint?: SessionCheckpointStore;
   resumeSessionId?: string;
   disableCheckpointRestore?: boolean;
 }) {
@@ -99,9 +102,20 @@ export function useConsoleTaskRunner({
     return true;
   }
 
+  async function clearSession() {
+    if (uiState.busy) {
+      return false;
+    }
+
+    await checkpoint?.clear();
+    dispatch({ type: "reset" });
+    return true;
+  }
+
   return {
     uiState,
     runTask,
-    requestCancel
+    requestCancel,
+    clearSession
   };
 }
