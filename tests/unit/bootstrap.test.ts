@@ -42,6 +42,14 @@ describe("runBootstrap", () => {
     const saved = await readFile(path.join(process.env.NANOCODIN_HOME!, "config.yaml"), "utf8");
     expect(saved).toContain("provider: anthropic");
     expect(saved).toContain("apiKey: test-api-key");
-    expect(output.join("\n")).toContain("Bootstrap: writing config");
+    
+    const outputText = output.join("\n");
+    expect(outputText).toContain("欢迎使用 nano-codin 配置向导");
+    expect(outputText).toContain("步骤 1/4");
+    expect(outputText).toContain("步骤 2/4");
+    expect(outputText).toContain("步骤 3/4");
+    expect(outputText).toContain("步骤 4/4");
+    expect(outputText).toContain("配置已保存到");
+    expect(outputText).toContain("配置完成");
   });
 });
