@@ -18,12 +18,14 @@ interface Props {
   graph: CodingAgentGraph;
   permissionController: PermissionController;
   modelName: string;
+  version: string;
+  cwd: string;
   initialTask?: string;
   resumeSessionId?: string;
   disableCheckpointRestore?: boolean;
 }
 
-export function ConsoleApp({ graph, permissionController, modelName, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
+export function ConsoleApp({ graph, permissionController, modelName, version, cwd, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
   const { exit } = useApp();
   const { exitArmedAt, clearExitArm, shouldExit } = useExitArm();
   const { permissionPrompt, setPermissionPrompt } = usePermissionPrompt(permissionController);
@@ -67,7 +69,7 @@ export function ConsoleApp({ graph, permissionController, modelName, initialTask
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <ConsoleHeader hint={hint} />
+      <ConsoleHeader hint={hint} version={version} modelName={modelName} cwd={cwd} />
       <ConsoleMessagePane
         history={uiState.history}
         currentTurn={uiState.currentTurn}

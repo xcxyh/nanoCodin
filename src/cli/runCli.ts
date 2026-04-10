@@ -73,6 +73,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   }
 
   const context = loadContextSources(args.cwd);
+  const version = getCliVersion();
   const modelName = getConfiguredModelNameFromEnv();
   const model = createModelProviderFromEnv();
   const repoIndexer = new RepoIndexer(args.cwd, runtime.config.repoIndex);
@@ -110,6 +111,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     graph,
     permissionController,
     modelName,
+    version,
+    cwd: args.cwd,
     initialTask: args.prompt ?? undefined,
     resumeSessionId: args.resume.enabled ? (args.resume.sessionId ?? "__LATEST__") : undefined,
     disableCheckpointRestore: args.newSession

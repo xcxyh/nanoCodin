@@ -134,7 +134,9 @@ describe("runCli", () => {
     expect(exitCode).toBe(0);
     const element = hoisted.renderSpy.mock.calls[0]?.[0];
     expect(element?.props).toMatchObject({
-      modelName: "gpt-5.4-mini"
+      modelName: "gpt-5.4-mini",
+      version: "0.1.5",
+      cwd: process.cwd()
     });
   });
 });
