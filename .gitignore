@@ -11,3 +11,4 @@ tmp.txt
 .omx/logs/
 .omx/metrics.json
 .omx/state/
+.omx/trace/
