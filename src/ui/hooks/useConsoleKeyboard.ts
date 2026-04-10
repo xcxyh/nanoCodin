@@ -10,7 +10,7 @@ import {
   resolveSlashSubmission,
   type SlashCommandItem
 } from "../utils/slashCommands.js";
-import { clampFilePickerIndex, getFilePickerQuery } from "../utils/filePicker.js";
+import { clampFilePickerIndex, cyclePickerIndex, getFilePickerQuery } from "../utils/filePicker.js";
 import { isCtrlC, useConsoleInput, type InputKey } from "../useConsoleInput.js";
 
 interface FilePickerState {
@@ -204,7 +204,7 @@ export function useConsoleKeyboard({
       if (key.upArrow) {
         setFilePicker((prev) => prev && ({
           ...prev,
-          selectedIndex: clampFilePickerIndex(prev.selectedIndex - 1, filteredFiles.length)
+          selectedIndex: cyclePickerIndex(prev.selectedIndex, -1, filteredFiles.length)
         }));
         return;
       }
@@ -212,7 +212,7 @@ export function useConsoleKeyboard({
       if (key.downArrow) {
         setFilePicker((prev) => prev && ({
           ...prev,
-          selectedIndex: clampFilePickerIndex(prev.selectedIndex + 1, filteredFiles.length)
+          selectedIndex: cyclePickerIndex(prev.selectedIndex, 1, filteredFiles.length)
         }));
         return;
       }
@@ -251,7 +251,7 @@ export function useConsoleKeyboard({
       if (key.upArrow) {
         setCommandPicker((prev) => prev && ({
           ...prev,
-          selectedIndex: clampFilePickerIndex(prev.selectedIndex - 1, filteredCommands.length)
+          selectedIndex: cyclePickerIndex(prev.selectedIndex, -1, filteredCommands.length)
         }));
         return;
       }
@@ -259,7 +259,7 @@ export function useConsoleKeyboard({
       if (key.downArrow) {
         setCommandPicker((prev) => prev && ({
           ...prev,
-          selectedIndex: clampFilePickerIndex(prev.selectedIndex + 1, filteredCommands.length)
+          selectedIndex: cyclePickerIndex(prev.selectedIndex, 1, filteredCommands.length)
         }));
         return;
       }

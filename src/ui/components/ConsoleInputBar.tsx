@@ -2,8 +2,9 @@ import React from "react";
 import { Box, Text } from "ink";
 import { BRAND_COLOR } from "./ConsoleHeader.js";
 import type { SlashCommandItem } from "../utils/slashCommands.js";
+import { getVisiblePickerWindow } from "../utils/filePicker.js";
 
-const MAX_VISIBLE_FILES = 10;
+const MAX_VISIBLE_PICKER_ITEMS = 6;
 
 export function ConsoleInputBar({
   input,
@@ -23,39 +24,48 @@ export function ConsoleInputBar({
   const before = input.slice(0, cursor);
   const cursorChar = cursor < input.length ? input[cursor] : " ";
   const after = cursor < input.length ? input.slice(cursor + 1) : "";
-  const visibleCommands = commandSuggestions.slice(0, MAX_VISIBLE_FILES);
+  const visibleCommands = getVisiblePickerWindow(commandSuggestions, pickerSelectedIndex, MAX_VISIBLE_PICKER_ITEMS);
+  const visibleFiles = getVisiblePickerWindow(pickerFiles, pickerSelectedIndex, MAX_VISIBLE_PICKER_ITEMS);
+  const commandWindowStart = Math.max(0, pickerSelectedIndex - visibleCommands.length + 1);
+  const fileWindowStart = Math.max(0, pickerSelectedIndex - visibleFiles.length + 1);
 
   return (
     <Box borderStyle="round" borderColor={BRAND_COLOR} paddingX={1} flexDirection="column">
       {visibleCommands.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
-          {visibleCommands.map((command, index) => (
+          {visibleCommands.map((command, index) => {
+            const absoluteIndex = commandWindowStart + index;
+            return (
             <Text
               key={command.command}
-              color={index === pickerSelectedIndex ? "black" : "white"}
-              backgroundColor={index === pickerSelectedIndex ? BRAND_COLOR : undefined}
+              color={absoluteIndex === pickerSelectedIndex ? "black" : "white"}
+              backgroundColor={absoluteIndex === pickerSelectedIndex ? BRAND_COLOR : undefined}
             >
-              {index === pickerSelectedIndex ? "> " : "  "}
+              {absoluteIndex === pickerSelectedIndex ? "> " : "  "}
               {command.command}
               {" "}
-              <Text color={index === pickerSelectedIndex ? "black" : "gray"}>
+              <Text color={absoluteIndex === pickerSelectedIndex ? "black" : "gray"}>
                 [{command.kind === "builtin" ? "builtin" : "skill"}]
               </Text>
               {command.description ? ` ${command.description}` : ""}
             </Text>
-          ))}
+            );
+          })}
         </Box>
-      ) : pickerFiles.length > 0 ? (
+      ) : visibleFiles.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
-          {pickerFiles.slice(0, MAX_VISIBLE_FILES).map((file, index) => (
+          {visibleFiles.map((file, index) => {
+            const absoluteIndex = fileWindowStart + index;
+            return (
             <Text
               key={file}
-              color={index === pickerSelectedIndex ? "black" : "white"}
-              backgroundColor={index === pickerSelectedIndex ? BRAND_COLOR : undefined}
+              color={absoluteIndex === pickerSelectedIndex ? "black" : "white"}
+              backgroundColor={absoluteIndex === pickerSelectedIndex ? BRAND_COLOR : undefined}
             >
-              {index === pickerSelectedIndex ? "> " : "  "}{file}
+              {absoluteIndex === pickerSelectedIndex ? "> " : "  "}{file}
             </Text>
-          ))}
+            );
+          })}
         </Box>
       ) : null}
       <Box>
