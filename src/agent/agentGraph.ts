@@ -15,6 +15,7 @@ import { buildFinalSummary, classifyVerificationResult, isVerificationAction as 
 import { RecoveryEngine } from "../services/recoveryEngine.js";
 import type { RunSubtaskInput, SubtaskResult } from "../core/toolTypes.js";
 import { buildToolHelp, canExecuteAction, inferPhaseForAction, isMutatingTool, isReadOnlyTool, isSummaryTool, isVerificationTool } from "../services/agentPolicy.js";
+import { formatPlannerTodoHint } from "../tools/planning/todoLimits.js";
 
 interface AgentLoopState {
   messages: Message[];
@@ -442,7 +443,7 @@ export class CodingAgentGraph {
     if ((state.phaseVisits.discover ?? 0) < 2) {
       return null;
     }
-    return "Consider creating a todo plan with 1-3 items before further exploration.";
+    return formatPlannerTodoHint();
   }
 
   private isVerificationAction(action: ToolCall): boolean {

@@ -3,6 +3,7 @@ import type { ContextSources, SessionMemory, TodoItem, TodoState, ToolContext } 
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { renderTemplate } from "../prompts/templateEngine.js";
 import type { ToolRegistry } from "../tools/registry.js";
+import { MAX_TODO_ITEMS } from "../tools/planning/todoLimits.js";
 
 export interface ParsedAgentOutput {
   thought: string;
@@ -174,7 +175,8 @@ export async function buildAgentMessagesWithContext(
     projectContext: formatSourceText(contextSources.projectContext),
     persistentMemory: formatSourceText(contextSources.persistentMemory),
     availableSkills: formatSourceText(contextSources.availableSkills),
-    toolHelp
+    toolHelp,
+    maxTodoItems: MAX_TODO_ITEMS
   });
   const reactPrompt = await renderTemplate("react", {
     conversation: formatConversation(messages),
