@@ -352,6 +352,62 @@ describe("CodingAgentGraph verification guard", () => {
     expect(result.finalAnswer).toContain("all done");
   });
 
+  it("clears completed todos before starting a second fresh non-resumed run", async () => {
+    const context = createToolContext();
+    const graph = new CodingAgentGraph(
+      new AlwaysFinalModel(),
+      new ToolRegistry([]),
+      context,
+      2,
+      4
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "first task" }],
+      checkpointRestore: "disabled"
+    });
+
+    context.todos = {
+      items: [{ id: "done-1", content: "finished task", completed: true }],
+      verification: {
+        goal: "Run tests",
+        commands: ["npm run test"],
+        latestCommand: "npm run test",
+        latestSummary: "PASS",
+        status: "passed"
+      },
+      taskBundle: { primaryTask: "finished task", subtasks: [], results: [] }
+    };
+    context.sessionMemory = {
+      goal: "old task",
+      decisions: [],
+      touchedFiles: [],
+      pendingVerification: [],
+      failureNotes: [],
+      nextAction: "nothing"
+    };
+    context.commandLogs = [{
+      command: "npm run test",
+      policyDecision: "allow",
+      exitCode: 0,
+      durationMs: 1,
+      stdoutTail: "ok",
+      stderrTail: "",
+      ok: true
+    }];
+
+    const secondResult = await graph.run({
+      messages: [{ role: "user", content: "start a new task" }],
+      checkpointRestore: "disabled"
+    });
+
+    expect(result.finalAnswer).toContain("all done");
+    expect(secondResult.finalAnswer).toContain("all done");
+    expect(context.todos.items).toEqual([]);
+    expect(context.sessionMemory).toBeNull();
+    expect(context.commandLogs).toEqual([]);
+  });
+
   it("accumulates token usage across model calls and marks mixed sources", async () => {
     const baseContext = createToolContext();
     const context = createToolContext({

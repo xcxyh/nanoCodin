@@ -44,6 +44,7 @@ export interface RunOptions {
 
 export class CodingAgentGraph {
   private onEvent?: (event: AgentEvent) => void;
+  private hasRun = false;
   private readonly maxSteps: number;
   private readonly recursionLimit: number;
   private readonly compressionManager: CompressionManager;
@@ -71,6 +72,9 @@ export class CodingAgentGraph {
     this.onEvent = options.onEvent;
     const previousAbortSignal = this.toolContext.abortSignal;
     this.toolContext.abortSignal = options.abortSignal;
+    if (this.hasRun) {
+      this.resetTransientRunState();
+    }
     await this.restoreCheckpointIfNeeded(
       options.messages,
       options.checkpointRestore ?? "auto",
@@ -106,9 +110,26 @@ export class CodingAgentGraph {
         steps: state.intermediate_steps
       };
     } finally {
+      this.hasRun = true;
       this.toolContext.abortSignal = previousAbortSignal;
       this.onEvent = undefined;
     }
+  }
+
+  private resetTransientRunState(): void {
+    this.toolContext.sessionMemory = null;
+    this.toolContext.commandLogs = [];
+    this.toolContext.todos = {
+      items: [],
+      verification: {
+        goal: "",
+        commands: [],
+        latestCommand: null,
+        latestSummary: null,
+        status: "pending"
+      },
+      taskBundle: { primaryTask: null, subtasks: [], results: [] }
+    };
   }
 
   private createInitialState(messages: Message[]): AgentLoopState {
