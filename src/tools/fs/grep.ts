@@ -20,18 +20,35 @@ interface Hit {
   content: string;
 }
 
-export async function collectFiles(root: string): Promise<string[]> {
-  const entries = await readdir(root, { withFileTypes: true });
+export async function collectFiles(root: string, maxFiles = 1000): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    // 权限错误或其他读取错误，跳过此目录
+    return [];
+  }
+
   const files: string[] = [];
 
   for (const entry of entries) {
+    if (files.length >= maxFiles) {
+      break;
+    }
+
     if (IGNORED.has(entry.name)) {
       continue;
     }
 
     const full = path.join(root, entry.name);
     if (entry.isDirectory()) {
-      files.push(...(await collectFiles(full)));
+      try {
+        const subFiles = await collectFiles(full, maxFiles - files.length);
+        files.push(...subFiles);
+      } catch {
+        // 权限错误或其他读取错误，跳过此子目录
+        continue;
+      }
     } else if (entry.isFile()) {
       files.push(full);
     }

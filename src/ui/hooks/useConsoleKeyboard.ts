@@ -53,21 +53,47 @@ export function useConsoleKeyboard({
   const [files, setFiles] = useState<string[]>([]);
   const filesLoadedRef = useRef(false);
   const loadingPromiseRef = useRef<Promise<void> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   async function loadFileList() {
     if (filesLoadedRef.current) {
       return;
     }
     if (loadingPromiseRef.current) {
-      await loadingPromiseRef.current;
       return;
     }
 
+    // 取消之前的加载请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     const promise = (async () => {
       const cwd = process.cwd();
-      const absolutePaths = await collectFiles(cwd);
-      setFiles(absolutePaths.map((file) => path.relative(cwd, file)).sort());
-      filesLoadedRef.current = true;
+      // 添加超时和最大文件数限制
+      const timeoutPromise = new Promise<string[]>((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout")), 3000);
+      });
+
+      try {
+        const absolutePaths = await Promise.race([
+          collectFiles(cwd, 500),
+          timeoutPromise
+        ]);
+
+        if (signal.aborted) return;
+
+        setFiles(absolutePaths.map((file) => path.relative(cwd, file)).sort());
+        filesLoadedRef.current = true;
+      } catch (error) {
+        if (!signal.aborted) {
+          // 超时或错误时，设置空列表避免卡死
+          setFiles([]);
+          filesLoadedRef.current = true;
+        }
+      }
     })();
 
     loadingPromiseRef.current = promise;
