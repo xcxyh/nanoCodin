@@ -24,7 +24,7 @@ export function ConsoleTodoPane({
       borderColor={BRAND_COLOR}
       paddingX={1}
     >
-      <Text color={BRAND_COLOR}>Todo</Text>
+      <Text color={BRAND_COLOR}>Task</Text>
       {todos.map((todo) => (
         <Text key={todo.id} color={todo.completed ? "green" : "white"}>
           {todo.completed ? "[x]" : "[ ]"} {todo.content}
