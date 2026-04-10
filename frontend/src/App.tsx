@@ -51,191 +51,193 @@ const repoUrl = "https://github.com/xcxyh/nanoCodin";
 const copy: Record<Locale, Copy> = {
   en: {
     nav: {
-      mark: "nano-codin / terminal-native coding agent",
+      mark: "nano-codin",
       sections: ["manifesto", "flow", "features", "start"],
       github: "GitHub",
     },
     hero: {
-      eyebrow: "Quiet tools. Clear feedback.",
-      title: "A coding agent that stays close to the terminal.",
+      eyebrow: "Lightweight. Production-ready. Terminal-native.",
+      title: "Your coding agent, visible and in control.",
       body:
-        "Nano Codin is a production-minded coding agent CLI built with TypeScript, LangGraph, and a quiet terminal UI. It is designed to keep the loop visible, the tools explicit, and the work close to the repo you are actually touching.",
-      primary: "Star on GitHub",
-      secondary: "Read the manifesto",
-      installLabel: "Quick start",
-      note: "Made for developers who like a little more clarity in the loop.",
+        "Nano Codin is a TypeScript-based coding agent CLI with a ReAct loop you can follow, tools you can inspect, and a terminal UI that stays out of your way. Skills, phases, and sandbox policies—built for real work.",
+      primary: "Get Started",
+      secondary: "See how it works",
+      installLabel: "Install",
+      note: "v0.1.7 — Now with Skills & Slash Commands",
     },
     manifesto: {
       lead:
-        "A lot of AI tooling aims to feel effortless. Nano Codin leans a little more toward visibility. The structure stays in view. The decisions remain readable. The work stays connected to the repo that matters.",
+        "Most AI tools hide the process. Nano Codin makes it visible. Every thought, action, and observation stays in view—so you can understand, trust, and control what happens.",
       statements: [
         {
-          title: "Let the loop stay visible.",
+          title: "See the loop.",
           body:
-            "Thought. Action. Observation. Verification. A working rhythm you can follow, inspect, and gradually learn to trust.",
+            "Thought → Action → Observation → Verification. A clear rhythm you can follow, inspect, and debug. No black boxes.",
         },
         {
-          title: "Keep the architecture close to the hand.",
+          title: "Stay in control.",
           body:
-            "A focused TypeScript codebase, explicit tools, layered context, and a terminal-first surface that stays readable when the task gets real.",
+            "Sandbox policies (allow/ask/deny), phase-aware execution, and explicit tools. You decide what runs and when.",
         },
         {
-          title: "Keep control near the operator.",
+          title: "Extend with Skills.",
           body:
-            "Sandbox policy, prompt layering, repo indexing, and delegated research all stay near the working surface, so the behavior feels easier to understand.",
+            "New in v0.1.7: Define custom behaviors with Skills and slash commands. Extend the agent without touching core code.",
         },
       ],
     },
     proof: {
-      eyebrow: "Flow",
-      title: "Built for real repo work, with a little more calm.",
+      eyebrow: "How it works",
+      title: "Real capabilities, not magic.",
       body:
-        "The page is restrained, but the mechanics are doing real work underneath it: ReAct phases, repo-aware context, shell control, recovery, compression, and delegated subtask research.",
+        "Under the hood: a ReAct loop with phase tracking, repo indexing for faster understanding, context compression for long tasks, and delegated research for complex problems.",
       bullets: [
-        "LangGraph-powered single-agent loop",
-        "Layered context from AGENTS.md and .nanocodin/",
-        "Repo index cache for faster code understanding",
-        "Sandbox-aware shell execution and recovery",
+        "Phase-aware: discover → plan → execute → verify → finalize",
+        "Repo index cache for instant code navigation",
+        "Token-threshold context compression",
+        "Single-step error recovery",
+        "Skills & slash commands (v0.1.7)",
       ],
     },
     features: {
-      eyebrow: "Capabilities",
-      title: "A few useful ideas, kept concrete.",
+      eyebrow: "Core features",
+      title: "Everything you need, nothing you don't.",
       items: [
         {
-          title: "Phase-aware execution",
+          title: "ReAct Loop",
           body:
-            "Moves through discover, plan, execute, verify, and finalize with an operating rhythm that stays explicit from start to finish.",
+            "Structured tool calling with text fallback. Every step is logged, every decision traceable.",
         },
         {
-          title: "Pluggable tool registry",
+          title: "Layered Context",
           body:
-            "File system, editing, shell, and planning tools remain modular, inspectable, and straightforward to extend.",
+            "AGENTS.md guidelines, workspace context, and session memory. The agent knows your project.",
         },
         {
-          title: "Structured memory",
+          title: "Sandbox Control",
           body:
-            "Context compression and session memory help the agent stay more coherent through longer tasks, with less repetition and drift.",
+            "Shell commands go through policy checks. Allow safe operations, ask for risky ones, deny the dangerous.",
         },
         {
-          title: "Provider flexibility",
+          title: "Provider Flexibility",
           body:
-            "Supports OpenAI-compatible and Anthropic-compatible APIs, including custom base URLs when that fits the stack better.",
+            "OpenAI, Anthropic, or any compatible API. Custom base URLs supported. Your model, your choice.",
         },
       ],
     },
     install: {
-      eyebrow: "Start",
-      title: "A small setup, and then you can begin.",
+      eyebrow: "Quick start",
+      title: "Up and running in 30 seconds.",
       steps: [
         "npm install -g nano-codin",
-        "export MODEL_PROVIDER=openai",
-        "export OPENAI_API_KEY=your_key",
         "nano-codin",
+        "→ Enter your API key on first run",
+        "→ Start coding",
       ],
       body:
-        "You can use it as a lightweight open-source coding companion, or read the architecture as a compact reference for building your own agent stack.",
+        "Zero config needed. The CLI guides you through setup. Or clone the repo and customize everything.",
     },
     cta: {
-      title: "If the terminal is still where your thinking feels most natural, this project may feel familiar.",
+      title: "Ready to code with clarity?",
       body:
-        "Read the repo, follow the architecture, and try the CLI. If this approach resonates with you, a GitHub star would mean a lot.",
-      primary: "Visit GitHub",
+        "Star the repo, try the CLI, or read the architecture. Built for developers who value visibility over magic.",
+      primary: "Star on GitHub",
       secondary: "Copy install command",
     },
   },
   zh: {
     nav: {
-      mark: "nano-codin / 终端原生 coding agent",
+      mark: "nano-codin",
       sections: ["宣言", "流程", "能力", "开始"],
       github: "GitHub",
     },
     hero: {
-      eyebrow: "安静一点，清楚一点。",
-      title: "一个愿意贴近终端工作的 coding agent。",
+      eyebrow: "轻量。生产就绪。终端原生。",
+      title: "看得见的 coding agent，掌控在你手中。",
       body:
-        "Nano Codin 是一个偏 production-minded 的 Coding Agent CLI，基于 TypeScript、LangGraph 和安静克制的终端 UI 构建。它希望让循环保持可见、工具保持明确、工作始终贴着你真正正在修改的仓库发生。",
-      primary: "去 GitHub Star",
-      secondary: "阅读宣言",
-      installLabel: "快速开始",
-      note: "给希望在工作流里保留更多清晰感的开发者。",
+        "Nano Codin 是一个基于 TypeScript 的 coding agent CLI。ReAct 循环清晰可见，工具可检查，终端 UI 不打扰。Skills、阶段执行、沙箱策略——为真实工作而生。",
+      primary: "立即开始",
+      secondary: "了解原理",
+      installLabel: "安装",
+      note: "v0.1.7 — 新增 Skills 与斜杠命令",
     },
     manifesto: {
       lead:
-        "很多 AI 工具希望把一切处理得足够顺滑。Nano Codin 则更偏向另一种感觉：让结构留在视野里，让决策依然可读，让执行始终贴着真正重要的仓库。",
+        "大多数 AI 工具隐藏过程。Nano Codin 让它可见。每一步思考、行动、观察都在视野中——你可以理解、信任、控制发生的一切。",
       statements: [
         {
-          title: "让循环留在视野里。",
+          title: "看见循环。",
           body:
-            "Thought。Action。Observation。Verification。这是一种你可以跟随、检查、并慢慢建立信任的工作节奏。",
+            "Thought → Action → Observation → Verification。清晰的节奏，可跟随、可检查、可调试。没有黑盒。",
         },
         {
-          title: "让架构贴近手边。",
+          title: "保持控制。",
           body:
-            "聚焦的 TypeScript 代码库、显式工具、分层上下文，以及在任务变复杂时仍然可读的终端优先交互方式。",
+            "沙箱策略 (allow/ask/deny)、阶段感知执行、显式工具。你决定什么可以运行，什么时候需要确认。",
         },
         {
-          title: "让控制权留在操作者附近。",
+          title: "用 Skills 扩展。",
           body:
-            "Sandbox 策略、prompt layering、repo index、delegate research 都尽量靠近真实工作界面，让行为更容易理解，也更容易调整。",
+            "v0.1.7 新特性：用 Skills 和斜杠命令定义自定义行为。无需修改核心代码即可扩展 agent 能力。",
         },
       ],
     },
     proof: {
-      eyebrow: "流程",
-      title: "为了真实仓库工作而设计，也尽量保持平静。",
+      eyebrow: "工作原理",
+      title: "真实能力，不是魔法。",
       body:
-        "页面语气比较克制，但底层机制是实打实在工作的：ReAct phases、repo-aware context、shell control、recovery、compression，以及委托式子任务研究。",
+        "底层是 ReAct 循环加阶段追踪、repo 索引加速理解、长任务的上下文压缩、复杂问题的委托研究。",
       bullets: [
-        "基于 LangGraph 的单代理循环",
-        "从 AGENTS.md 与 .nanocodin/ 分层读取上下文",
-        "通过 repo index cache 加速代码理解",
-        "具备 sandbox 感知的 shell 执行与恢复机制",
+        "阶段感知：discover → plan → execute → verify → finalize",
+        "Repo 索引缓存，即时代码导航",
+        "Token 阈值上下文压缩",
+        "单步错误自动恢复",
+        "Skills 与斜杠命令 (v0.1.7)",
       ],
     },
     features: {
-      eyebrow: "能力",
-      title: "一些真正有用的能力，尽量说得具体。",
+      eyebrow: "核心能力",
+      title: "你需要的一切，没有多余。",
       items: [
         {
-          title: "阶段感知执行",
+          title: "ReAct 循环",
           body:
-            "以 discover、plan、execute、verify、finalize 的清晰节奏推进任务，从开始到结束都不失真。",
+            "结构化工具调用，支持文本回退。每一步都有日志，每一个决策都可追溯。",
         },
         {
-          title: "可插拔工具注册表",
+          title: "分层上下文",
           body:
-            "文件系统、编辑、shell、planning 工具相互独立，容易检查，也比较容易沿着现有结构继续扩展。",
+            "AGENTS.md 指南、工作区上下文、会话记忆。Agent 了解你的项目。",
         },
         {
-          title: "结构化记忆",
+          title: "沙箱控制",
           body:
-            "上下文压缩与 session memory 让它在更长任务里不那么容易失焦、重复或漂移。",
+            "Shell 命令经过策略检查。安全操作自动允许，风险操作询问确认，危险操作直接拒绝。",
         },
         {
-          title: "灵活的 provider 路由",
+          title: "Provider 灵活性",
           body:
-            "支持 OpenAI-compatible 与 Anthropic-compatible API，也允许在合适的时候接入自定义 base URL。",
+            "OpenAI、Anthropic 或任何兼容 API。支持自定义 base URL。你的模型，你做主。",
         },
       ],
     },
     install: {
-      eyebrow: "开始",
-      title: "很小的准备，然后就可以开始。",
+      eyebrow: "快速开始",
+      title: "30 秒启动。",
       steps: [
         "npm install -g nano-codin",
-        "export MODEL_PROVIDER=openai",
-        "export OPENAI_API_KEY=your_key",
         "nano-codin",
+        "→ 首次运行输入 API key",
+        "→ 开始编码",
       ],
       body:
-        "你可以把它当成一个轻量开源 coding companion 来使用，也可以把它当成一份紧凑、可研究、可改造的 agent architecture 参考实现。",
+        "零配置。CLI 会引导你完成设置。或者克隆仓库，自定义一切。",
     },
     cta: {
-      title: "如果终端仍然是你最自然的思考空间，这个项目也许会让你觉得熟悉。",
+      title: "准备好清晰编码了吗？",
       body:
-        "去读读仓库，顺着架构看一遍，亲手跑一下 CLI。如果这条方向也让你有共鸣，欢迎给它一个 Star。",
-      primary: "访问 GitHub",
+        "Star 仓库，试用 CLI，或阅读架构。为重视可见性胜过魔法的开发者打造。",
+      primary: "GitHub Star",
       secondary: "复制安装命令",
     },
   },
@@ -243,14 +245,14 @@ const copy: Record<Locale, Copy> = {
 
 const terminalLines = [
   "$ nano-codin",
-  "> inspect the repo and propose a 3-step plan",
+  "> add a new skill for generating API docs",
   "",
-  "[discover] reading AGENTS.md",
-  "[discover] indexing src/ and tests/",
-  "[plan] 1. inspect flow  2. patch files  3. verify build",
-  "[execute] updated src/agent/reactLoop.ts",
-  "[verify] npm run typecheck",
-  "[finalize] summarized changes with file references",
+  "[discover] reading AGENTS.md and skill templates",
+  "[discover] indexing src/tools/",
+  "[plan] 1. create skill file  2. add prompts  3. test",
+  "[execute] created .agents/skills/api-docs/SKILL.md",
+  "[verify] skill loaded successfully",
+  "[finalize] skill ready — use /api-docs to generate docs",
 ];
 
 function App() {

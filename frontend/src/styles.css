@@ -162,8 +162,8 @@ main {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
   align-items: center;
-  gap: 3rem;
-  padding: 3rem 0 4rem;
+  gap: 4rem;
+  padding: 4rem 0 5rem;
 }
 
 .hero-copy {
@@ -189,8 +189,9 @@ main {
 }
 
 .hero h1 {
-  font-size: clamp(3.9rem, 9vw, 7.9rem);
-  max-width: 9ch;
+  font-size: clamp(3.2rem, 8vw, 6.5rem);
+  max-width: 11ch;
+  line-height: 1.05;
 }
 
 .hero-body,
