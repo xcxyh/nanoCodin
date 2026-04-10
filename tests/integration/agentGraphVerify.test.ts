@@ -312,6 +312,46 @@ describe("CodingAgentGraph verification guard", () => {
     expect(context.todos.items.some((item) => item.completed)).toBe(false);
   });
 
+  it("allows mutating actions with a todo plan containing up to ten items", async () => {
+    const context = createToolContext({
+      runtimeConfig: {
+        ...createToolContext().runtimeConfig,
+        agent: {
+          ...createToolContext().runtimeConfig.agent,
+          verifyRequiredKeywords: []
+        }
+      },
+      todos: {
+        items: Array.from({ length: 10 }, (_, index) => ({
+          id: String(index + 1),
+          content: `task-${index + 1}`,
+          completed: false
+        })),
+        verification: {
+          goal: "",
+          commands: [],
+          latestCommand: null,
+          latestSummary: null,
+          status: "pending"
+        },
+        taskBundle: { primaryTask: "task-1", subtasks: [], results: [] }
+      }
+    });
+    const graph = new CodingAgentGraph(
+      new CreateThenFinalModel(),
+      new ToolRegistry([createTool]),
+      context,
+      4,
+      8
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "make this change" }]
+    });
+
+    expect(result.finalAnswer).toContain("all done");
+  });
+
   it("accumulates token usage across model calls and marks mixed sources", async () => {
     const baseContext = createToolContext();
     const context = createToolContext({

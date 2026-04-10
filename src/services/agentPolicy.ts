@@ -1,6 +1,11 @@
 import type { AgentPhase } from "../agent/reactLoop.js";
 import type { ToolCall } from "../core/messageTypes.js";
 import type { TodoState, Tool, ToolCapability } from "../core/toolTypes.js";
+import {
+  MAX_TODO_ITEMS,
+  formatPlanPhaseTodoGuidance,
+  formatTodoPlanGateReason
+} from "../tools/planning/todoLimits.js";
 
 function hasCapability(tool: Tool<any> | undefined, capability: ToolCapability): boolean {
   return tool?.capabilities?.includes(capability) ?? false;
@@ -59,8 +64,8 @@ export function canExecuteAction(
     return { ok: true };
   }
   const count = todos.items.length;
-  if (count === 0 || count > 3) {
-    return { ok: false, reason: "Plan gate requires todo.create_todo_list with 1-3 items before mutating actions." };
+  if (count === 0 || count > MAX_TODO_ITEMS) {
+    return { ok: false, reason: formatTodoPlanGateReason() };
   }
   return { ok: true };
 }
@@ -81,7 +86,7 @@ export function buildToolHelp(tools: Tool<any>[], phase: AgentPhase): string {
   ];
 
   if (phase === "plan") {
-    lines.unshift("In plan, create a short 1-3 item todo list. Add verification goal and commands when you know them, but do not block progress on that alone.");
+    lines.unshift(formatPlanPhaseTodoGuidance());
   }
   if (phase === "verify") {
     lines.unshift("In verify, run or inspect validation and capture the latest result before final.");
