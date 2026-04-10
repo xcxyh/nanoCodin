@@ -6,6 +6,20 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-04-07
+
+### Added
+- Skills and slash commands support for extending agent capabilities with custom behaviors.
+- Dynamic todo item limits with guidance formatting to improve planning workflow.
+- File and command picker cycling with visibility management for better interactive selection.
+
+### Changed
+- Enhanced `runBootstrap` with step-by-step prompts and success messages in Chinese.
+- Enhanced frontmatter parsing to support multiline block descriptions in skill files.
+- Updated loading status message from "Loading..." to "Thinking..." for better user feedback.
+- Limited file collection to 100 in `useConsoleKeyboard` hook to prevent performance issues.
+- Enhanced file collection with error handling and max file limit for robustness.
+
 ## [0.1.6] - 2026-04-07
 
 ### Changed
