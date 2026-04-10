@@ -6,6 +6,8 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-04-07
+
 ### Changed
 - Replaced external graph orchestration with a plain TypeScript ReAct loop while preserving the existing agent runtime API.
 - Added AI SDK structured tool calling for tool selection while preserving the local tool execution path and text ReAct fallback.
