@@ -1,17 +1,18 @@
-import path from "node:path";
 import { render } from "ink";
 import React from "react";
 import { CodingAgentGraph } from "../agent/agentGraph.js";
-import { createModelProviderFromEnv, getConfiguredModelNameFromEnv } from "../llm/modelRouter.js";
+import { runBootstrap } from "../bootstrap/runBootstrap.js";
+import { createModelProvider, getConfiguredModelName } from "../llm/modelRouter.js";
 import type { ToolContext } from "../core/toolTypes.js";
 import { createDefaultToolRegistry } from "../tools/registry.js";
 import { ConsoleApp } from "../ui/consoleApp.js";
-import { loadRuntimeConfig } from "../services/configLoader.js";
+import { isModelConfigComplete, loadRuntimeConfig } from "../services/configLoader.js";
 import { loadContextSources } from "../services/contextLoader.js";
 import { RepoIndexer } from "../services/repoIndexer.js";
 import { PermissionController } from "../core/permission.js";
 import { FileSessionCheckpointStore } from "../services/sessionCheckpoint.js";
-import { buildRuntimeEnv, parsePositiveIntEnv } from "./runtimeEnv.js";
+import { ensureWorkspaceState } from "../services/workspaceState.js";
+import { parsePositiveIntEnv } from "./runtimeEnv.js";
 import { formatConfigText, formatHelpText, getCliVersion } from "./help.js";
 import { parseCliArgs } from "./parseArgs.js";
 
@@ -47,13 +48,18 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   }
 
   process.chdir(args.cwd);
-  Object.assign(process.env, buildRuntimeEnv(path.resolve(args.cwd, ".env")));
-
-  const runtime = loadRuntimeConfig(args.cwd, args.configArgv);
+  let runtime = loadRuntimeConfig(args.cwd, args.configArgv);
   if (args.printConfig) {
     io.stdout(formatConfigText(runtime, args));
     return 0;
   }
+
+  if (!runtime.sources.configYamlExists || !isModelConfigComplete(runtime.config.model)) {
+    await runBootstrap(runtime.config, args.cwd, io);
+    runtime = loadRuntimeConfig(args.cwd, args.configArgv);
+  }
+
+  await ensureWorkspaceState(args.cwd);
 
   const checkpoint = new FileSessionCheckpointStore(args.cwd);
   if (args.resume.enabled) {
@@ -74,8 +80,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
 
   const context = loadContextSources(args.cwd);
   const version = getCliVersion();
-  const modelName = getConfiguredModelNameFromEnv();
-  const model = createModelProviderFromEnv();
+  const modelName = getConfiguredModelName(runtime.config.model);
+  const model = createModelProvider(runtime.config.model);
   const repoIndexer = new RepoIndexer(args.cwd, runtime.config.repoIndex);
   const tools = createDefaultToolRegistry();
   const permissionController = new PermissionController();

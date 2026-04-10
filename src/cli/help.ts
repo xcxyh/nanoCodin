@@ -45,7 +45,7 @@ export function formatHelpText(): string {
     "  nano-codin --print-config",
     "",
     "Config precedence",
-    "  CLI flags > .nanocodin/config.toml > AGENTS.md guidelines > env > defaults"
+    "  CLI flags > shell env > ~/.nanocodin/config.yaml > AGENTS.md guidelines > defaults"
   ].join("\n");
 }
 
@@ -59,10 +59,19 @@ export function formatConfigText(runtime: ResolvedRuntimeConfigResult, args: Par
     `  newSession: ${args.newSession ? "true" : "false"}`,
     "",
     "Sources",
-    `  configTomlPath: ${sources.configTomlPath}`,
+    `  configYamlPath: ${sources.configYamlPath}`,
+    `  configYamlExists: ${sources.configYamlExists ? "true" : "false"}`,
+    `  workspaceStateDir: ${sources.workspaceStateDir}`,
+    `  workspaceId: ${sources.workspaceId}`,
     `  agentsPath: ${sources.agentsPath}`,
     `  contextPath: ${sources.contextPath}`,
     `  memoryPath: ${sources.memoryPath}`,
+    "",
+    "Model",
+    `  provider: ${config.model.provider}`,
+    `  name: ${config.model.name}`,
+    `  baseUrl: ${config.model.baseUrl ?? "(default)"}`,
+    `  apiKey: ${config.model.apiKey ? "(configured)" : "(missing)"}`,
     "",
     "Agent",
     `  maxSteps: ${config.agent.maxSteps}`,
@@ -79,6 +88,6 @@ export function formatConfigText(runtime: ResolvedRuntimeConfigResult, args: Par
     `  maxBytes: ${config.repoIndex.maxBytes}`,
     "",
     "Precedence",
-    "  CLI flags > .nanocodin/config.toml > AGENTS.md guidelines > env > defaults"
+    "  CLI flags > shell env > ~/.nanocodin/config.yaml > AGENTS.md guidelines > defaults"
   ].join("\n");
 }

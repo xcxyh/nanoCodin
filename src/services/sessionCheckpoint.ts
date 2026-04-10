@@ -2,15 +2,21 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SessionCheckpoint, SessionCheckpointStore, SessionCheckpointSummary } from "../core/toolTypes.js";
+import { resolveNanoCodinPaths } from "./userPaths.js";
 
 export class FileSessionCheckpointStore implements SessionCheckpointStore {
   private readonly latestFilePath: string;
   private readonly sessionsDirPath: string;
+  private readonly legacyLatestFilePath: string;
+  private readonly legacySessionsDirPath: string;
   private activeSessionId: string | null = null;
 
   constructor(cwd: string) {
-    this.latestFilePath = path.join(cwd, ".nanocodin", "session-checkpoint.json");
-    this.sessionsDirPath = path.join(cwd, ".nanocodin", "checkpoints");
+    const paths = resolveNanoCodinPaths(cwd);
+    this.latestFilePath = paths.latestCheckpointPath;
+    this.sessionsDirPath = paths.checkpointsDir;
+    this.legacyLatestFilePath = paths.legacyLatestCheckpointPath;
+    this.legacySessionsDirPath = paths.legacyCheckpointsDir;
   }
 
   async load(sessionId?: string): Promise<SessionCheckpoint | null> {
@@ -22,7 +28,7 @@ export class FileSessionCheckpointStore implements SessionCheckpointStore {
       return fromId;
     }
 
-    const latest = await this.readCheckpoint(this.latestFilePath);
+    const latest = await this.readCheckpoint(this.latestFilePath) ?? await this.readCheckpoint(this.legacyLatestFilePath);
     if (latest) {
       this.activeSessionId = latest.id;
       return latest;
@@ -66,15 +72,18 @@ export class FileSessionCheckpointStore implements SessionCheckpointStore {
   }
 
   async list(): Promise<SessionCheckpointSummary[]> {
-    if (!existsSync(this.sessionsDirPath)) {
+    const readableDir = existsSync(this.sessionsDirPath)
+      ? this.sessionsDirPath
+      : this.legacySessionsDirPath;
+    if (!existsSync(readableDir)) {
       return [];
     }
 
-    const entries = await readdir(this.sessionsDirPath, { withFileTypes: true });
+    const entries = await readdir(readableDir, { withFileTypes: true });
     const sessions = await Promise.all(
       entries
         .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
-        .map(async (entry) => this.readCheckpoint(path.join(this.sessionsDirPath, entry.name)))
+        .map(async (entry) => this.readCheckpoint(path.join(readableDir, entry.name)))
     );
 
     return sessions

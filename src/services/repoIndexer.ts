@@ -1,10 +1,9 @@
 import { existsSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import type { RepoIndexConfig } from "../core/runtimeConfig.js";
 import type { RepoIndexEntry, RepoIndexProvider, RepoIndexQuery, RepoIndexSnapshot } from "../core/toolTypes.js";
+import { resolveNanoCodinPaths } from "./userPaths.js";
 
 interface PersistedRepoIndex {
   generatedAt: number;
@@ -94,9 +93,9 @@ export class RepoIndexer implements RepoIndexProvider {
     private readonly cwd: string,
     private readonly config: RepoIndexConfig
   ) {
-    const cacheKey = createHash("sha1").update(this.cwd).digest("hex").slice(0, 12);
-    this.indexPath = path.join(os.tmpdir(), "nano-codin", cacheKey, "repo-index.json");
-    this.legacyIndexPath = path.join(this.cwd, ".nanocodin", "index.json");
+    const paths = resolveNanoCodinPaths(cwd);
+    this.indexPath = paths.repoIndexPath;
+    this.legacyIndexPath = paths.legacyRepoIndexPath;
   }
 
   async init(): Promise<void> {

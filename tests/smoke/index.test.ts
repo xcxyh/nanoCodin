@@ -12,7 +12,9 @@ const hoisted = vi.hoisted(() => {
     graphCtorSpy: vi.fn(),
     consoleAppSpy: vi.fn(),
     checkpointLoadSpy: vi.fn().mockResolvedValue(null),
-    checkpointListSpy: vi.fn().mockResolvedValue([])
+    checkpointListSpy: vi.fn().mockResolvedValue([]),
+    ensureWorkspaceStateSpy: vi.fn().mockResolvedValue(undefined),
+    runBootstrapSpy: vi.fn().mockImplementation(async (config) => config)
   };
 });
 
@@ -21,10 +23,10 @@ vi.mock("ink", () => ({
 }));
 
 vi.mock("../../src/llm/modelRouter.js", () => ({
-  createModelProviderFromEnv: () => ({
+  createModelProvider: () => ({
     generate: vi.fn().mockResolvedValue({ text: "" })
   }),
-  getConfiguredModelNameFromEnv: () => "gpt-5.4-mini"
+  getConfiguredModelName: () => "gpt-5.4-mini"
 }));
 
 vi.mock("../../src/tools/registry.js", () => ({
@@ -33,14 +35,26 @@ vi.mock("../../src/tools/registry.js", () => ({
 
 vi.mock("../../src/services/configLoader.js", () => ({
   loadRuntimeConfig: () => ({
-    config: JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG)),
+    config: {
+      ...JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG)),
+      model: {
+        provider: "openai",
+        name: "gpt-5.4-mini",
+        baseUrl: null,
+        apiKey: "test-key"
+      }
+    },
     sources: {
-      configTomlPath: "",
+      configYamlPath: "/Users/test/.nanocodin/config.yaml",
+      configYamlExists: true,
+      workspaceStateDir: "/Users/test/.nanocodin/workspaces/abc123",
+      workspaceId: "abc123",
       agentsPath: "",
       contextPath: "",
       memoryPath: ""
     }
-  })
+  }),
+  isModelConfigComplete: () => true
 }));
 
 vi.mock("../../src/services/repoIndexer.js", () => ({
@@ -94,6 +108,14 @@ vi.mock("../../src/services/sessionCheckpoint.js", () => ({
   }
 }));
 
+vi.mock("../../src/services/workspaceState.js", () => ({
+  ensureWorkspaceState: (...args: unknown[]) => hoisted.ensureWorkspaceStateSpy(...args)
+}));
+
+vi.mock("../../src/bootstrap/runBootstrap.js", () => ({
+  runBootstrap: (...args: unknown[]) => hoisted.runBootstrapSpy(...args)
+}));
+
 const originalEnv = { ...process.env };
 
 describe("index smoke", () => {
@@ -104,25 +126,13 @@ describe("index smoke", () => {
     hoisted.consoleAppSpy.mockClear();
     hoisted.checkpointLoadSpy.mockClear();
     hoisted.checkpointListSpy.mockClear();
+    hoisted.ensureWorkspaceStateSpy.mockClear();
+    hoisted.runBootstrapSpy.mockClear();
     process.env = { ...originalEnv };
   });
 
   afterEach(() => {
     process.env = { ...originalEnv };
-  });
-
-  it("buildRuntimeEnv does not overwrite existing env vars", async () => {
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-env-"));
-    const envPath = path.join(cwd, ".env");
-    await writeFile(envPath, "EXISTING=from-file\nNANOCODIN_SMOKE_NEW_KEY=new-value\n", "utf8");
-
-    process.env.EXISTING = "from-process";
-
-    const { buildRuntimeEnv } = await import("../../src/index.js");
-    const env = buildRuntimeEnv(envPath);
-
-    expect(env.EXISTING).toBe("from-process");
-    expect(env.NANOCODIN_SMOKE_NEW_KEY).toBe("new-value");
   });
 
   it("parsePositiveIntEnv falls back on invalid values", async () => {
@@ -158,6 +168,7 @@ describe("index smoke", () => {
     expect(hoisted.initSpy).toHaveBeenCalledTimes(1);
     expect(hoisted.graphCtorSpy).toHaveBeenCalledTimes(1);
     expect(hoisted.renderSpy).toHaveBeenCalledTimes(1);
+    expect(hoisted.ensureWorkspaceStateSpy).toHaveBeenCalledTimes(1);
   });
 
   it("main returns help without starting the UI", async () => {

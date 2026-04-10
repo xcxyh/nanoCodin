@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCli } from "./cli/runCli.js";
-export { buildRuntimeEnv, parsePositiveIntEnv } from "./cli/runtimeEnv.js";
+export { parsePositiveIntEnv } from "./cli/runtimeEnv.js";
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   return runCli(argv);

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -13,19 +13,23 @@ afterEach(() => {
 });
 
 describe("loadRuntimeConfig", () => {
-  it("applies env -> toml -> cli override precedence", async () => {
+  it("applies yaml -> env -> cli override precedence", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-config-"));
-    await mkdir(path.join(cwd, ".nanocodin"), { recursive: true });
+    const home = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
+    process.env.NANOCODIN_HOME = home;
 
-    await writeFile(path.join(cwd, ".nanocodin", "config.toml"), `
-      [agent]
-      max_steps = 11
-      recursion_limit = 22
-      verify_required_keywords = ["fix", "repair"]
-
-      [sandbox]
-      default_policy = "deny"
-    `);
+    await writeFile(path.join(home, "config.yaml"), `
+model:
+  provider: openai
+  name: gpt-4o-mini
+  apiKey: yaml-key
+agent:
+  maxSteps: 11
+  recursionLimit: 22
+  verifyRequiredKeywords: [fix, repair]
+sandbox:
+  defaultPolicy: deny
+    `.trim());
 
     await writeFile(path.join(cwd, "AGENTS.md"), `
 # Agent Notes
@@ -51,12 +55,17 @@ Ignore this code block line
 
   it("enforces recursionLimit >= maxSteps + 2", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-config-"));
-    await mkdir(path.join(cwd, ".nanocodin"), { recursive: true });
-    await writeFile(path.join(cwd, ".nanocodin", "config.toml"), `
-      [agent]
-      max_steps = 20
-      recursion_limit = 3
-    `);
+    const home = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
+    process.env.NANOCODIN_HOME = home;
+    await writeFile(path.join(home, "config.yaml"), `
+model:
+  provider: openai
+  name: gpt-4o-mini
+  apiKey: yaml-key
+agent:
+  maxSteps: 20
+  recursionLimit: 3
+    `.trim());
 
     const loaded = loadRuntimeConfig(cwd).config;
 
@@ -66,6 +75,7 @@ Ignore this code block line
 
   it("parses extra CLI flags and ignores invalid env integers", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-config-"));
+    process.env.NANOCODIN_HOME = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
     process.env.AGENT_MAX_STEPS = "invalid";
     process.env.AGENT_RECURSION_LIMIT = "0";
     process.argv = [

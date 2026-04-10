@@ -27,14 +27,14 @@ It uses a plain TypeScript ReAct loop (Thought -> Action -> Observation), tool e
 - AI SDK structured tool calling for tool selection, with text ReAct fallback
 - Pluggable tool registry (`fs`, `edit`, `shell`, `planning`)
 - Repo index cache with `repo_index_query` for faster repo understanding
-- Layered prompt context from `AGENTS.md`, `.nanocodin/context.md`, and `.nanocodin/memory.md`
+- Layered prompt context from `AGENTS.md` and `~/.nanocodin/workspaces/<workspace-id>/{context,memory}.md`
 - Sandbox policy (`allow|ask|deny`) for shell tool execution
 - Phase-aware loop (`discover -> plan -> execute -> verify -> finalize`)
 - Single-step error recovery loop for common failures
 - Token-threshold context compression with structured session memory
 - Lightweight delegated research subtasks via `delegate`
 - Provider routing for OpenAI-compatible and Anthropic-compatible APIs
-- Custom provider base URLs via environment variables
+- Custom provider base URLs via `~/.nanocodin/config.yaml` or one-shot environment overrides
 - Ink-powered terminal UI with step-by-step agent output
 - npm-distributable CLI (`nano-codin`)
 
@@ -69,110 +69,47 @@ npm run dev
 
 ## Configuration
 
-`nano-codin` always reads from `process.env`.
-`.env` is optional: if a `.env` file exists in your current working directory, it only fills keys that are missing from system environment variables (it does not override existing shell env vars).
+`nano-codin` now uses a user-scoped YAML config at `~/.nanocodin/config.yaml`.
+On first run, if model configuration is missing, the CLI enters a bootstrap flow and asks for:
 
-You can configure either way:
+- `MODEL_PROVIDER`
+- `base URL`
+- `model`
+- `api key`
 
-1. System environment variables (no `.env` required)
-2. A `.env` file in the directory where you run `nano-codin`
+The bootstrap flow writes `~/.nanocodin/config.yaml` and the same process continues without requiring a rerun.
 
-### How to set environment variables
+Example generated config:
 
-Temporary (current terminal session only):
+```yaml
+model:
+  provider: openai
+  baseUrl: https://api.openai.com/v1
+  name: gpt-4o-mini
+  apiKey: your_key
+```
 
-macOS/Linux (zsh/bash):
+You can still override the YAML file with shell environment variables when needed, which is useful for CI or temporary local testing:
 
 ```bash
 export MODEL_PROVIDER=openai
+export MODEL_NAME=gpt-4o-mini
+export MODEL_API_KEY=your_key
+# optional:
+# export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
+nano-codin
+```
+
+Provider-specific compatibility env vars are still supported:
+
+```bash
 export OPENAI_API_KEY=your_key
 export OPENAI_MODEL=gpt-4o-mini
-nano-codin
 ```
-
-Windows PowerShell:
-
-```powershell
-$env:MODEL_PROVIDER="openai"
-$env:OPENAI_API_KEY="your_key"
-$env:OPENAI_MODEL="gpt-4o-mini"
-nano-codin
-```
-
-Windows CMD:
-
-```bat
-set MODEL_PROVIDER=openai
-set OPENAI_API_KEY=your_key
-set OPENAI_MODEL=gpt-4o-mini
-nano-codin
-```
-
-Persistent (auto-loaded for future terminals):
-
-macOS/Linux (zsh):
 
 ```bash
-echo 'export MODEL_PROVIDER=openai' >> ~/.zshrc
-echo 'export OPENAI_API_KEY=your_key' >> ~/.zshrc
-echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.zshrc
-source ~/.zshrc
-```
-
-macOS/Linux (bash):
-
-```bash
-echo 'export MODEL_PROVIDER=openai' >> ~/.bashrc
-echo 'export OPENAI_API_KEY=your_key' >> ~/.bashrc
-echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### Example: system environment variables (recommended for CI/server)
-
-```bash
-export MODEL_PROVIDER=openai
-export OPENAI_API_KEY=your_key
-export OPENAI_MODEL=gpt-4o-mini
-# optional:
-# export OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
-nano-codin
-```
-
-### Example: `.env` file (local development)
-
-```dotenv
-MODEL_PROVIDER=openai
-OPENAI_API_KEY=your_key
-OPENAI_MODEL=gpt-4o-mini
-# optional:
-# OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
-```
-
-### OpenAI-compatible
-
-```bash
-MODEL_PROVIDER=openai
-OPENAI_API_KEY=your_key
-OPENAI_MODEL=gpt-4o-mini
-# optional:
-# OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
-```
-
-### Anthropic-compatible
-
-```bash
-MODEL_PROVIDER=anthropic
-ANTHROPIC_API_KEY=your_key
-ANTHROPIC_MODEL=claude-3-5-haiku-latest
-# optional:
-# ANTHROPIC_BASE_URL=https://your-anthropic-compatible-endpoint/v1
-```
-
-Optional shared override:
-
-```bash
-MODEL_NAME=...
+export ANTHROPIC_API_KEY=your_key
+export ANTHROPIC_MODEL=claude-3-5-haiku-latest
 ```
 
 Optional runtime controls:
@@ -190,56 +127,61 @@ Notes:
 - `AGENT_RECURSION_LIMIT` controls the local agent/tool transition guard. Default is derived from `AGENT_MAX_STEPS`.
 - `NANOCODIN_TEXT_REACT=1` disables AI SDK structured tool calling for providers that do not support tools.
 
-### Project Personalization (`AGENTS.md` + `.nanocodin`)
+### Project Personalization (`AGENTS.md` + `~/.nanocodin`)
 
-Supported files in working directory:
+Relevant locations:
 
-- `AGENTS.md` (behavior constraints and collaboration preferences)
-- `.nanocodin/config.toml` (runtime controls for agent/sandbox/index/recovery/compression)
-- `.nanocodin/index.json` (auto-generated repo index cache)
-- `.nanocodin/memory.md` (optional persistent project memory; read by `read_context`)
-- `.nanocodin/context.md` (optional project context; read by `read_context`)
+- `AGENTS.md` in the workspace (behavior constraints and collaboration preferences)
+- `~/.nanocodin/config.yaml` (user-scoped runtime + model config)
+- `~/.nanocodin/workspaces/<workspace-id>/repo-index.json` (repo index cache)
+- `~/.nanocodin/workspaces/<workspace-id>/session-checkpoint.json` and `checkpoints/` (resume state)
+- `~/.nanocodin/workspaces/<workspace-id>/memory.md` (optional persistent workspace memory)
+- `~/.nanocodin/workspaces/<workspace-id>/context.md` (optional workspace context)
 
 Precedence:
 
-- CLI flags > `.nanocodin/config.toml` > `AGENTS.md` (guidelines only) > env > defaults
+- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md` (guidelines only) > defaults
 
-Example `.nanocodin/config.toml`:
+Example `~/.nanocodin/config.yaml`:
 
-```toml
-[agent]
-max_steps = 50
-recursion_limit = 96
-verify_required_keywords = ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"]
+```yaml
+model:
+  provider: openai
+  baseUrl: https://api.openai.com/v1
+  name: gpt-4o-mini
+  apiKey: your_key
 
-[agent.phase_limits]
-discover = 32
-plan = 16
-execute_verify = 100
+agent:
+  maxSteps: 50
+  recursionLimit: 96
+  verifyRequiredKeywords: [fix, bug, implement, refactor, 测试, 修复, 实现]
+  phaseLimits:
+    discover: 32
+    plan: 16
+    executeVerify: 100
+  compression:
+    enabled: true
+    tokenThresholdRatio: 0.7
+    retainRecentRatio: 0.6
+    contextTokenBudget: 6000
 
-[sandbox]
-default_policy = "ask"
-timeout_ms = 15000
-max_output_bytes = 8192
-ask_prefixes = ["npm install", "git commit", "git push", "curl "]
-allow_prefixes = ["ls", "cat", "grep", "rg", "npm run typecheck", "npm run build"]
-deny_patterns = ["rm -rf /", "shutdown", "reboot", "mkfs", "dd if="]
+sandbox:
+  defaultPolicy: ask
+  timeoutMs: 15000
+  maxOutputBytes: 8192
+  askPrefixes: [npm install, git commit, git push, "curl "]
+  allowPrefixes: [ls, cat, grep, rg, "npm run typecheck", "npm run build"]
+  denyPatterns: ["rm -rf /", shutdown, reboot, mkfs, "dd if="]
 
-[repo_index]
-enabled = true
-max_bytes = 5000000
-ignore = [".git", "node_modules", "dist", ".next", "coverage"]
+repoIndex:
+  enabled: true
+  maxBytes: 5000000
+  ignore: [.git, node_modules, dist, .next, coverage]
 
-[recovery]
-enabled = true
-max_retry_per_step = 1
-dedupe_window_steps = 2
-
-[compression]
-enabled = true
-token_threshold_ratio = 0.7
-retain_recent_ratio = 0.6
-context_token_budget = 6000
+recovery:
+  enabled: true
+  maxRetryPerStep: 1
+  dedupeWindowSteps: 2
 ```
 
 ## Usage
@@ -273,7 +215,7 @@ Key flags:
 
 Config precedence:
 
-- CLI flags > `.nanocodin/config.toml` > `AGENTS.md` (guidelines only) > env > defaults
+- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md` (guidelines only) > defaults
 
 Interactive mode:
 

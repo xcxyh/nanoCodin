@@ -27,14 +27,14 @@ Nano Codin 是一个基于 TypeScript 的 Coding Agent CLI，采用简洁且面�
 - 使用 AI SDK structured tool calling 选择工具，并保留文本 ReAct fallback
 - 可插拔工具注册表（`fs`、`edit`、`shell`、`planning`）
 - 通过 `repo_index_query` 仓库索引缓存提升仓库理解速度
-- 从 `AGENTS.md`、`.nanocodin/context.md`、`.nanocodin/memory.md` 分层注入提示词上下文
+- 从 `AGENTS.md` 与 `~/.nanocodin/workspaces/<workspace-id>/{context,memory}.md` 分层注入提示词上下文
 - 为 shell 工具执行提供沙箱策略（`allow|ask|deny`）
 - 阶段感知循环（`discover -> plan -> execute -> verify -> finalize`）
 - 面向常见失败场景的单步错误恢复
 - 基于 Token 阈值的上下文压缩与结构化 session memory
 - 通过 `delegate` 支持轻量级委托式研究子任务
 - 支持 OpenAI 兼容与 Anthropic 兼容 API 的 Provider 路由
-- 支持通过环境变量自定义 Provider Base URL
+- 支持通过 `~/.nanocodin/config.yaml` 或一次性环境变量覆盖自定义 Provider Base URL
 - 基于 Ink 的终端 UI，逐步展示 Agent 输出
 - 可通过 npm 分发的 CLI（`nano-codin`）
 
@@ -69,110 +69,47 @@ npm run dev
 
 ## 配置
 
-`nano-codin` 始终从 `process.env` 读取配置。
-`.env` 是可选的：如果当前工作目录存在 `.env`，它只会补齐系统环境变量中缺失的键（不会覆盖已有 shell 环境变量）。
+`nano-codin` 现在默认使用用户级 YAML 配置文件：`~/.nanocodin/config.yaml`。
+首次运行如果缺少模型配置，会先进入 bootstrap 引导，收集：
 
-可使用以下任一方式配置：
+- `MODEL_PROVIDER`
+- `base URL`
+- `model`
+- `api key`
 
-1. 系统环境变量（不需要 `.env`）
-2. 在运行 `nano-codin` 的目录创建 `.env` 文件
+引导完成后会写入 `~/.nanocodin/config.yaml`，并在同一进程继续启动，无需手动重跑。
 
-### 如何设置环境变量
+生成后的配置示例：
 
-临时设置（仅当前终端会话生效）：
+```yaml
+model:
+  provider: openai
+  baseUrl: https://api.openai.com/v1
+  name: gpt-4o-mini
+  apiKey: your_key
+```
 
-macOS/Linux（zsh/bash）：
+如果需要做临时覆盖，仍然可以使用 shell 环境变量，这对 CI 或临时切换模型比较方便：
 
 ```bash
 export MODEL_PROVIDER=openai
+export MODEL_NAME=gpt-4o-mini
+export MODEL_API_KEY=your_key
+# optional:
+# export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
+nano-codin
+```
+
+仍兼容旧的 provider-specific 环境变量：
+
+```bash
 export OPENAI_API_KEY=your_key
 export OPENAI_MODEL=gpt-4o-mini
-nano-codin
 ```
-
-Windows PowerShell：
-
-```powershell
-$env:MODEL_PROVIDER="openai"
-$env:OPENAI_API_KEY="your_key"
-$env:OPENAI_MODEL="gpt-4o-mini"
-nano-codin
-```
-
-Windows CMD：
-
-```bat
-set MODEL_PROVIDER=openai
-set OPENAI_API_KEY=your_key
-set OPENAI_MODEL=gpt-4o-mini
-nano-codin
-```
-
-持久设置（后续终端自动加载）：
-
-macOS/Linux（zsh）：
 
 ```bash
-echo 'export MODEL_PROVIDER=openai' >> ~/.zshrc
-echo 'export OPENAI_API_KEY=your_key' >> ~/.zshrc
-echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.zshrc
-source ~/.zshrc
-```
-
-macOS/Linux（bash）：
-
-```bash
-echo 'export MODEL_PROVIDER=openai' >> ~/.bashrc
-echo 'export OPENAI_API_KEY=your_key' >> ~/.bashrc
-echo 'export OPENAI_MODEL=gpt-4o-mini' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### 示例：系统环境变量（推荐 CI/Server）
-
-```bash
-export MODEL_PROVIDER=openai
-export OPENAI_API_KEY=your_key
-export OPENAI_MODEL=gpt-4o-mini
-# optional:
-# export OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
-nano-codin
-```
-
-### 示例：`.env` 文件（本地开发）
-
-```dotenv
-MODEL_PROVIDER=openai
-OPENAI_API_KEY=your_key
-OPENAI_MODEL=gpt-4o-mini
-# optional:
-# OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
-```
-
-### OpenAI-compatible
-
-```bash
-MODEL_PROVIDER=openai
-OPENAI_API_KEY=your_key
-OPENAI_MODEL=gpt-4o-mini
-# optional:
-# OPENAI_BASE_URL=https://your-openai-compatible-endpoint/v1
-```
-
-### Anthropic-compatible
-
-```bash
-MODEL_PROVIDER=anthropic
-ANTHROPIC_API_KEY=your_key
-ANTHROPIC_MODEL=claude-3-5-haiku-latest
-# optional:
-# ANTHROPIC_BASE_URL=https://your-anthropic-compatible-endpoint/v1
-```
-
-可选共享覆盖：
-
-```bash
-MODEL_NAME=...
+export ANTHROPIC_API_KEY=your_key
+export ANTHROPIC_MODEL=claude-3-5-haiku-latest
 ```
 
 可选运行时控制：
@@ -190,56 +127,61 @@ NANOCODIN_TEXT_REACT=1
 - `AGENT_RECURSION_LIMIT` 控制本地 agent/tool 转换安全保护，默认值由 `AGENT_MAX_STEPS` 推导。
 - `NANOCODIN_TEXT_REACT=1` 会关闭 AI SDK structured tool calling，用于不支持 tools 的 Provider。
 
-### 项目个性化（`AGENTS.md` + `.nanocodin`）
+### 项目个性化（`AGENTS.md` + `~/.nanocodin`）
 
-工作目录支持以下文件：
+相关位置：
 
-- `AGENTS.md`（行为约束与协作偏好）
-- `.nanocodin/config.toml`（agent/sandbox/index/recovery/compression 运行时控制）
-- `.nanocodin/index.json`（自动生成的仓库索引缓存）
-- `.nanocodin/memory.md`（可选，持久项目记忆；可由 `read_context` 读取）
-- `.nanocodin/context.md`（可选，项目背景上下文；可由 `read_context` 读取）
+- 工作区内的 `AGENTS.md`（行为约束与协作偏好）
+- `~/.nanocodin/config.yaml`（用户级运行时与模型配置）
+- `~/.nanocodin/workspaces/<workspace-id>/repo-index.json`（仓库索引缓存）
+- `~/.nanocodin/workspaces/<workspace-id>/session-checkpoint.json` 与 `checkpoints/`（恢复状态）
+- `~/.nanocodin/workspaces/<workspace-id>/memory.md`（可选，工作区持久记忆）
+- `~/.nanocodin/workspaces/<workspace-id>/context.md`（可选，工作区上下文）
 
 优先级：
 
-- CLI flags > `.nanocodin/config.toml` > `AGENTS.md`（仅指南）> env > defaults
+- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md`（仅指南）> defaults
 
-示例 `.nanocodin/config.toml`：
+示例 `~/.nanocodin/config.yaml`：
 
-```toml
-[agent]
-max_steps = 50
-recursion_limit = 96
-verify_required_keywords = ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"]
+```yaml
+model:
+  provider: openai
+  baseUrl: https://api.openai.com/v1
+  name: gpt-4o-mini
+  apiKey: your_key
 
-[agent.phase_limits]
-discover = 32
-plan = 16
-execute_verify = 100
+agent:
+  maxSteps: 50
+  recursionLimit: 96
+  verifyRequiredKeywords: [fix, bug, implement, refactor, 测试, 修复, 实现]
+  phaseLimits:
+    discover: 32
+    plan: 16
+    executeVerify: 100
+  compression:
+    enabled: true
+    tokenThresholdRatio: 0.7
+    retainRecentRatio: 0.6
+    contextTokenBudget: 6000
 
-[sandbox]
-default_policy = "ask"
-timeout_ms = 15000
-max_output_bytes = 8192
-ask_prefixes = ["npm install", "git commit", "git push", "curl "]
-allow_prefixes = ["ls", "cat", "grep", "rg", "npm run typecheck", "npm run build"]
-deny_patterns = ["rm -rf /", "shutdown", "reboot", "mkfs", "dd if="]
+sandbox:
+  defaultPolicy: ask
+  timeoutMs: 15000
+  maxOutputBytes: 8192
+  askPrefixes: [npm install, git commit, git push, "curl "]
+  allowPrefixes: [ls, cat, grep, rg, "npm run typecheck", "npm run build"]
+  denyPatterns: ["rm -rf /", shutdown, reboot, mkfs, "dd if="]
 
-[repo_index]
-enabled = true
-max_bytes = 5000000
-ignore = [".git", "node_modules", "dist", ".next", "coverage"]
+repoIndex:
+  enabled: true
+  maxBytes: 5000000
+  ignore: [.git, node_modules, dist, .next, coverage]
 
-[recovery]
-enabled = true
-max_retry_per_step = 1
-dedupe_window_steps = 2
-
-[compression]
-enabled = true
-token_threshold_ratio = 0.7
-retain_recent_ratio = 0.6
-context_token_budget = 6000
+recovery:
+  enabled: true
+  maxRetryPerStep: 1
+  dedupeWindowSteps: 2
 ```
 
 ## 使用方式
@@ -273,7 +215,7 @@ nano-codin --help
 
 配置优先级：
 
-- CLI flags > `.nanocodin/config.toml` > `AGENTS.md`（仅指南）> env > defaults
+- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md`（仅指南）> defaults
 
 交互模式：
 

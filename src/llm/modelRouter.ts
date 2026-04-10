@@ -3,6 +3,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import type { LanguageModel, ToolChoice, ToolSet } from "ai";
 import type { Message, ModelResponse, TokenUsage } from "../core/messageTypes.js";
+import type { ModelProviderName, ResolvedModelConfig } from "../core/runtimeConfig.js";
 import { buildAiSdkToolSet } from "./aiSdkTools.js";
 import type { ToolRegistry } from "../tools/registry.js";
 
@@ -17,29 +18,71 @@ export interface ModelProvider {
   generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse>;
 }
 
+type CompleteModelConfig = ResolvedModelConfig & {
+  provider: ModelProviderName;
+  name: string;
+  apiKey: string;
+};
+
+function defaultModelName(provider: ModelProviderName): string {
+  return provider === "anthropic" ? "claude-3-5-haiku-latest" : "gpt-4o-mini";
+}
+
+function apiKeyEnvName(provider: ModelProviderName): string {
+  return provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+}
+
+function resolveProviderFromEnv(env: NodeJS.ProcessEnv): ModelProviderName {
+  return env.MODEL_PROVIDER === "anthropic" ? "anthropic" : "openai";
+}
+
+export function resolveModelConfigFromEnv(env: NodeJS.ProcessEnv = process.env): ResolvedModelConfig {
+  const provider = resolveProviderFromEnv(env);
+  return {
+    provider,
+    name: env.MODEL_NAME
+      ?? (provider === "anthropic" ? env.ANTHROPIC_MODEL : env.OPENAI_MODEL)
+      ?? defaultModelName(provider),
+    baseUrl: env.MODEL_BASE_URL
+      ?? (provider === "anthropic" ? env.ANTHROPIC_BASE_URL : env.OPENAI_BASE_URL)
+      ?? null,
+    apiKey: env.MODEL_API_KEY
+      ?? (provider === "anthropic" ? env.ANTHROPIC_API_KEY : env.OPENAI_API_KEY)
+      ?? null
+  };
+}
+
+export function getConfiguredModelName(config: Pick<ResolvedModelConfig, "provider" | "name">): string {
+  if (config.provider !== "openai" && config.provider !== "anthropic") {
+    throw new Error("MODEL_PROVIDER is required. Use 'openai' or 'anthropic'.");
+  }
+  if (!config.name) {
+    throw new Error(`Model name is required when MODEL_PROVIDER=${config.provider}`);
+  }
+  return config.name;
+}
+
 export function getConfiguredModelNameFromEnv(env: NodeJS.ProcessEnv = process.env): string {
-  const provider = (env.MODEL_PROVIDER ?? "openai").toLowerCase();
+  return getConfiguredModelName(resolveModelConfigFromEnv(env));
+}
 
-  if (provider === "openai") {
-    return env.MODEL_NAME ?? env.OPENAI_MODEL ?? "gpt-4o-mini";
-  }
-
-  if (provider === "anthropic") {
-    return env.MODEL_NAME ?? env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest";
-  }
-
-  throw new Error(`Unsupported MODEL_PROVIDER: ${provider}. Use 'openai' or 'anthropic'.`);
+export function isModelConfigComplete(config: ResolvedModelConfig): config is CompleteModelConfig {
+  return (config.provider === "openai" || config.provider === "anthropic")
+    && typeof config.name === "string"
+    && config.name.length > 0
+    && typeof config.apiKey === "string"
+    && config.apiKey.length > 0;
 }
 
 function toPrompt(messages: Message[]): string {
-  return messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
+  return messages.map((message) => `${message.role.toUpperCase()}: ${message.content}`).join("\n\n");
 }
 
 function splitSystemAndPrompt(messages: Message[]): { system: string | undefined; prompt: string } {
-  const systemMessages = messages.filter((m) => m.role === "system").map((m) => m.content);
+  const systemMessages = messages.filter((message) => message.role === "system").map((message) => message.content);
   const prompt = messages
-    .filter((m) => m.role !== "system")
-    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .filter((message) => message.role !== "system")
+    .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
     .join("\n\n");
 
   return {
@@ -179,9 +222,9 @@ function isAbortError(error: unknown): boolean {
 }
 
 function formatProviderError(
-  provider: "openai" | "anthropic",
+  provider: ModelProviderName,
   modelName: string,
-  baseURL: string | undefined,
+  baseURL: string | null,
   error: unknown
 ): Error {
   const message = error instanceof Error ? error.message : String(error);
@@ -226,22 +269,15 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 class OpenAIProvider implements ModelProvider {
-  private readonly modelName: string;
-
-  constructor(modelName: string) {
-    this.modelName = modelName;
-  }
+  constructor(private readonly config: CompleteModelConfig) {}
 
   async generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY is required when MODEL_PROVIDER=openai");
-    }
-
-    const baseURL = process.env.OPENAI_BASE_URL;
     try {
-      const openai = createOpenAI({ apiKey, baseURL });
-      const modelFactory = openai(this.modelName);
+      const openai = createOpenAI({
+        apiKey: this.config.apiKey,
+        baseURL: this.config.baseUrl ?? undefined
+      });
+      const modelFactory = openai(this.config.name);
 
       const structured = await tryGenerateWithStructuredTools(modelFactory, messages, options);
       if (structured) {
@@ -260,28 +296,21 @@ class OpenAIProvider implements ModelProvider {
       if (isAbortError(error)) {
         throw error;
       }
-      throw formatProviderError("openai", this.modelName, baseURL, error);
+      throw formatProviderError("openai", this.config.name, this.config.baseUrl, error);
     }
   }
 }
 
 class AnthropicProvider implements ModelProvider {
-  private readonly modelName: string;
-
-  constructor(modelName: string) {
-    this.modelName = modelName;
-  }
+  constructor(private readonly config: CompleteModelConfig) {}
 
   async generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse> {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY is required when MODEL_PROVIDER=anthropic");
-    }
-
-    const baseURL = process.env.ANTHROPIC_BASE_URL;
     try {
-      const anthropic = createAnthropic({ apiKey, baseURL });
-      const modelFactory = anthropic(this.modelName);
+      const anthropic = createAnthropic({
+        apiKey: this.config.apiKey,
+        baseURL: this.config.baseUrl ?? undefined
+      });
+      const modelFactory = anthropic(this.config.name);
 
       const structured = await tryGenerateWithStructuredTools(modelFactory, messages, options);
       if (structured) {
@@ -300,11 +329,11 @@ class AnthropicProvider implements ModelProvider {
       if (isAbortError(error)) {
         throw error;
       }
-      if (baseURL && isNotFoundError(error) && !baseURL.replace(/\/+$/, "").endsWith("/v1")) {
-        const fallbackBaseURL = normalizeAnthropicBaseURL(baseURL);
+      if (this.config.baseUrl && isNotFoundError(error) && !this.config.baseUrl.replace(/\/+$/, "").endsWith("/v1")) {
+        const fallbackBaseURL = normalizeAnthropicBaseURL(this.config.baseUrl);
         try {
-          const anthropic = createAnthropic({ apiKey, baseURL: fallbackBaseURL });
-          const modelFactory = anthropic(this.modelName);
+          const anthropic = createAnthropic({ apiKey: this.config.apiKey, baseURL: fallbackBaseURL });
+          const modelFactory = anthropic(this.config.name);
           const structured = await tryGenerateWithStructuredTools(modelFactory, messages, options);
           if (structured) {
             return structured;
@@ -320,26 +349,42 @@ class AnthropicProvider implements ModelProvider {
           if (isAbortError(retryError)) {
             throw retryError;
           }
-          throw formatProviderError("anthropic", this.modelName, fallbackBaseURL, retryError);
+          throw formatProviderError("anthropic", this.config.name, fallbackBaseURL, retryError);
         }
       }
-      throw formatProviderError("anthropic", this.modelName, baseURL, error);
+      throw formatProviderError("anthropic", this.config.name, this.config.baseUrl, error);
     }
   }
 }
 
-export function createModelProviderFromEnv(): ModelProvider {
-  const provider = (process.env.MODEL_PROVIDER ?? "openai").toLowerCase();
+function assertModelConfig(config: ResolvedModelConfig): CompleteModelConfig {
+  if (config.provider !== "openai" && config.provider !== "anthropic") {
+    throw new Error("MODEL_PROVIDER is required. Use 'openai' or 'anthropic'.");
+  }
+  if (!config.name) {
+    throw new Error(`Model name is required when MODEL_PROVIDER=${config.provider}`);
+  }
+  if (!config.apiKey) {
+    throw new Error(`${apiKeyEnvName(config.provider)} is required when MODEL_PROVIDER=${config.provider}`);
+  }
+  return {
+    provider: config.provider,
+    name: config.name,
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl ?? null
+  };
+}
 
-  if (provider === "openai") {
-    const modelName = getConfiguredModelNameFromEnv(process.env);
-    return new OpenAIProvider(modelName);
+export function createModelProvider(config: ResolvedModelConfig): ModelProvider {
+  const complete = assertModelConfig(config);
+
+  if (complete.provider === "openai") {
+    return new OpenAIProvider(complete);
   }
 
-  if (provider === "anthropic") {
-    const modelName = getConfiguredModelNameFromEnv(process.env);
-    return new AnthropicProvider(modelName);
-  }
+  return new AnthropicProvider(complete);
+}
 
-  throw new Error(`Unsupported MODEL_PROVIDER: ${provider}. Use 'openai' or 'anthropic'.`);
+export function createModelProviderFromEnv(env: NodeJS.ProcessEnv = process.env): ModelProvider {
+  return createModelProvider(resolveModelConfigFromEnv(env));
 }

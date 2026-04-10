@@ -1,8 +1,14 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { FileSessionCheckpointStore } from "../../src/services/sessionCheckpoint.js";
+
+const originalEnv = { ...process.env };
+
+afterEach(() => {
+  process.env = { ...originalEnv };
+});
 
 function createCheckpoint(task: string) {
   return {
@@ -27,6 +33,7 @@ function createCheckpoint(task: string) {
 describe("FileSessionCheckpointStore", () => {
   it("saves checkpoints with stable ids and lists them", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-checkpoint-"));
+    process.env.NANOCODIN_HOME = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
     const store = new FileSessionCheckpointStore(cwd);
 
     const first = await store.save(createCheckpoint("first task"));
@@ -41,6 +48,7 @@ describe("FileSessionCheckpointStore", () => {
 
   it("loads a specific session id when requested", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-checkpoint-"));
+    process.env.NANOCODIN_HOME = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
     const firstStore = new FileSessionCheckpointStore(cwd);
     const secondStore = new FileSessionCheckpointStore(cwd);
 
@@ -55,6 +63,7 @@ describe("FileSessionCheckpointStore", () => {
 
   it("ignores unknown token usage fields when loading older checkpoints", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-checkpoint-"));
+    process.env.NANOCODIN_HOME = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
     const checkpointDir = path.join(cwd, ".nanocodin");
     await mkdir(checkpointDir, { recursive: true });
     await writeFile(path.join(checkpointDir, "session-checkpoint.json"), JSON.stringify({

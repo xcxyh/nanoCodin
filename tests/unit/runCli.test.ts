@@ -4,7 +4,9 @@ import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
 const hoisted = vi.hoisted(() => ({
   renderSpy: vi.fn(),
   checkpointLoadSpy: vi.fn().mockResolvedValue(null),
-  checkpointListSpy: vi.fn().mockResolvedValue([])
+  checkpointListSpy: vi.fn().mockResolvedValue([]),
+  ensureWorkspaceStateSpy: vi.fn().mockResolvedValue(undefined),
+  runBootstrapSpy: vi.fn().mockImplementation(async (config) => config)
 }));
 
 vi.mock("ink", () => ({
@@ -12,10 +14,10 @@ vi.mock("ink", () => ({
 }));
 
 vi.mock("../../src/llm/modelRouter.js", () => ({
-  createModelProviderFromEnv: () => ({
+  createModelProvider: () => ({
     generate: vi.fn().mockResolvedValue({ text: "" })
   }),
-  getConfiguredModelNameFromEnv: () => "gpt-5.4-mini"
+  getConfiguredModelName: () => "gpt-5.4-mini"
 }));
 
 vi.mock("../../src/tools/registry.js", () => ({
@@ -24,14 +26,26 @@ vi.mock("../../src/tools/registry.js", () => ({
 
 vi.mock("../../src/services/configLoader.js", () => ({
   loadRuntimeConfig: () => ({
-    config: JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG)),
+    config: {
+      ...JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG)),
+      model: {
+        provider: "openai",
+        name: "gpt-5.4-mini",
+        baseUrl: null,
+        apiKey: "test-key"
+      }
+    },
     sources: {
-      configTomlPath: "/repo/.nanocodin/config.toml",
+      configYamlPath: "/Users/test/.nanocodin/config.yaml",
+      configYamlExists: true,
+      workspaceStateDir: "/Users/test/.nanocodin/workspaces/abc123",
+      workspaceId: "abc123",
       agentsPath: "/repo/AGENTS.md",
-      contextPath: "/repo/.nanocodin/context.md",
-      memoryPath: "/repo/.nanocodin/memory.md"
+      contextPath: "/Users/test/.nanocodin/workspaces/abc123/context.md",
+      memoryPath: "/Users/test/.nanocodin/workspaces/abc123/memory.md"
     }
-  })
+  }),
+  isModelConfigComplete: () => true
 }));
 
 vi.mock("../../src/services/contextLoader.js", () => ({
@@ -43,8 +57,8 @@ vi.mock("../../src/services/contextLoader.js", () => ({
     },
     paths: {
       agentsPath: "/repo/AGENTS.md",
-      contextPath: "/repo/.nanocodin/context.md",
-      memoryPath: "/repo/.nanocodin/memory.md"
+      contextPath: "/Users/test/.nanocodin/workspaces/abc123/context.md",
+      memoryPath: "/Users/test/.nanocodin/workspaces/abc123/memory.md"
     }
   })
 }));
@@ -59,6 +73,14 @@ vi.mock("../../src/services/repoIndexer.js", () => ({
 
 vi.mock("../../src/core/permission.js", () => ({
   PermissionController: class {}
+}));
+
+vi.mock("../../src/services/workspaceState.js", () => ({
+  ensureWorkspaceState: (...args: unknown[]) => hoisted.ensureWorkspaceStateSpy(...args)
+}));
+
+vi.mock("../../src/bootstrap/runBootstrap.js", () => ({
+  runBootstrap: (...args: unknown[]) => hoisted.runBootstrapSpy(...args)
 }));
 
 vi.mock("../../src/services/sessionCheckpoint.js", () => ({
@@ -88,6 +110,8 @@ describe("runCli", () => {
     hoisted.checkpointLoadSpy.mockResolvedValue(null);
     hoisted.checkpointListSpy.mockReset();
     hoisted.checkpointListSpy.mockResolvedValue([]);
+    hoisted.ensureWorkspaceStateSpy.mockClear();
+    hoisted.runBootstrapSpy.mockClear();
   });
 
   it("prints config without rendering the UI", async () => {
@@ -103,7 +127,7 @@ describe("runCli", () => {
     expect(exitCode).toBe(0);
     expect(stderr).toEqual([]);
     expect(stdout.join("\n")).toContain("Effective config");
-    expect(stdout.join("\n")).toContain("configTomlPath");
+    expect(stdout.join("\n")).toContain("configYamlPath");
     expect(hoisted.renderSpy).not.toHaveBeenCalled();
   });
 
@@ -138,5 +162,6 @@ describe("runCli", () => {
       version: "0.1.5",
       cwd: process.cwd()
     });
+    expect(hoisted.ensureWorkspaceStateSpy).toHaveBeenCalledTimes(1);
   });
 });

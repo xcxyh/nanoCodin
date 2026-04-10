@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import type { ContextSources } from "../core/toolTypes.js";
+import { resolveNanoCodinPaths } from "./userPaths.js";
 
 export interface ContextFilePaths {
   agentsPath: string;
@@ -9,10 +9,11 @@ export interface ContextFilePaths {
 }
 
 export function resolveContextFilePaths(cwd: string): ContextFilePaths {
+  const paths = resolveNanoCodinPaths(cwd);
   return {
-    agentsPath: path.join(cwd, "AGENTS.md"),
-    contextPath: path.join(cwd, ".nanocodin", "context.md"),
-    memoryPath: path.join(cwd, ".nanocodin", "memory.md")
+    agentsPath: paths.agentsPath,
+    contextPath: existsSync(paths.contextPath) ? paths.contextPath : paths.legacyContextPath,
+    memoryPath: existsSync(paths.memoryPath) ? paths.memoryPath : paths.legacyMemoryPath
   };
 }
 

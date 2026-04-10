@@ -1,28 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
-import { applyValue, parseFlatToml } from "../../src/services/configLoader.js";
+import { applyValue } from "../../src/services/configLoader.js";
+import { parseSimpleYaml } from "../../src/services/yamlConfig.js";
 
 function cloneConfig() {
   return JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG));
 }
 
 describe("configLoader parser helpers", () => {
-  it("parses flat TOML with sections and arrays", () => {
-    const parsed = parseFlatToml(`
-      [agent]
-      max_steps = 20
-      verify_required_keywords = ["fix", "测试"]
-
-      [sandbox]
-      default_policy = "allow"
-      allow_prefixes = ["ls", "cat"]
+  it("parses simple YAML with nested objects and arrays", () => {
+    const parsed = parseSimpleYaml(`
+agent:
+  maxSteps: 20
+  verifyRequiredKeywords: [fix, 测试]
+sandbox:
+  defaultPolicy: allow
+  allowPrefixes: [ls, cat]
     `);
 
     expect(parsed).toEqual({
-      "agent.max_steps": 20,
-      "agent.verify_required_keywords": ["fix", "测试"],
-      "sandbox.default_policy": "allow",
-      "sandbox.allow_prefixes": ["ls", "cat"]
+      agent: {
+        maxSteps: 20,
+        verifyRequiredKeywords: ["fix", "测试"]
+      },
+      sandbox: {
+        defaultPolicy: "allow",
+        allowPrefixes: ["ls", "cat"]
+      }
     });
   });
 

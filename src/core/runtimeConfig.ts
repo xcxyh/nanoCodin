@@ -1,4 +1,12 @@
 export type SandboxPolicyDecision = "allow" | "ask" | "deny";
+export type ModelProviderName = "openai" | "anthropic";
+
+export interface ResolvedModelConfig {
+  provider: ModelProviderName | null;
+  name: string | null;
+  baseUrl: string | null;
+  apiKey: string | null;
+}
 
 export interface PhaseLimits {
   discover: number;
@@ -44,6 +52,7 @@ export interface RecoveryConfig {
 }
 
 export interface ResolvedRuntimeConfig {
+  model: ResolvedModelConfig;
   agent: AgentConfig;
   sandbox: SandboxConfig;
   repoIndex: RepoIndexConfig;
@@ -52,7 +61,10 @@ export interface ResolvedRuntimeConfig {
 }
 
 export interface RuntimeConfigSources {
-  configTomlPath: string;
+  configYamlPath: string;
+  configYamlExists: boolean;
+  workspaceStateDir: string;
+  workspaceId: string;
   agentsPath: string;
   contextPath: string;
   memoryPath: string;
@@ -64,6 +76,12 @@ export interface ResolvedRuntimeConfigResult {
 }
 
 export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
+  model: {
+    provider: "openai",
+    name: "gpt-4o-mini",
+    baseUrl: null,
+    apiKey: null
+  },
   agent: {
     maxSteps: 50,
     recursionLimit: 96,
