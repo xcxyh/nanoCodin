@@ -36,6 +36,22 @@ describe("skills loader", () => {
     });
   });
 
+  it("parses multiline block descriptions from frontmatter", () => {
+    const parsed = parseSkillFile([
+      "---",
+      "name: feng-ge-perspective",
+      "description: |",
+      "  first line",
+      "  second line",
+      "---"
+    ].join("\n"), "/tmp/feng-ge-perspective/SKILL.md");
+
+    expect(parsed).toEqual({
+      name: "feng-ge-perspective",
+      description: "first line\nsecond line"
+    });
+  });
+
   it("falls back to the directory name when frontmatter is missing", () => {
     const parsed = parseSkillFile("# No frontmatter\n", "/tmp/fallback-name/SKILL.md");
     expect(parsed).toEqual({

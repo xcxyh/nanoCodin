@@ -6,6 +6,10 @@ import { getVisiblePickerWindow } from "../utils/filePicker.js";
 
 const MAX_VISIBLE_PICKER_ITEMS = 6;
 
+function formatInlineDescription(description: string): string {
+  return description.replace(/\s+/g, " ").trim();
+}
+
 export function ConsoleInputBar({
   input,
   cursor,
@@ -40,6 +44,7 @@ export function ConsoleInputBar({
               key={command.command}
               color={absoluteIndex === pickerSelectedIndex ? "black" : "white"}
               backgroundColor={absoluteIndex === pickerSelectedIndex ? BRAND_COLOR : undefined}
+              wrap="truncate-end"
             >
               {absoluteIndex === pickerSelectedIndex ? "> " : "  "}
               {command.command}
@@ -47,7 +52,7 @@ export function ConsoleInputBar({
               <Text color={absoluteIndex === pickerSelectedIndex ? "black" : "gray"}>
                 [{command.kind === "builtin" ? "builtin" : "skill"}]
               </Text>
-              {command.description ? ` ${command.description}` : ""}
+              {command.description ? ` ${formatInlineDescription(command.description)}` : ""}
             </Text>
             );
           })}

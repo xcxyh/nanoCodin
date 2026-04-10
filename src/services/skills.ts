@@ -136,19 +136,39 @@ function parseFrontmatter(text: string): Record<string, string> {
 
   const result: Record<string, string> = {};
   for (let index = 1; index < lines.length; index += 1) {
-    const line = lines[index]?.trim() ?? "";
+    const rawLine = lines[index] ?? "";
+    const line = rawLine.trim();
     if (line === "---") {
       return result;
     }
 
-    const separatorIndex = line.indexOf(":");
+    const separatorIndex = rawLine.indexOf(":");
     if (separatorIndex <= 0) {
       continue;
     }
 
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
+    const key = rawLine.slice(0, separatorIndex).trim();
+    const value = rawLine.slice(separatorIndex + 1).trim();
     if (key) {
+      if (value === "|" || value === ">") {
+        const blockLines: string[] = [];
+        let nextIndex = index + 1;
+        while (nextIndex < lines.length) {
+          const candidate = lines[nextIndex] ?? "";
+          if (candidate.trim() === "---") {
+            break;
+          }
+          if (!candidate.startsWith(" ") && !candidate.startsWith("\t")) {
+            break;
+          }
+          blockLines.push(candidate.trim());
+          nextIndex += 1;
+        }
+        result[key] = blockLines.join("\n");
+        index = nextIndex - 1;
+        continue;
+      }
+
       result[key] = value;
     }
   }
