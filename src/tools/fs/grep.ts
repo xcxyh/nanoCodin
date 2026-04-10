@@ -25,11 +25,11 @@ export async function collectFiles(root: string, maxFiles = 1000): Promise<strin
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch {
-    // 权限错误或其他读取错误，跳过此目录
     return [];
   }
 
   const files: string[] = [];
+  const subDirs: string[] = [];
 
   for (const entry of entries) {
     if (files.length >= maxFiles) {
@@ -42,15 +42,21 @@ export async function collectFiles(root: string, maxFiles = 1000): Promise<strin
 
     const full = path.join(root, entry.name);
     if (entry.isDirectory()) {
-      try {
-        const subFiles = await collectFiles(full, maxFiles - files.length);
-        files.push(...subFiles);
-      } catch {
-        // 权限错误或其他读取错误，跳过此子目录
-        continue;
-      }
+      subDirs.push(full);
     } else if (entry.isFile()) {
       files.push(full);
+    }
+  }
+
+  // Process subdirectories in parallel with concurrency limit
+  const batchSize = 10;
+  for (let i = 0; i < subDirs.length && files.length < maxFiles; i += batchSize) {
+    const batch = subDirs.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map((dir) => collectFiles(dir, maxFiles - files.length))
+    );
+    for (const result of results) {
+      files.push(...result);
     }
   }
 

@@ -79,7 +79,7 @@ export function useConsoleKeyboard({
 
       try {
         const absolutePaths = await Promise.race([
-          collectFiles(cwd, 500),
+          collectFiles(cwd, 100),
           timeoutPromise
         ]);
 
