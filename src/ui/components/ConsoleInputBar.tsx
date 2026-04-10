@@ -22,7 +22,7 @@ export function ConsoleInputBar({
   const after = cursor < input.length ? input.slice(cursor + 1) : "";
 
   return (
-    <Box marginBottom={1} borderStyle="round" borderColor={BRAND_COLOR} paddingX={1} flexDirection="column">
+    <Box borderStyle="round" borderColor={BRAND_COLOR} paddingX={1} flexDirection="column">
       {pickerFiles.length > 0 ? (
         <Box flexDirection="column" marginBottom={1}>
           {pickerFiles.slice(0, MAX_VISIBLE_FILES).map((file, index) => (

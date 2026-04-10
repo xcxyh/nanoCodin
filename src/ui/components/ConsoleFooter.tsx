@@ -11,7 +11,7 @@ export function ConsoleFooter({
   tokenUsage: TokenUsage | null;
 }) {
   return (
-    <Box justifyContent="space-between">
+    <Box justifyContent="space-between" marginTop={0}>
       <Text color="gray">Model  {modelName}</Text>
       <Text color="gray">Tokens  {formatTotalTokenUsageText(tokenUsage)}</Text>
     </Box>

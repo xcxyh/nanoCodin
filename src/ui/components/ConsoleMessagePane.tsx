@@ -29,7 +29,7 @@ export function ConsoleMessagePane({
   return (
     <Box flexDirection="column" marginBottom={1}>
       {visibleHistory.map((turn) => (
-        <Box key={turn.id} flexDirection="column" marginBottom={1}>
+        <Box key={turn.id} flexDirection="column" marginBottom={2}>
           <Text color="white">❯ {turn.user}</Text>
           <Text color={resultColor(turn.status)}>⏺ {turn.result}</Text>
         </Box>
@@ -37,9 +37,11 @@ export function ConsoleMessagePane({
 
       {currentTurn ? (
         <Box flexDirection="column">
-          <Text color="white">❯ {currentTurn.user}</Text>
+          <Box marginBottom={1}>
+            <Text color="white">❯ {currentTurn.user}</Text>
+          </Box>
           {currentTurn.activity.map((entry) => (
-            <Box key={entry.id} flexDirection="column" marginBottom={entry.detail ? 0 : 0}>
+            <Box key={entry.id} flexDirection="column" marginBottom={1}>
               <Text color={entry.kind === "error" ? "red" : entry.kind === "thinking" ? "white" : "gray"}>
                 ⏺ {entry.text}
               </Text>
@@ -49,7 +51,9 @@ export function ConsoleMessagePane({
             </Box>
           ))}
           {busy ? (
-            <Text color="gray">⏺ {pendingToolName ? `Running ${pendingToolName}...` : "Loading..."}</Text>
+            <Box marginBottom={1}>
+              <Text color="gray">⏺ {pendingToolName ? `Running ${pendingToolName}...` : "Loading..."}</Text>
+            </Box>
           ) : null}
           {currentTurn.finalText ? (
             <Text color={BRAND_COLOR}>⏺ {currentTurn.finalText}</Text>

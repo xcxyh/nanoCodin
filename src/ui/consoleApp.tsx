@@ -74,7 +74,7 @@ export function ConsoleApp({ graph, permissionController, modelName, initialTask
         busy={uiState.busy}
         pendingToolName={uiState.pendingToolName}
       />
-      <ConsoleTodoPane snapshot={uiState.latestSnapshot} />
+      <ConsoleTodoPane snapshot={uiState.latestSnapshot} visible={uiState.busy} />
       {permissionPrompt ? <PermissionPromptBox request={permissionPrompt.request} /> : null}
       <ConsoleInputBar
         input={keyboard.input}
