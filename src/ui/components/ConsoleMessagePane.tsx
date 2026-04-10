@@ -109,7 +109,7 @@ export function ConsoleMessagePane({
             </Box>
           ))}
           {busy ? (
-            <LoadingStatus label={pendingToolName ? `Running ${pendingToolName}...` : "Loading..."} />
+            <LoadingStatus label={pendingToolName ? `Running ${pendingToolName}...` : "Thinking..."} />
           ) : null}
           {currentTurn.finalText ? (
             <Text color={BRAND_COLOR}>⏺ {currentTurn.finalText}</Text>
