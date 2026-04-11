@@ -1,8 +1,47 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { SessionCheckpoint, SessionCheckpointStore, SessionCheckpointSummary } from "../core/toolTypes.js";
+import {
+  createEmptyTodoState,
+  type SessionCheckpoint,
+  type SessionCheckpointStore,
+  type SessionCheckpointSummary,
+  type TodoItem,
+  type TodoStatus
+} from "../core/toolTypes.js";
 import { resolveNanoCodinPaths } from "./userPaths.js";
+
+function normalizeTodoStatus(raw: unknown): TodoStatus {
+  if (raw === "pending" || raw === "in_progress" || raw === "completed") {
+    return raw;
+  }
+  return "pending";
+}
+
+function normalizeTodoItems(raw: unknown): TodoItem[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === "string" && record.id.length > 0 ? record.id : null;
+    const content = typeof record.content === "string" && record.content.length > 0 ? record.content : null;
+    if (!id || !content) {
+      return [];
+    }
+
+    const status = typeof record.completed === "boolean"
+      ? (record.completed ? "completed" : "pending")
+      : normalizeTodoStatus(record.status);
+
+    return [{ id, content, status }];
+  });
+}
 
 export class FileSessionCheckpointStore implements SessionCheckpointStore {
   private readonly latestFilePath: string;
@@ -115,17 +154,21 @@ export class FileSessionCheckpointStore implements SessionCheckpointStore {
         task: parsed.task,
         updatedAt: parsed.updatedAt,
         sessionMemory: parsed.sessionMemory ?? null,
-        todos: parsed.todos ?? {
-          items: [],
-          verification: {
-            goal: "",
-            commands: [],
-            latestCommand: null,
-            latestSummary: null,
-            status: "pending"
-          },
-          taskBundle: { primaryTask: null, subtasks: [], results: [] }
-        },
+        todos: parsed.todos
+          ? {
+            ...createEmptyTodoState(),
+            ...parsed.todos,
+            items: normalizeTodoItems((parsed.todos as { items?: unknown }).items),
+            verification: {
+              ...createEmptyTodoState().verification,
+              ...((parsed.todos as { verification?: object }).verification ?? {})
+            },
+            taskBundle: {
+              ...createEmptyTodoState().taskBundle,
+              ...((parsed.todos as { taskBundle?: object }).taskBundle ?? {})
+            }
+          }
+          : createEmptyTodoState(),
         latestVerification: parsed.latestVerification ?? null
       };
     } catch {

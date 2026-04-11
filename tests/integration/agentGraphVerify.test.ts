@@ -283,7 +283,7 @@ describe("CodingAgentGraph verification guard", () => {
         }
       },
       todos: {
-        items: [{ id: "1", content: "edit file", completed: false }],
+        items: [{ id: "1", content: "edit file", status: "pending" }],
         verification: {
           goal: "",
           commands: [],
@@ -309,7 +309,7 @@ describe("CodingAgentGraph verification guard", () => {
     expect(result.finalAnswer).toContain("all done");
     expect(result.steps.some((step) => (step.observation ?? "").includes("Plan gate requires both a verification goal"))).toBe(false);
     expect(context.todos.verification.status).toBe("pending");
-    expect(context.todos.items.some((item) => item.completed)).toBe(false);
+    expect(context.todos.items.some((item) => item.status === "completed")).toBe(false);
   });
 
   it("allows mutating actions with a todo plan containing up to ten items", async () => {
@@ -325,7 +325,7 @@ describe("CodingAgentGraph verification guard", () => {
         items: Array.from({ length: 10 }, (_, index) => ({
           id: String(index + 1),
           content: `task-${index + 1}`,
-          completed: false
+          status: "pending" as const
         })),
         verification: {
           goal: "",
@@ -368,7 +368,7 @@ describe("CodingAgentGraph verification guard", () => {
     });
 
     context.todos = {
-      items: [{ id: "done-1", content: "finished task", completed: true }],
+      items: [{ id: "done-1", content: "finished task", status: "completed" }],
       verification: {
         goal: "Run tests",
         commands: ["npm run test"],
@@ -419,7 +419,7 @@ describe("CodingAgentGraph verification guard", () => {
         }
       },
       todos: {
-        items: [{ id: "1", content: "edit file", completed: false }],
+        items: [{ id: "1", content: "edit file", status: "pending" }],
         verification: {
           goal: "",
           commands: [],
@@ -503,7 +503,7 @@ describe("CodingAgentGraph verification guard", () => {
         }
       },
       todos: {
-        items: [{ id: "1", content: "edit file", completed: false }],
+        items: [{ id: "1", content: "edit file", status: "pending" }],
         verification: {
           goal: "",
           commands: [],
@@ -552,7 +552,7 @@ describe("CodingAgentGraph verification guard", () => {
         }
       },
       todos: {
-        items: [{ id: "1", content: "edit file", completed: false }],
+        items: [{ id: "1", content: "edit file", status: "pending" }],
         verification: {
           goal: "",
           commands: [],

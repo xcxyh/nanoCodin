@@ -79,6 +79,15 @@ function normalizeTodoOperation(raw: unknown): string | null {
   if (normalized === "update_todo_item" || normalized === "update" || normalized === "edit" || normalized === "modify") {
     return "update_todo_item";
   }
+  if (
+    normalized === "set_in_progress"
+    || normalized === "in_progress"
+    || normalized === "start"
+    || normalized === "begin"
+    || normalized === "mark_in_progress"
+  ) {
+    return "set_in_progress";
+  }
   if (normalized === "mark_complete" || normalized === "complete" || normalized === "done" || normalized === "mark_done") {
     return "mark_complete";
   }
@@ -109,7 +118,7 @@ function normalizeTodoInput(raw: unknown): unknown {
   const source = raw as Record<string, unknown>;
   const out: Record<string, unknown> = {};
 
-  const operation = normalizeTodoOperation(source.operation);
+  const operation = normalizeTodoOperation(source.operation ?? source.status ?? source.state ?? source.todo_status);
   const items = normalizeTodoItems(source.items ?? source.todo_items ?? source.list ?? source.tasks);
 
   if (operation) {

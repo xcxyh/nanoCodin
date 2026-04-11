@@ -84,8 +84,8 @@ describe("parseAgentResponse", () => {
       "execute",
       {
         items: [
-          { id: "todo-1", content: "Refactor UI", completed: false },
-          { id: "todo-2", content: "Run tests", completed: true }
+          { id: "todo-1", content: "Refactor UI", status: "in_progress" },
+          { id: "todo-2", content: "Run tests", status: "completed" }
         ],
         verification: {
           goal: "Run tests",
@@ -106,8 +106,16 @@ describe("parseAgentResponse", () => {
     );
 
     expect(snapshot.todos).toEqual([
-      { id: "todo-1", content: "Refactor UI", completed: false },
-      { id: "todo-2", content: "Run tests", completed: true }
+      { id: "todo-1", content: "Refactor UI", status: "in_progress" },
+      { id: "todo-2", content: "Run tests", status: "completed" }
     ]);
+    expect(snapshot.todoCounts).toEqual({
+      pending: 0,
+      inProgress: 1,
+      completed: 1,
+      total: 2
+    });
+    expect(snapshot.todoProgressText).toBe("已完成 1/2 (50%)");
+    expect(snapshot.activeTodoId).toBe("todo-1");
   });
 });

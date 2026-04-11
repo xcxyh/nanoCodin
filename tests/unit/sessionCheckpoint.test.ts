@@ -96,4 +96,39 @@ describe("FileSessionCheckpointStore", () => {
     expect(loaded?.task).toBe("resume me");
     expect(loaded?.latestVerification).toBeNull();
   });
+
+  it("maps legacy completed booleans to todo status values", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-checkpoint-"));
+    process.env.NANOCODIN_HOME = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
+    const checkpointDir = path.join(cwd, ".nanocodin");
+    await mkdir(checkpointDir, { recursive: true });
+    await writeFile(path.join(checkpointDir, "session-checkpoint.json"), JSON.stringify({
+      id: "session-legacy",
+      task: "resume legacy todo",
+      updatedAt: Date.now(),
+      sessionMemory: null,
+      todos: {
+        items: [
+          { id: "todo-1", content: "done task", completed: true },
+          { id: "todo-2", content: "open task", completed: false }
+        ],
+        verification: {
+          goal: "",
+          commands: [],
+          latestCommand: null,
+          latestSummary: null,
+          status: "pending"
+        },
+        taskBundle: { primaryTask: null, subtasks: [], results: [] }
+      },
+      latestVerification: null
+    }, null, 2));
+
+    const loaded = await new FileSessionCheckpointStore(cwd).load();
+
+    expect(loaded?.todos.items).toEqual([
+      { id: "todo-1", content: "done task", status: "completed" },
+      { id: "todo-2", content: "open task", status: "pending" }
+    ]);
+  });
 });

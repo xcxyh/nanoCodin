@@ -1,5 +1,5 @@
 import { DEFAULT_RUNTIME_CONFIG, type ResolvedRuntimeConfig } from "../../src/core/runtimeConfig.js";
-import type { RepoIndexProvider, ToolContext } from "../../src/core/toolTypes.js";
+import { createEmptyTodoState, type RepoIndexProvider, type ToolContext } from "../../src/core/toolTypes.js";
 
 export function cloneConfig(): ResolvedRuntimeConfig {
   return JSON.parse(JSON.stringify(DEFAULT_RUNTIME_CONFIG)) as ResolvedRuntimeConfig;
@@ -15,17 +15,7 @@ export function createRepoIndexStub(): RepoIndexProvider {
 export function createToolContext(overrides?: Partial<ToolContext>): ToolContext {
   const base: ToolContext = {
     cwd: process.cwd(),
-    todos: {
-      items: [],
-      verification: {
-        goal: "",
-        commands: [],
-        latestCommand: null,
-        latestSummary: null,
-        status: "pending"
-      },
-      taskBundle: { primaryTask: null, subtasks: [], results: [] }
-    },
+    todos: createEmptyTodoState(),
     runtimeConfig: cloneConfig(),
     repoIndex: createRepoIndexStub(),
     commandLogs: [],

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Tool, TodoItem } from "../../core/toolTypes.js";
 
 const schema = z.object({
-  operation: z.enum(["create_todo_list", "update_todo_item", "mark_complete"]).optional(),
+  operation: z.enum(["create_todo_list", "update_todo_item", "set_in_progress", "mark_complete"]).optional(),
   items: z.array(z.string()).optional(),
   verificationGoal: z.string().optional(),
   verificationCommands: z.array(z.string()).optional(),
@@ -13,12 +13,29 @@ const schema = z.object({
 
 type Input = z.infer<typeof schema>;
 
+function formatTodoMarker(item: TodoItem): string {
+  if (item.status === "completed") {
+    return "[x]";
+  }
+  if (item.status === "in_progress") {
+    return "[~]";
+  }
+  return "[ ]";
+}
+
+function calculateProgress(items: TodoItem[]): { completed: number; total: number; percent: number } {
+  const completed = items.filter((item) => item.status === "completed").length;
+  const total = items.length;
+  const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+  return { completed, total, percent };
+}
+
 function renderTodos(items: TodoItem[]): string {
   if (items.length === 0) {
     return "Todo list is empty.";
   }
   return items
-    .map((item) => `- [${item.completed ? "x" : " "}] ${item.id} ${item.content}`)
+    .map((item) => `- ${formatTodoMarker(item)} ${item.id} ${item.content}`)
     .join("\n");
 }
 
@@ -47,11 +64,23 @@ function renderSubtaskResults(results: { task: string; summary: string }[]): str
 }
 
 function renderTodoState(context: Parameters<Tool<Input>["execute"]>[1]): string {
+  const progress = calculateProgress(context.todos.items);
+  const activeItem = context.todos.items.find((item) => item.status === "in_progress");
   return [
+    `Progress: ${progress.completed}/${progress.total} completed (${progress.percent}%)`,
+    `In progress: ${activeItem?.content ?? "(none)"}`,
     "\n" + renderTodos(context.todos.items),
     renderVerificationPlan(context.todos.verification),
     renderSubtaskResults(context.todos.taskBundle.results)
   ].join("\n");
+}
+
+function clearInProgress(items: TodoItem[]): void {
+  for (const item of items) {
+    if (item.status === "in_progress") {
+      item.status = "pending";
+    }
+  }
 }
 
 export const todoTool: Tool<Input> = {
@@ -79,7 +108,7 @@ export const todoTool: Tool<Input> = {
       context.todos.items = items.map((content) => ({
         id: randomUUID().slice(0, 8),
         content,
-        completed: false
+        status: "pending"
       }));
       context.todos.verification.goal = input.verificationGoal ?? context.todos.verification.goal;
       context.todos.verification.commands = input.verificationCommands ?? context.todos.verification.commands;
@@ -102,6 +131,19 @@ export const todoTool: Tool<Input> = {
       return { ok: true, output: renderTodoState(context) };
     }
 
+    if (inferredOperation === "set_in_progress") {
+      if (!input.id) {
+        return { ok: false, output: "set_in_progress requires id." };
+      }
+      const item = context.todos.items.find((it) => it.id === input.id);
+      if (!item) {
+        return { ok: false, output: `Todo item not found: ${input.id}` };
+      }
+      clearInProgress(context.todos.items);
+      item.status = "in_progress";
+      return { ok: true, output: renderTodoState(context) };
+    }
+
     if (!input.id) {
       return { ok: false, output: "mark_complete requires id." };
     }
@@ -110,7 +152,7 @@ export const todoTool: Tool<Input> = {
     if (!item) {
       return { ok: false, output: `Todo item not found: ${input.id}` };
     }
-    item.completed = true;
+    item.status = "completed";
 
     return { ok: true, output: renderTodoState(context) };
   }

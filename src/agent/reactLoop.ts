@@ -31,6 +31,14 @@ export type AgentEvent =
 export interface AgentExecutionSnapshot {
   phase: AgentPhase;
   todos: TodoItem[];
+  todoCounts: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    total: number;
+  };
+  todoProgressText: string;
+  activeTodoId: string | null;
   verificationGoal: string;
   verificationCommands: string[];
   verificationStatus: string;
@@ -133,7 +141,10 @@ function formatExecutionState(
   latestVerification: string | null
 ): string {
   const todos = todoState.items.length > 0
-    ? todoState.items.map((item) => `- [${item.completed ? "x" : " "}] ${item.content}`).join("\n")
+    ? todoState.items.map((item) => {
+      const marker = item.status === "completed" ? "x" : item.status === "in_progress" ? "~" : " ";
+      return `- [${marker}] ${item.content}`;
+    }).join("\n")
     : "(none)";
   const subtasks = todoState.taskBundle.results.length > 0
     ? todoState.taskBundle.results.map((result) => `- ${result.status} ${result.task}: ${result.summary}`).join("\n")
@@ -148,6 +159,34 @@ function formatExecutionState(
     "Subtasks:",
     subtasks
   ].join("\n");
+}
+
+function buildTodoCounts(items: TodoItem[]) {
+  const counts = {
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    total: items.length
+  };
+
+  for (const item of items) {
+    if (item.status === "completed") {
+      counts.completed += 1;
+    } else if (item.status === "in_progress") {
+      counts.inProgress += 1;
+    } else {
+      counts.pending += 1;
+    }
+  }
+
+  return counts;
+}
+
+function formatTodoProgressText(completed: number, total: number): string {
+  if (total === 0) {
+    return "已完成 0/0 (0%)";
+  }
+  return `已完成 ${completed}/${total} (${Math.round((completed / total) * 100)}%)`;
 }
 
 export async function buildAgentMessages(messages: Message[], steps: AgentStep[], toolsDescription: string): Promise<Message[]> {
@@ -199,13 +238,19 @@ export function buildAgentExecutionSnapshot(
   latestVerification: string | null,
   tokenUsage: TokenUsage | null
 ): AgentExecutionSnapshot {
+  const todoCounts = buildTodoCounts(todos.items);
+  const activeTodo = todos.items.find((item) => item.status === "in_progress") ?? null;
+
   return {
     phase,
     todos: todos.items.map((item) => ({
       id: item.id,
       content: item.content,
-      completed: item.completed
+      status: item.status
     })),
+    todoCounts,
+    todoProgressText: formatTodoProgressText(todoCounts.completed, todoCounts.total),
+    activeTodoId: activeTodo?.id ?? null,
     verificationGoal: todos.verification.goal,
     verificationCommands: [...todos.verification.commands],
     verificationStatus: todos.verification.status,

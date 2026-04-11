@@ -1,5 +1,5 @@
 import { accumulateTokenUsage, type AgentStep, type Message, type TokenUsage, type ToolCall } from "../core/messageTypes.js";
-import type { ToolContext } from "../core/toolTypes.js";
+import { createEmptyTodoState, type ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import {
   buildAgentExecutionSnapshot,
@@ -119,17 +119,7 @@ export class CodingAgentGraph {
   private resetTransientRunState(): void {
     this.toolContext.sessionMemory = null;
     this.toolContext.commandLogs = [];
-    this.toolContext.todos = {
-      items: [],
-      verification: {
-        goal: "",
-        commands: [],
-        latestCommand: null,
-        latestSummary: null,
-        status: "pending"
-      },
-      taskBundle: { primaryTask: null, subtasks: [], results: [] }
-    };
+    this.toolContext.todos = createEmptyTodoState();
   }
 
   private createInitialState(messages: Message[]): AgentLoopState {
@@ -673,17 +663,7 @@ export class CodingAgentGraph {
       this.readonlyTools,
       {
         ...this.toolContext,
-        todos: {
-          items: [],
-          verification: {
-            goal: "",
-            commands: [],
-            latestCommand: null,
-            latestSummary: null,
-            status: "pending"
-          },
-          taskBundle: { primaryTask: input.task, subtasks: [], results: [] }
-        },
+        todos: createEmptyTodoState(input.task),
         commandLogs: [],
         sessionMemory: null,
         delegationDepth: (this.toolContext.delegationDepth ?? 0) + 1,

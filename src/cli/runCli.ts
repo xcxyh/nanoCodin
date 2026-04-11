@@ -3,7 +3,7 @@ import React from "react";
 import { CodingAgentGraph } from "../agent/agentGraph.js";
 import { runBootstrap } from "../bootstrap/runBootstrap.js";
 import { createModelProvider, getConfiguredModelName } from "../llm/modelRouter.js";
-import type { ToolContext } from "../core/toolTypes.js";
+import { createEmptyTodoState, type ToolContext } from "../core/toolTypes.js";
 import { createDefaultToolRegistry } from "../tools/registry.js";
 import { ConsoleApp } from "../ui/consoleApp.js";
 import { isModelConfigComplete, loadRuntimeConfig } from "../services/configLoader.js";
@@ -95,17 +95,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
 
   const toolContext: ToolContext = {
     cwd: args.cwd,
-    todos: {
-      items: [],
-      verification: {
-        goal: "",
-        commands: [],
-        latestCommand: null,
-        latestSummary: null,
-        status: "pending"
-      },
-      taskBundle: { primaryTask: null, subtasks: [], results: [] }
-    },
+    todos: createEmptyTodoState(),
     runtimeConfig: runtime.config,
     repoIndex: repoIndexer,
     commandLogs: [],

@@ -15,7 +15,15 @@ describe("console state", () => {
       type: "set_snapshot",
       snapshot: {
         phase: "verify",
-        todos: [{ id: "todo-1", content: "edit file", completed: false }],
+        todos: [{ id: "todo-1", content: "edit file", status: "in_progress" }],
+        todoCounts: {
+          pending: 0,
+          inProgress: 1,
+          completed: 0,
+          total: 1
+        },
+        todoProgressText: "已完成 0/1 (0%)",
+        activeTodoId: "todo-1",
         verificationGoal: "Run tests",
         verificationCommands: ["npm run test"],
         verificationStatus: "pending",
@@ -33,7 +41,8 @@ describe("console state", () => {
     });
 
     expect(next.latestSnapshot?.phase).toBe("verify");
-    expect(next.latestSnapshot?.todos).toEqual([{ id: "todo-1", content: "edit file", completed: false }]);
+    expect(next.latestSnapshot?.todos).toEqual([{ id: "todo-1", content: "edit file", status: "in_progress" }]);
+    expect(next.latestSnapshot?.todoCounts.inProgress).toBe(1);
     expect(next.latestSnapshot?.tokenUsage?.totalTokens).toBe(15);
   });
 
@@ -43,6 +52,14 @@ describe("console state", () => {
       snapshot: {
         phase: "execute",
         todos: [],
+        todoCounts: {
+          pending: 0,
+          inProgress: 0,
+          completed: 0,
+          total: 0
+        },
+        todoProgressText: "已完成 0/0 (0%)",
+        activeTodoId: null,
         verificationGoal: "",
         verificationCommands: [],
         verificationStatus: "pending",
@@ -151,6 +168,14 @@ describe("console state", () => {
     const snapshot = {
       phase: "finalize" as const,
       todos: [],
+      todoCounts: {
+        pending: 0,
+        inProgress: 0,
+        completed: 0,
+        total: 0
+      },
+      todoProgressText: "已完成 0/0 (0%)",
+      activeTodoId: null,
       verificationGoal: "",
       verificationCommands: [],
       verificationStatus: "passed",

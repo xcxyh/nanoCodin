@@ -28,7 +28,7 @@ export function buildFinalSummary(input: {
   const changedFiles = input.sessionMemory?.touchedFiles ?? [];
   const verification = input.latestVerification ?? input.todos.verification.latestSummary ?? "(none)";
   const risks = input.sessionMemory?.failureNotes ?? [];
-  const completedTodos = input.todos.items.filter((item) => item.completed).map((item) => item.content);
+  const completedTodos = input.todos.items.filter((item) => item.status === "completed").map((item) => item.content);
   const subtaskSummaries = input.subtasks.map((item) => `${item.status} ${item.task}: ${item.summary}`);
 
   return [

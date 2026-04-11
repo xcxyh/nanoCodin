@@ -86,16 +86,32 @@ export interface TaskBundle {
   results: SubtaskResult[];
 }
 
+export type TodoStatus = "pending" | "in_progress" | "completed";
+
 export interface TodoItem {
   id: string;
   content: string;
-  completed: boolean;
+  status: TodoStatus;
 }
 
 export interface TodoState {
   items: TodoItem[];
   verification: VerificationCheckpoint;
   taskBundle: TaskBundle;
+}
+
+export function createEmptyTodoState(primaryTask: string | null = null): TodoState {
+  return {
+    items: [],
+    verification: {
+      goal: "",
+      commands: [],
+      latestCommand: null,
+      latestSummary: null,
+      status: "pending"
+    },
+    taskBundle: { primaryTask, subtasks: [], results: [] }
+  };
 }
 
 export interface RunSubtaskInput {
