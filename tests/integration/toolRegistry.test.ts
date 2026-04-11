@@ -177,4 +177,42 @@ describe("ToolRegistry.execute", () => {
     expect(result.ok).toBe(true);
     expect(prompted).toBe(false);
   });
+
+  it("executes ask_user_question through the shared question controller", async () => {
+    const registry = new ToolRegistry([
+      {
+        name: "ask_user_question",
+        description: "ask the user a question",
+        schema: z.object({
+          title: z.string(),
+          options: z.array(z.object({
+            value: z.string(),
+            label: z.string(),
+            shortcutKey: z.string().optional()
+          })).min(1)
+        }),
+        execute: async (input, context) => {
+          if (!context.askUserQuestion) {
+            return { ok: false, output: "missing controller" };
+          }
+          const answer = await context.askUserQuestion.ask(input);
+          return { ok: true, output: answer };
+        }
+      }
+    ]);
+
+    const permission = new PermissionController();
+    permission.questionController.setHandler(async () => "allow_once");
+
+    const result = await registry.execute("ask_user_question", {
+      title: "Proceed?",
+      options: [
+        { value: "allow_once", label: "Allow once", shortcutKey: "y" },
+        { value: "deny", label: "Deny", shortcutKey: "n" }
+      ]
+    }, createToolContext({ askUserQuestion: permission.questionController }));
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toBe("allow_once");
+  });
 });

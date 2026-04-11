@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { AskUserQuestionController } from "./askUserQuestion.js";
 import type { ResolvedRuntimeConfig } from "./runtimeConfig.js";
 import type { PermissionController } from "./permission.js";
 
@@ -129,6 +130,7 @@ export interface ToolContext {
   contextSources: ContextSources;
   abortSignal?: AbortSignal;
   permission?: PermissionController;
+  askUserQuestion?: AskUserQuestionController;
   runSubtask?: (input: RunSubtaskInput) => Promise<SubtaskResult>;
   delegationDepth?: number;
   checkpoint?: SessionCheckpointStore;

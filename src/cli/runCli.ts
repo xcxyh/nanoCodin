@@ -102,6 +102,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     sessionMemory: null,
     contextSources: context.sources,
     permission: permissionController,
+    askUserQuestion: permissionController.questionController,
     checkpoint
   };
 

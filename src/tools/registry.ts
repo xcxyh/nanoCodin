@@ -8,6 +8,7 @@ import { lsTool } from "./fs/ls.js";
 import { readContextTool } from "./fs/read_context.js";
 import { repoIndexQueryTool } from "./fs/repo_index_query.js";
 import { treeTool } from "./fs/tree.js";
+import { askUserQuestionTool } from "./planning/ask_user_question.js";
 import { delegateTool } from "./planning/delegate.js";
 import { summarizeChangesTool } from "./planning/summarize_changes.js";
 import { todoTool } from "./planning/todo.js";
@@ -182,6 +183,7 @@ export function createDefaultToolRegistry(): ToolRegistry {
     insertTool,
     bashTool,
     todoTool,
+    askUserQuestionTool,
     delegateTool,
     summarizeChangesTool
   ]);
