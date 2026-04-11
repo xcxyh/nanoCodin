@@ -1,7 +1,10 @@
 import { useInput } from "ink";
 import path from "node:path";
 import { useRef, useState } from "react";
-import type { PermissionPromptChoice } from "../../core/permission.js";
+import {
+  findQuestionOptionByShortcut,
+  type AskUserQuestionOption
+} from "../../core/askUserQuestion.js";
 import { collectFiles } from "../../tools/fs/grep.js";
 import {
   buildSlashCommandTemplate,
@@ -12,6 +15,7 @@ import {
 } from "../utils/slashCommands.js";
 import { clampFilePickerIndex, cyclePickerIndex, getFilePickerQuery } from "../utils/filePicker.js";
 import { isCtrlC, useConsoleInput, type InputKey } from "../useConsoleInput.js";
+import type { AskUserQuestionState } from "./useAskUserQuestion.js";
 
 interface FilePickerState {
   query: string;
@@ -22,14 +26,6 @@ interface FilePickerState {
 interface CommandPickerState {
   query: string;
   selectedIndex: number;
-}
-
-function resolvePermissionChoice(char: string): PermissionPromptChoice | null {
-  const normalized = char.toLowerCase();
-  if (normalized === "y") return "allow_once";
-  if (normalized === "a") return "allow_all";
-  if (normalized === "n") return "deny";
-  return null;
 }
 
 function filterFiles(files: string[], filePicker: FilePickerState | null): string[] {
@@ -43,10 +39,27 @@ function filterFiles(files: string[], filePicker: FilePickerState | null): strin
     .slice(0, 10);
 }
 
+export function resolveQuestionShortcut(activeQuestion: AskUserQuestionState | null, char: string): string | null {
+  if (!activeQuestion) {
+    return null;
+  }
+
+  return findQuestionOptionByShortcut(activeQuestion.request.options, char)?.value ?? null;
+}
+
+export function getSelectedQuestionOption<T extends string>(
+  options: AskUserQuestionOption<T>[],
+  selectedIndex: number
+): AskUserQuestionOption<T> | null {
+  const clampedIndex = clampFilePickerIndex(selectedIndex, options.length);
+  return options[clampedIndex] ?? null;
+}
+
 export function useConsoleKeyboard({
   busy,
-  permissionPrompt,
-  clearPermissionPrompt,
+  activeQuestion,
+  updateActiveQuestion,
+  clearActiveQuestion,
   slashCommands,
   onSubmit,
   onClearSession,
@@ -56,8 +69,9 @@ export function useConsoleKeyboard({
   clearExitArm
 }: {
   busy: boolean;
-  permissionPrompt: { resolve: (choice: PermissionPromptChoice) => void } | null;
-  clearPermissionPrompt: () => void;
+  activeQuestion: AskUserQuestionState | null;
+  updateActiveQuestion: (updater: AskUserQuestionState | null | ((prev: AskUserQuestionState | null) => AskUserQuestionState | null)) => void;
+  clearActiveQuestion: () => void;
   slashCommands: SlashCommandItem[];
   onSubmit: (task: string) => void;
   onClearSession: () => void;
@@ -187,11 +201,36 @@ export function useConsoleKeyboard({
       return;
     }
 
-    if (permissionPrompt) {
-      const choice = resolvePermissionChoice(char);
-      if (choice) {
-        permissionPrompt.resolve(choice);
-        clearPermissionPrompt();
+    if (activeQuestion) {
+      const shortcutChoice = resolveQuestionShortcut(activeQuestion, char);
+      if (shortcutChoice) {
+        activeQuestion.resolve(shortcutChoice);
+        clearActiveQuestion();
+        return;
+      }
+
+      if (key.upArrow) {
+        updateActiveQuestion((prev) => prev && ({
+          ...prev,
+          selectedIndex: cyclePickerIndex(prev.selectedIndex, -1, prev.request.options.length)
+        }));
+        return;
+      }
+
+      if (key.downArrow) {
+        updateActiveQuestion((prev) => prev && ({
+          ...prev,
+          selectedIndex: cyclePickerIndex(prev.selectedIndex, 1, prev.request.options.length)
+        }));
+        return;
+      }
+
+      if (key.return) {
+        const selectedOption = getSelectedQuestionOption(activeQuestion.request.options, activeQuestion.selectedIndex);
+        if (selectedOption) {
+          activeQuestion.resolve(selectedOption.value);
+          clearActiveQuestion();
+        }
       }
       return;
     }

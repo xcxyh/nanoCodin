@@ -1,24 +1,26 @@
 import React from "react";
 import { Box, useApp } from "ink";
 import type { CodingAgentGraph } from "../agent/agentGraph.js";
+import type { AskUserQuestionController } from "../core/askUserQuestion.js";
 import type { PermissionController } from "../core/permission.js";
 import type { SessionCheckpointStore } from "../core/toolTypes.js";
+import { AskUserQuestionBox } from "./components/AskUserQuestionBox.js";
 import { ConsoleFooter } from "./components/ConsoleFooter.js";
 import { ConsoleHeader } from "./components/ConsoleHeader.js";
 import { ConsoleInputBar } from "./components/ConsoleInputBar.js";
 import { ConsoleMessagePane } from "./components/ConsoleMessagePane.js";
 import { ConsoleTodoPane } from "./components/ConsoleTodoPane.js";
-import { PermissionPromptBox } from "./components/PermissionPromptBox.js";
+import { useAskUserQuestion } from "./hooks/useAskUserQuestion.js";
 import { useConsoleBootstrap } from "./hooks/useConsoleBootstrap.js";
 import { useConsoleKeyboard } from "./hooks/useConsoleKeyboard.js";
 import { useConsoleTaskRunner } from "./hooks/useConsoleTaskRunner.js";
 import { useExitArm } from "./hooks/useExitArm.js";
-import { usePermissionPrompt } from "./hooks/usePermissionPrompt.js";
 import type { SlashCommandItem } from "./utils/slashCommands.js";
 
 interface Props {
   graph: CodingAgentGraph;
   permissionController: PermissionController;
+  questionController: AskUserQuestionController;
   modelName: string;
   version: string;
   cwd: string;
@@ -29,10 +31,10 @@ interface Props {
   disableCheckpointRestore?: boolean;
 }
 
-export function ConsoleApp({ graph, permissionController, modelName, version, cwd, checkpoint, slashCommands, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
+export function ConsoleApp({ graph, permissionController, questionController, modelName, version, cwd, checkpoint, slashCommands, initialTask, resumeSessionId, disableCheckpointRestore }: Props) {
   const { exit } = useApp();
   const { exitArmedAt, clearExitArm, shouldExit } = useExitArm();
-  const { permissionPrompt, setPermissionPrompt } = usePermissionPrompt(permissionController);
+  const { activeQuestion, setActiveQuestion } = useAskUserQuestion(questionController);
   const { uiState, runTask, requestCancel, clearSession } = useConsoleTaskRunner({
     graph,
     checkpoint,
@@ -42,8 +44,9 @@ export function ConsoleApp({ graph, permissionController, modelName, version, cw
 
   const keyboard = useConsoleKeyboard({
     busy: uiState.busy,
-    permissionPrompt,
-    clearPermissionPrompt: () => setPermissionPrompt(null),
+    activeQuestion,
+    updateActiveQuestion: setActiveQuestion,
+    clearActiveQuestion: () => setActiveQuestion(null),
     slashCommands,
     onSubmit: (task) => {
       void runTask(task);
@@ -69,8 +72,8 @@ export function ConsoleApp({ graph, permissionController, modelName, version, cw
     runTask
   });
 
-  const hint = permissionPrompt
-    ? "Permission required. Press Y to allow once, A to allow all, N to deny."
+  const hint = activeQuestion
+    ? `Use Up/Down to choose, Enter to confirm.${activeQuestion.request.options.some((option) => option.shortcutKey) ? " Shortcut keys are also available." : ""}`
     : keyboard.filePickerActive
       ? "Type to filter. Up/Down to navigate, Enter to select, Esc to cancel."
       : keyboard.commandPickerActive
@@ -91,7 +94,7 @@ export function ConsoleApp({ graph, permissionController, modelName, version, cw
         pendingToolName={uiState.pendingToolName}
       />
       <ConsoleTodoPane snapshot={uiState.latestSnapshot} visible={uiState.busy} />
-      {permissionPrompt ? <PermissionPromptBox request={permissionPrompt.request} /> : null}
+      {activeQuestion ? <AskUserQuestionBox request={activeQuestion.request} selectedIndex={activeQuestion.selectedIndex} /> : null}
       <ConsoleInputBar
         input={keyboard.input}
         cursor={keyboard.cursor}

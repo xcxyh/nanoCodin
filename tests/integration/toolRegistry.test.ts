@@ -77,7 +77,7 @@ describe("ToolRegistry.execute", () => {
     ]);
 
     const permission = new PermissionController();
-    permission.setPromptHandler(async () => "deny");
+    permission.questionController.setHandler(async () => "deny");
 
     const result = await registry.execute("bash", { command: "echo test" }, createToolContext({ permission }));
 
@@ -97,7 +97,7 @@ describe("ToolRegistry.execute", () => {
     ]);
 
     const permission = new PermissionController();
-    permission.setPromptHandler(async () => "allow_once");
+    permission.questionController.setHandler(async () => "allow_once");
 
     const result = await registry.execute("bash", { command: "echo test" }, createToolContext({ permission }));
 
@@ -117,7 +117,7 @@ describe("ToolRegistry.execute", () => {
     ]);
 
     const permission = new PermissionController();
-    permission.setPromptHandler(async () => {
+    permission.questionController.setHandler(async () => {
       prompted = true;
       return "deny";
     });
@@ -143,8 +143,8 @@ describe("ToolRegistry.execute", () => {
 
     const permission = new PermissionController();
     let reason = "";
-    permission.setPromptHandler(async (request) => {
-      reason = request.reason ?? "";
+    permission.questionController.setHandler(async (request) => {
+      reason = request.body ?? "";
       return "allow_once";
     });
 
@@ -167,7 +167,7 @@ describe("ToolRegistry.execute", () => {
     ]);
 
     const permission = new PermissionController();
-    permission.setPromptHandler(async () => {
+    permission.questionController.setHandler(async () => {
       prompted = true;
       return "deny";
     });

@@ -111,6 +111,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   render(React.createElement(ConsoleApp, {
     graph,
     permissionController,
+    questionController: permissionController.questionController,
     modelName,
     version,
     cwd: args.cwd,
