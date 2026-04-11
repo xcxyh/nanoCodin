@@ -142,6 +142,8 @@ export function useConsoleKeyboard({
   function executeBuiltinCommand(commandName: string) {
     if (commandName === "clear") {
       inputState.reset();
+      // 真正清屏：使用 ANSI 转义序列清除整个终端屏幕
+      process.stdout.write('\x1Bc');
       onClearSession();
       return;
     }
