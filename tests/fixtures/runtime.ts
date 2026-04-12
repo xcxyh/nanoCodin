@@ -19,12 +19,30 @@ export function createToolContext(overrides?: Partial<ToolContext>): ToolContext
     runtimeConfig: cloneConfig(),
     repoIndex: createRepoIndexStub(),
     commandLogs: [],
-    sessionMemory: null,
+    workingMemory: null,
+    compressionSnapshot: null,
     contextSources: {
       projectRules: [],
       projectContext: null,
-      persistentMemory: null,
+      durableMemory: {
+        entries: [],
+        legacyText: null
+      },
       availableSkills: null
+    },
+    durableMemoryStore: {
+      async load() {
+        return { entries: [], legacyText: null };
+      },
+      async save() {
+        return;
+      },
+      async upsert(entry) {
+        return { entries: [entry], legacyText: null };
+      },
+      async remove() {
+        return { entries: [], legacyText: null };
+      }
     },
     delegationDepth: 0
   };

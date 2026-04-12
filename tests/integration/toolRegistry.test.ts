@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ToolRegistry } from "../../src/tools/registry.js";
 import { createToolContext } from "../fixtures/runtime.js";
 import { PermissionController } from "../../src/core/permission.js";
+import { createDefaultToolRegistry } from "../../src/tools/registry.js";
 
 describe("ToolRegistry.execute", () => {
   it("returns unknown tool error", async () => {
@@ -214,5 +215,12 @@ describe("ToolRegistry.execute", () => {
 
     expect(result.ok).toBe(true);
     expect(result.output).toBe("allow_once");
+  });
+
+  it("default registry includes remember and forget tools", () => {
+    const registry = createDefaultToolRegistry();
+
+    expect(registry.getToolByName("remember")).toBeTruthy();
+    expect(registry.getToolByName("forget")).toBeTruthy();
   });
 });

@@ -9,6 +9,7 @@ import {
   type TodoItem,
   type TodoStatus
 } from "../core/toolTypes.js";
+import { buildLegacyWorkingMemory } from "./memoryManager.js";
 import { resolveNanoCodinPaths } from "./userPaths.js";
 
 function normalizeTodoStatus(raw: unknown): TodoStatus {
@@ -146,6 +147,7 @@ export class FileSessionCheckpointStore implements SessionCheckpointStore {
     try {
       const text = await readFile(filePath, "utf8");
       const parsed = JSON.parse(text) as Partial<SessionCheckpoint>;
+      const recentStepsDigest = (parsed as { recentStepsDigest?: unknown }).recentStepsDigest;
       if (typeof parsed.task !== "string" || typeof parsed.updatedAt !== "number") {
         return null;
       }
@@ -153,7 +155,15 @@ export class FileSessionCheckpointStore implements SessionCheckpointStore {
         id: typeof parsed.id === "string" && parsed.id.length > 0 ? parsed.id : createCheckpointId(),
         task: parsed.task,
         updatedAt: parsed.updatedAt,
-        sessionMemory: parsed.sessionMemory ?? null,
+        workingMemory: parsed.workingMemory ?? buildLegacyWorkingMemory((parsed as { sessionMemory?: unknown }).sessionMemory as {
+          goal?: unknown;
+          decisions?: unknown;
+          touchedFiles?: unknown;
+          pendingVerification?: unknown;
+          failureNotes?: unknown;
+          nextAction?: unknown;
+        } | null | undefined),
+        compressionSnapshot: parsed.compressionSnapshot ?? null,
         todos: parsed.todos
           ? {
             ...createEmptyTodoState(),
@@ -169,7 +179,11 @@ export class FileSessionCheckpointStore implements SessionCheckpointStore {
             }
           }
           : createEmptyTodoState(),
-        latestVerification: parsed.latestVerification ?? null
+        latestVerification: parsed.latestVerification ?? null,
+        tokenUsage: (parsed as { tokenUsage?: SessionCheckpoint["tokenUsage"] }).tokenUsage ?? null,
+        recentStepsDigest: Array.isArray(recentStepsDigest)
+          ? recentStepsDigest.filter((item): item is string => typeof item === "string").slice(0, 20)
+          : undefined
       };
     } catch {
       return null;

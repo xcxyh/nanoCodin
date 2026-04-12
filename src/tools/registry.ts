@@ -10,6 +10,8 @@ import { repoIndexQueryTool } from "./fs/repo_index_query.js";
 import { treeTool } from "./fs/tree.js";
 import { askUserQuestionTool } from "./planning/ask_user_question.js";
 import { delegateTool } from "./planning/delegate.js";
+import { forgetTool } from "./planning/forget.js";
+import { rememberTool } from "./planning/remember.js";
 import { summarizeChangesTool } from "./planning/summarize_changes.js";
 import { todoTool } from "./planning/todo.js";
 import { bashTool } from "./shell/bash.js";
@@ -44,7 +46,7 @@ function formatSchemaError(toolName: string, rawInput: unknown, error: ZodError)
     }
   }
   if (toolName === "view" && missingFields.includes("path")) {
-    hints.push("view can omit path only when a recent touched file exists in session memory.");
+    hints.push("view can omit path only when a recent touched file exists in working memory.");
   }
 
   const details = [
@@ -183,6 +185,8 @@ export function createDefaultToolRegistry(): ToolRegistry {
     insertTool,
     bashTool,
     todoTool,
+    rememberTool,
+    forgetTool,
     askUserQuestionTool,
     delegateTool,
     summarizeChangesTool

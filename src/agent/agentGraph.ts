@@ -16,6 +16,7 @@ import { RecoveryEngine } from "../services/recoveryEngine.js";
 import type { RunSubtaskInput, SubtaskResult } from "../core/toolTypes.js";
 import { buildToolHelp, canExecuteAction, inferPhaseForAction, isMutatingTool, isReadOnlyTool, isSummaryTool, isVerificationTool } from "../services/agentPolicy.js";
 import { formatPlannerTodoHint } from "../tools/planning/todoLimits.js";
+import { applyToolResult, createWorkingMemory } from "../services/memoryManager.js";
 
 interface AgentLoopState {
   messages: Message[];
@@ -50,6 +51,8 @@ export class CodingAgentGraph {
   private readonly compressionManager: CompressionManager;
   private readonly recoveryEngine: RecoveryEngine;
   private readonly readonlyTools: ToolRegistry;
+  private restoredLatestVerification: string | null = null;
+  private restoredTokenUsage: TokenUsage | null = null;
 
   constructor(
     private readonly model: ModelProvider,
@@ -117,12 +120,18 @@ export class CodingAgentGraph {
   }
 
   private resetTransientRunState(): void {
-    this.toolContext.sessionMemory = null;
+    this.toolContext.workingMemory = null;
+    this.toolContext.compressionSnapshot = null;
     this.toolContext.commandLogs = [];
     this.toolContext.todos = createEmptyTodoState();
+    this.restoredLatestVerification = null;
+    this.restoredTokenUsage = null;
   }
 
   private createInitialState(messages: Message[]): AgentLoopState {
+    if (!this.toolContext.workingMemory) {
+      this.toolContext.workingMemory = createWorkingMemory(messages);
+    }
     return {
       messages,
       intermediate_steps: [],
@@ -136,8 +145,8 @@ export class CodingAgentGraph {
       stepRecoveryCount: 0,
       recoverySignatures: [],
       recoveryHistory: [],
-      latestVerification: null,
-      tokenUsage: null
+      latestVerification: this.restoredLatestVerification,
+      tokenUsage: this.restoredTokenUsage
     };
   }
 
@@ -185,18 +194,18 @@ export class CodingAgentGraph {
       const compressed = this.compressionManager.maybeCompress(
         state.messages,
         state.intermediate_steps,
-        this.toolContext.sessionMemory
+        this.toolContext.workingMemory,
+        this.toolContext.contextSources.durableMemory
       );
-      if (compressed.compressed && compressed.sessionMemory) {
-        this.toolContext.sessionMemory = compressed.sessionMemory;
-      }
+      this.toolContext.compressionSnapshot = compressed.compressionSnapshot;
 
       const messages = await buildAgentMessagesWithContext(
         state.messages,
         compressed.stepsForPrompt,
         this.tools.formatToolsForPrompt(),
         state.phase,
-        this.toolContext.sessionMemory,
+        this.toolContext.workingMemory,
+        this.toolContext.compressionSnapshot,
         this.toolContext.contextSources,
         formatExecutionStateForPrompt(this.toolContext.todos, state.latestVerification),
         buildToolHelp(this.tools.list(), state.phase)
@@ -241,7 +250,7 @@ export class CodingAgentGraph {
           ? parsed.actionInput.answer
           : responseText;
         const summary = buildFinalSummary({
-          sessionMemory: this.toolContext.sessionMemory,
+          workingMemory: this.toolContext.workingMemory,
           todos: this.toolContext.todos,
           subtasks: this.toolContext.todos.taskBundle.results,
           latestVerification: state.latestVerification
@@ -399,8 +408,14 @@ export class CodingAgentGraph {
       : state.latestVerification;
 
     this.updateVerificationState(state.pending_action, observation, result.ok);
-    this.updateSessionMemoryFromAction(state.pending_action, observation);
-    await this.maybeSaveCheckpoint(state.messages, state.pending_action, latestVerification);
+    this.toolContext.workingMemory = applyToolResult(
+      state.pending_action,
+      observation,
+      this.toolContext.workingMemory,
+      this.toolContext.todos,
+      state.messages
+    );
+    await this.maybeSaveCheckpoint(state.messages, state.pending_action, latestVerification, state.tokenUsage);
     this.emitStateSnapshot(state.phase, latestVerification, state.tokenUsage);
 
     if (!result.ok) {
@@ -557,31 +572,6 @@ export class CodingAgentGraph {
     return isReadOnlyTool(this.tools.getToolByName(name));
   }
 
-  private updateSessionMemoryFromAction(action: ToolCall, observation: string): void {
-    const current = this.toolContext.sessionMemory ?? {
-      goal: "Complete the current coding task.",
-      decisions: [],
-      touchedFiles: [],
-      pendingVerification: [],
-      failureNotes: [],
-      nextAction: "Continue with the highest-priority open issue."
-    };
-    const input = action.input as { path?: unknown };
-    if (typeof input.path === "string" && !current.touchedFiles.includes(input.path)) {
-      current.touchedFiles = [...current.touchedFiles, input.path].slice(0, 20);
-    }
-    if (action.name === "todo" && this.toolContext.todos.verification.commands.length > 0) {
-      current.pendingVerification = this.toolContext.todos.verification.commands.map((command) => `${this.toolContext.todos.verification.goal}: ${command}`);
-    }
-    if (/error|failed|exception/i.test(observation)) {
-      current.failureNotes = [...current.failureNotes, observation.split("\n")[0]].slice(0, 8);
-    }
-    current.nextAction = isSummaryTool(this.tools.getToolByName(action.name))
-      ? "Return a concise final answer with verification and residual risks."
-      : "Continue based on the latest tool observation.";
-    this.toolContext.sessionMemory = current;
-  }
-
   private updateVerificationState(action: ToolCall, observation: string, ok: boolean): void {
     if (!this.isVerificationAction(action)) {
       return;
@@ -596,7 +586,12 @@ export class CodingAgentGraph {
     this.toolContext.todos.verification.status = ok ? "passed" : "failed";
   }
 
-  private async maybeSaveCheckpoint(messages: Message[], action: ToolCall, latestVerification: string | null): Promise<void> {
+  private async maybeSaveCheckpoint(
+    messages: Message[],
+    action: ToolCall,
+    latestVerification: string | null,
+    tokenUsage: TokenUsage | null
+  ): Promise<void> {
     if (!this.toolContext.checkpoint) {
       return;
     }
@@ -608,9 +603,12 @@ export class CodingAgentGraph {
     await this.toolContext.checkpoint.save({
       task: latestUser?.content ?? this.toolContext.todos.taskBundle.primaryTask ?? "unknown task",
       updatedAt: Date.now(),
-      sessionMemory: this.toolContext.sessionMemory,
+      workingMemory: this.toolContext.workingMemory,
+      compressionSnapshot: this.toolContext.compressionSnapshot,
       todos: this.toolContext.todos,
-      latestVerification
+      latestVerification,
+      tokenUsage,
+      recentStepsDigest: this.toolContext.commandLogs.slice(-5).map((log) => `${log.ok ? "ok" : "error"} ${log.command}`)
     });
   }
 
@@ -645,15 +643,18 @@ export class CodingAgentGraph {
     if (!shouldRestore) {
       return;
     }
-    this.toolContext.sessionMemory = checkpoint.sessionMemory;
+    this.toolContext.workingMemory = checkpoint.workingMemory;
+    this.toolContext.compressionSnapshot = checkpoint.compressionSnapshot;
     this.toolContext.todos = checkpoint.todos;
-    this.emitStateSnapshot("plan", checkpoint.latestVerification, null);
+    this.restoredLatestVerification = checkpoint.latestVerification;
+    this.restoredTokenUsage = checkpoint.tokenUsage;
+    this.emitStateSnapshot("plan", checkpoint.latestVerification, checkpoint.tokenUsage);
   }
 
   private emitStateSnapshot(phase: AgentPhase, latestVerification: string | null, tokenUsage: TokenUsage | null): void {
     this.onEvent?.({
       type: "state",
-      snapshot: buildAgentExecutionSnapshot(phase, this.toolContext.todos, this.toolContext.sessionMemory, latestVerification, tokenUsage)
+      snapshot: buildAgentExecutionSnapshot(phase, this.toolContext.todos, this.toolContext.workingMemory, latestVerification, tokenUsage)
     });
   }
 
@@ -665,7 +666,8 @@ export class CodingAgentGraph {
         ...this.toolContext,
         todos: createEmptyTodoState(input.task),
         commandLogs: [],
-        sessionMemory: null,
+        workingMemory: null,
+        compressionSnapshot: null,
         delegationDepth: (this.toolContext.delegationDepth ?? 0) + 1,
         runSubtask: undefined,
         checkpoint: undefined

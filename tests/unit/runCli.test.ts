@@ -49,17 +49,21 @@ vi.mock("../../src/services/configLoader.js", () => ({
 }));
 
 vi.mock("../../src/services/contextLoader.js", () => ({
-  loadContextSources: () => ({
+  loadContextSources: async () => ({
     sources: {
       projectRules: [],
       projectContext: null,
-      persistentMemory: null,
+      durableMemory: {
+        entries: [],
+        legacyText: null
+      },
       availableSkills: null
     },
     paths: {
       agentsPath: "/repo/AGENTS.md",
       contextPath: "/Users/test/.nanocodin/workspaces/abc123/context.md",
-      memoryPath: "/Users/test/.nanocodin/workspaces/abc123/memory.md"
+      memoryPath: "/Users/test/.nanocodin/workspaces/abc123/memory.md",
+      durableMemoryPath: "/Users/test/.nanocodin/workspaces/abc123/durable-memory.json"
     }
   })
 }));
