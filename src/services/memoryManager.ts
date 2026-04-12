@@ -7,6 +7,7 @@ import type {
   TodoState,
   WorkingMemory
 } from "../core/toolTypes.js";
+import { isVerificationCommand } from "./executionSummary.js";
 
 function compactLine(text: string): string {
   return text.split("\n").map((line) => line.trim()).find(Boolean) ?? text.trim();
@@ -119,7 +120,7 @@ export function applyToolResult(
   }
 
   const command = extractCommand(action);
-  if (command && /\b(test|lint|typecheck|build)\b/i.test(command)) {
+  if (command && isVerificationCommand(command)) {
     next.verification = pushLimited(next.verification, `${command}: ${shortObservation}`, 6);
   }
 

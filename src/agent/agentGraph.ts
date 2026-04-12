@@ -132,6 +132,8 @@ export class CodingAgentGraph {
     if (!this.toolContext.workingMemory) {
       this.toolContext.workingMemory = createWorkingMemory(messages);
     }
+    const latestVerification = this.restoredLatestVerification ?? this.toolContext.todos.verification.latestSummary ?? null;
+    const hasVerified = this.hasSatisfiedVerification(latestVerification);
     return {
       messages,
       intermediate_steps: [],
@@ -141,11 +143,11 @@ export class CodingAgentGraph {
       phase: "discover",
       phaseVisits: { discover: 0, plan: 0, execute: 0, verify: 0, finalize: 0 },
       requiresVerify: this.requiresVerify(messages),
-      hasVerified: false,
+      hasVerified,
       stepRecoveryCount: 0,
       recoverySignatures: [],
       recoveryHistory: [],
-      latestVerification: this.restoredLatestVerification,
+      latestVerification,
       tokenUsage: this.restoredTokenUsage
     };
   }
@@ -231,7 +233,7 @@ export class CodingAgentGraph {
       this.onEvent?.({ type: "thought", thought: parsed.thought });
 
       if (actionName === "final") {
-        if (state.requiresVerify && !state.hasVerified) {
+        if (this.shouldBlockFinalForVerification(state)) {
           const observation = "ERROR: Verification required before final answer. Run test/lint/typecheck or equivalent validation first.";
           this.onEvent?.({ type: "observation", observation });
           this.emitStateSnapshot("verify", state.latestVerification, nextTokenUsage);
@@ -400,14 +402,15 @@ export class CodingAgentGraph {
       observation
     };
 
-    const hasVerified = this.isVerificationAction(state.pending_action) && result.ok
+    const verifiedAction = this.isVerificationAction(state.pending_action, state.phase);
+    const hasVerified = verifiedAction && result.ok
       ? true
       : state.hasVerified;
-    const latestVerification = this.isVerificationAction(state.pending_action)
+    const latestVerification = verifiedAction
       ? `${classifyVerificationResult(observation)}: ${observation.split("\n")[0]}`
       : state.latestVerification;
 
-    this.updateVerificationState(state.pending_action, observation, result.ok);
+    this.updateVerificationState(state.pending_action, observation, result.ok, verifiedAction);
     this.toolContext.workingMemory = applyToolResult(
       state.pending_action,
       observation,
@@ -443,6 +446,45 @@ export class CodingAgentGraph {
     return this.toolContext.runtimeConfig.agent.verifyRequiredKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
+  private shouldBlockFinalForVerification(state: AgentLoopState): boolean {
+    return state.requiresVerify && !state.hasVerified && this.hasWorkThatNeedsVerification(state);
+  }
+
+  private hasWorkThatNeedsVerification(state: AgentLoopState): boolean {
+    const executedActions = state.intermediate_steps.filter((step) => step.action);
+    if (executedActions.length === 0) {
+      return true;
+    }
+    if (this.toolContext.todos.verification.goal.trim().length > 0) {
+      return true;
+    }
+    if (this.toolContext.todos.verification.commands.length > 0) {
+      return true;
+    }
+    return executedActions.some((step) => this.isVerificationRelevantMutation(step.action));
+  }
+
+  private isVerificationRelevantMutation(action: ToolCall | undefined): boolean {
+    if (!action) {
+      return false;
+    }
+    if (action.name === "remember" || action.name === "forget") {
+      return false;
+    }
+    const tool = this.tools.getToolByName(action.name);
+    return isMutatingTool(tool);
+  }
+
+  private hasSatisfiedVerification(latestVerification: string | null): boolean {
+    if (this.toolContext.todos.verification.status === "passed") {
+      return true;
+    }
+    if (!latestVerification) {
+      return false;
+    }
+    return /verification_passed|^ok:|^pass\b|passed/i.test(latestVerification);
+  }
+
   private inferPhase(state: AgentLoopState, action: ToolCall): AgentPhase {
     const tool = this.tools.getToolByName(action.name);
     if (action.name === "todo") {
@@ -472,9 +514,26 @@ export class CodingAgentGraph {
     return formatPlannerTodoHint();
   }
 
-  private isVerificationAction(action: ToolCall): boolean {
+  private isVerificationAction(action: ToolCall, phase?: AgentPhase): boolean {
     const tool = this.tools.getToolByName(action.name);
-    return isVerificationTool(tool) && isVerificationToolAction(action);
+    if (!isVerificationTool(tool)) {
+      return false;
+    }
+    if (isVerificationToolAction(action)) {
+      return true;
+    }
+    if (action.name !== "bash") {
+      return false;
+    }
+    const input = action.input as { command?: unknown };
+    const command = typeof input.command === "string" ? input.command.trim() : "";
+    if (!command) {
+      return false;
+    }
+    if (this.toolContext.todos.verification.commands.some((item) => item.trim() === command)) {
+      return true;
+    }
+    return phase === "verify";
   }
 
   private toActionInputRecord(input: unknown): Record<string, unknown> {
@@ -561,7 +620,7 @@ export class CodingAgentGraph {
       messages: [{ role: "tool", name: attempt.action.name, content: retryObservation }],
       pending_action: null,
       stepRecoveryCount: state.stepRecoveryCount + 1,
-      hasVerified: this.isVerificationAction(attempt.action) && retryResult.ok ? true : state.hasVerified,
+      hasVerified: this.isVerificationAction(attempt.action, state.phase) && retryResult.ok ? true : state.hasVerified,
       recoveryHistory: updatedHistory,
       recoverySignatures: [...state.recoverySignatures, attempt.signature],
       intermediate_steps: [...state.intermediate_steps.slice(0, -1), updatedStep]
@@ -572,8 +631,8 @@ export class CodingAgentGraph {
     return isReadOnlyTool(this.tools.getToolByName(name));
   }
 
-  private updateVerificationState(action: ToolCall, observation: string, ok: boolean): void {
-    if (!this.isVerificationAction(action)) {
+  private updateVerificationState(action: ToolCall, observation: string, ok: boolean, verifiedAction?: boolean): void {
+    if (!(verifiedAction ?? this.isVerificationAction(action))) {
       return;
     }
     const input = action.input as { command?: unknown };

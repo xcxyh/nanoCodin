@@ -129,6 +129,31 @@ class UsageFinalOnlyModel implements ModelProvider {
   }
 }
 
+class PytestThenFinalModel implements ModelProvider {
+  private calls = 0;
+
+  async generate() {
+    this.calls += 1;
+    if (this.calls === 1) {
+      return {
+        text: [
+          "Thought: run python tests",
+          "Action: bash",
+          "Action Input: {\"command\":\"pytest\"}"
+        ].join("\n")
+      };
+    }
+
+    return {
+      text: [
+        "Thought: done",
+        "Action: final",
+        "Action Input: {\"answer\":\"all done\"}"
+      ].join("\n")
+    };
+  }
+}
+
 class StructuredCreateThenFinalModel implements ModelProvider {
   private calls = 0;
   sawTools = false;
@@ -492,6 +517,171 @@ describe("CodingAgentGraph verification guard", () => {
 
     expect(result.finalAnswer).toContain("all done");
     expect(snapshots.at(-1)).toBe(7);
+  });
+
+  it("accepts a restored passed verification result instead of re-blocking final", async () => {
+    const baseContext = createToolContext();
+    const context = createToolContext({
+      runtimeConfig: {
+        ...baseContext.runtimeConfig,
+        agent: {
+          ...baseContext.runtimeConfig.agent,
+          verifyRequiredKeywords: ["fix"]
+        }
+      },
+      checkpoint: {
+        async load() {
+          return {
+            id: "checkpoint-1",
+            task: "fix the bug",
+            updatedAt: Date.now(),
+            workingMemory: {
+              goal: "fix the bug",
+              activePlan: ["Run verification"],
+              touchedFiles: ["src/a.ts"],
+              openQuestions: [],
+              verification: ["npm run test: OK"],
+              recentFailures: [],
+              nextAction: "Return final answer."
+            },
+            compressionSnapshot: null,
+            todos: {
+              items: [{ id: "1", content: "Fix the bug", status: "completed" }],
+              verification: {
+                goal: "Run tests",
+                commands: ["npm run test"],
+                latestCommand: "npm run test",
+                latestSummary: "OK: npm run test",
+                status: "passed"
+              },
+              taskBundle: { primaryTask: "fix the bug", subtasks: [], results: [] }
+            },
+            latestVerification: "verification_passed: OK: npm run test",
+            tokenUsage: null
+          };
+        },
+        async save(checkpoint) {
+          return { ...checkpoint, id: "checkpoint-1" };
+        },
+        async clear() {
+          return;
+        },
+        async list() {
+          return [];
+        }
+      }
+    });
+    const graph = new CodingAgentGraph(
+      new AlwaysFinalModel(),
+      new ToolRegistry([]),
+      context,
+      2,
+      8
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "continue fix the bug" }],
+      checkpointRestore: "latest"
+    });
+
+    expect(result.finalAnswer).toContain("all done");
+    expect(result.steps.some((step) => (step.observation ?? "").includes("Verification required before final answer"))).toBe(false);
+  });
+
+  it("treats pytest as a verification command so final is not re-blocked", async () => {
+    const baseContext = createToolContext();
+    const context = createToolContext({
+      runtimeConfig: {
+        ...baseContext.runtimeConfig,
+        agent: {
+          ...baseContext.runtimeConfig.agent,
+          verifyRequiredKeywords: ["fix"]
+        }
+      }
+    });
+    const bashTool = {
+      name: "bash",
+      description: "Run shell commands",
+      capabilities: ["verification"] as const,
+      schema: z.object({ command: z.string() }),
+      async execute() {
+        return { ok: true, output: "{\"exit_code\":0,\"stdout_tail\":\"2 passed\",\"stderr_tail\":\"\",\"duration_ms\":10,\"policy_decision\":\"allow\"}" };
+      }
+    };
+    const graph = new CodingAgentGraph(
+      new PytestThenFinalModel(),
+      new ToolRegistry([bashTool]),
+      context,
+      4,
+      8
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "fix the failing tests" }]
+    });
+
+    expect(result.finalAnswer).toContain("all done");
+    expect(context.todos.verification.status).toBe("passed");
+    expect(context.todos.verification.latestCommand).toBe("pytest");
+    expect(result.steps.some((step) => (step.observation ?? "").includes("Verification required before final answer"))).toBe(false);
+  });
+
+  it("does not require verification for remember-only work even when the prompt includes verify keywords", async () => {
+    const baseContext = createToolContext();
+    const context = createToolContext({
+      runtimeConfig: {
+        ...baseContext.runtimeConfig,
+        agent: {
+          ...baseContext.runtimeConfig.agent,
+          verifyRequiredKeywords: ["implement"]
+        }
+      }
+    });
+    const model: ModelProvider = {
+      calls: 0,
+      async generate() {
+        this.calls += 1;
+        if (this.calls === 1) {
+          return {
+            text: [
+              "Thought: store the durable preference",
+              "Action: remember",
+              "Action Input: {\"kind\":\"preference\",\"content\":\"Keep answers concise.\"}"
+            ].join("\n")
+          };
+        }
+        return {
+          text: [
+            "Thought: done",
+            "Action: final",
+            "Action Input: {\"answer\":\"all done\"}"
+          ].join("\n")
+        };
+      }
+    } as ModelProvider & { calls: number };
+    const rememberTool = {
+      name: "remember",
+      description: "persist durable memory",
+      capabilities: ["mutating", "planning"] as const,
+      schema: z.object({ kind: z.string(), content: z.string() }),
+      async execute() {
+        return { ok: true, output: "remembered preference\ncontent=Keep answers concise." };
+      }
+    };
+    const graph = new CodingAgentGraph(
+      model,
+      new ToolRegistry([rememberTool]),
+      context,
+      4,
+      8
+    );
+
+    const result = await graph.run({
+      messages: [{ role: "user", content: "implement a lasting preference note" }]
+    });
+
+    expect(result.finalAnswer).toContain("all done");
+    expect(result.steps.some((step) => (step.observation ?? "").includes("Verification required before final answer"))).toBe(false);
   });
 
   it("executes structured tool calls while preserving the registry execution path", async () => {

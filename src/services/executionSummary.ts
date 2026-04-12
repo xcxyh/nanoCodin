@@ -1,6 +1,40 @@
 import type { ToolCall } from "../core/messageTypes.js";
 import type { SubtaskResult, TodoState, WorkingMemory } from "../core/toolTypes.js";
 
+function normalizeCommand(command: string): string {
+  return command.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function isVerificationCommand(command: string): boolean {
+  const normalized = normalizeCommand(command);
+  if (!normalized) {
+    return false;
+  }
+
+  if (/\b(test|lint|typecheck|build)\b/i.test(normalized)) {
+    return true;
+  }
+
+  return [
+    /\bpytest\b/,
+    /\bvitest\b/,
+    /\bjest\b/,
+    /\bmocha\b/,
+    /\bava\b/,
+    /\bnyc\b/,
+    /\bcoverage\b/,
+    /\bmypy\b/,
+    /\bpyright\b/,
+    /\btsc\b/,
+    /\bruff check\b/,
+    /\beslint\b/,
+    /\bgo test\b/,
+    /\bcargo test\b/,
+    /\bdeno test\b/,
+    /\bphpunit\b/
+  ].some((pattern) => pattern.test(normalized));
+}
+
 export function isVerificationAction(action: ToolCall): boolean {
   if (action.name !== "bash") {
     return false;
@@ -9,7 +43,7 @@ export function isVerificationAction(action: ToolCall): boolean {
   if (typeof input.command !== "string") {
     return false;
   }
-  return /\b(test|lint|typecheck|build)\b/i.test(input.command);
+  return isVerificationCommand(input.command);
 }
 
 export function classifyVerificationResult(observation: string): string {
