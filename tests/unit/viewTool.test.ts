@@ -8,7 +8,7 @@ import { createToolContext } from "../fixtures/runtime.js";
 describe("viewTool", () => {
   it("returns a helpful message instead of failing when path is omitted and no context exists", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-view-"));
-    const context = createToolContext({ cwd, sessionMemory: null });
+    const context = createToolContext({ cwd, workingMemory: null });
 
     const result = await viewTool.execute({}, context);
 
@@ -21,12 +21,13 @@ describe("viewTool", () => {
     await writeFile(path.join(cwd, "sample.txt"), "first\nsecond\n", "utf8");
     const context = createToolContext({
       cwd,
-      sessionMemory: {
+      workingMemory: {
         goal: "Inspect sample",
-        decisions: [],
+        activePlan: [],
         touchedFiles: ["sample.txt"],
-        pendingVerification: [],
-        failureNotes: [],
+        openQuestions: [],
+        verification: [],
+        recentFailures: [],
         nextAction: "View the file."
       }
     });

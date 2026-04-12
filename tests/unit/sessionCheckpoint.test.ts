@@ -14,7 +14,8 @@ function createCheckpoint(task: string) {
   return {
     task,
     updatedAt: Date.now(),
-    sessionMemory: null,
+    workingMemory: null,
+    compressionSnapshot: null,
     todos: {
       items: [],
       verification: {
@@ -26,7 +27,8 @@ function createCheckpoint(task: string) {
       },
       taskBundle: { primaryTask: null, subtasks: [], results: [] }
     },
-    latestVerification: null
+    latestVerification: null,
+    tokenUsage: null
   };
 }
 
@@ -70,7 +72,8 @@ describe("FileSessionCheckpointStore", () => {
       id: "session-1",
       task: "resume me",
       updatedAt: Date.now(),
-      sessionMemory: null,
+      workingMemory: null,
+      compressionSnapshot: null,
       todos: {
         items: [],
         verification: {
@@ -106,7 +109,8 @@ describe("FileSessionCheckpointStore", () => {
       id: "session-legacy",
       task: "resume legacy todo",
       updatedAt: Date.now(),
-      sessionMemory: null,
+      workingMemory: null,
+      compressionSnapshot: null,
       todos: {
         items: [
           { id: "todo-1", content: "done task", completed: true },
@@ -130,5 +134,38 @@ describe("FileSessionCheckpointStore", () => {
       { id: "todo-1", content: "done task", status: "completed" },
       { id: "todo-2", content: "open task", status: "pending" }
     ]);
+  });
+
+  it("bridges legacy sessionMemory into workingMemory when loading old checkpoints", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-checkpoint-"));
+    process.env.NANOCODIN_HOME = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
+    const checkpointDir = path.join(cwd, ".nanocodin");
+    await mkdir(checkpointDir, { recursive: true });
+    await writeFile(path.join(checkpointDir, "session-checkpoint.json"), JSON.stringify({
+      id: "session-legacy-memory",
+      task: "resume legacy memory",
+      updatedAt: Date.now(),
+      sessionMemory: {
+        goal: "Fix the bug",
+        decisions: ["Inspect the failing path"],
+        touchedFiles: ["src/a.ts"],
+        pendingVerification: ["Run npm run test"],
+        failureNotes: ["ERROR: old failure"],
+        nextAction: "Patch the file"
+      },
+      todos: createCheckpoint("resume legacy memory").todos,
+      latestVerification: null
+    }, null, 2));
+
+    const loaded = await new FileSessionCheckpointStore(cwd).load();
+
+    expect(loaded?.workingMemory).toMatchObject({
+      goal: "Fix the bug",
+      activePlan: ["Inspect the failing path"],
+      touchedFiles: ["src/a.ts"],
+      openQuestions: ["Run npm run test"],
+      recentFailures: ["ERROR: old failure"],
+      nextAction: "Patch the file"
+    });
   });
 });

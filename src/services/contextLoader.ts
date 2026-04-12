@@ -1,11 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { ContextSources } from "../core/toolTypes.js";
+import { loadDurableMemory } from "./durableMemory.js";
 import { resolveNanoCodinPaths } from "./userPaths.js";
 
 export interface ContextFilePaths {
   agentsPath: string;
   contextPath: string;
   memoryPath: string;
+  durableMemoryPath: string;
 }
 
 export function resolveContextFilePaths(cwd: string): ContextFilePaths {
@@ -13,7 +15,8 @@ export function resolveContextFilePaths(cwd: string): ContextFilePaths {
   return {
     agentsPath: paths.agentsPath,
     contextPath: existsSync(paths.contextPath) ? paths.contextPath : paths.legacyContextPath,
-    memoryPath: existsSync(paths.memoryPath) ? paths.memoryPath : paths.legacyMemoryPath
+    memoryPath: existsSync(paths.memoryPath) ? paths.memoryPath : paths.legacyMemoryPath,
+    durableMemoryPath: paths.durableMemoryPath
   };
 }
 
@@ -49,13 +52,13 @@ function readOptionalText(filePath: string): string | null {
   return text.length > 0 ? text : null;
 }
 
-export function loadContextSources(cwd: string): { sources: ContextSources; paths: ContextFilePaths } {
+export async function loadContextSources(cwd: string): Promise<{ sources: ContextSources; paths: ContextFilePaths }> {
   const paths = resolveContextFilePaths(cwd);
   return {
     sources: {
       projectRules: parseAgentsGuidelines(paths.agentsPath),
       projectContext: readOptionalText(paths.contextPath),
-      persistentMemory: readOptionalText(paths.memoryPath),
+      durableMemory: await loadDurableMemory(cwd),
       availableSkills: null
     },
     paths

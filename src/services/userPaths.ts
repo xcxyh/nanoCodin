@@ -14,6 +14,7 @@ export interface NanoCodinPaths {
   agentsPath: string;
   contextPath: string;
   memoryPath: string;
+  durableMemoryPath: string;
   latestCheckpointPath: string;
   checkpointsDir: string;
   repoIndexPath: string;
@@ -61,6 +62,7 @@ export function resolveNanoCodinPaths(cwd: string, env: NodeJS.ProcessEnv = proc
     agentsPath: path.join(cwd, "AGENTS.md"),
     contextPath: path.join(workspaceDir, "context.md"),
     memoryPath: path.join(workspaceDir, "memory.md"),
+    durableMemoryPath: path.join(workspaceDir, "durable-memory.json"),
     latestCheckpointPath: path.join(workspaceDir, "session-checkpoint.json"),
     checkpointsDir: path.join(workspaceDir, "checkpoints"),
     repoIndexPath: path.join(workspaceDir, "repo-index.json"),

@@ -378,12 +378,13 @@ describe("CodingAgentGraph verification guard", () => {
       },
       taskBundle: { primaryTask: "finished task", subtasks: [], results: [] }
     };
-    context.sessionMemory = {
+    context.workingMemory = {
       goal: "old task",
-      decisions: [],
+      activePlan: [],
       touchedFiles: [],
-      pendingVerification: [],
-      failureNotes: [],
+      openQuestions: [],
+      verification: [],
+      recentFailures: [],
       nextAction: "nothing"
     };
     context.commandLogs = [{
@@ -404,7 +405,11 @@ describe("CodingAgentGraph verification guard", () => {
     expect(result.finalAnswer).toContain("all done");
     expect(secondResult.finalAnswer).toContain("all done");
     expect(context.todos.items).toEqual([]);
-    expect(context.sessionMemory).toBeNull();
+    expect(context.workingMemory).toMatchObject({
+      goal: "start a new task",
+      touchedFiles: []
+    });
+    expect(context.compressionSnapshot).toBeNull();
     expect(context.commandLogs).toEqual([]);
   });
 
@@ -593,9 +598,9 @@ describe("CodingAgentGraph verification guard", () => {
     expect(model.prompts[3]).toContain("TOOL: OK: step-1");
     expect(model.prompts[3]).toContain("Action: mutate {&quot;note&quot;:&quot;step-1&quot;}");
     expect(model.prompts[3]).toContain("Observation: OK: step-1");
-    expect(model.prompts[3]).toContain("Session memory summary:");
-    expect(model.prompts[3]).toContain("&quot;goal&quot;: &quot;Complete the current coding task.&quot;");
-    expect(model.prompts[3]).toContain("&quot;decisions&quot;: []");
+    expect(model.prompts[3]).toContain("Working memory:");
+    expect(model.prompts[3]).toContain("Goal: make this change");
+    expect(model.prompts[3]).toContain("Compressed history summary:");
   });
 
   it("rejects with AbortError when the run is aborted", async () => {

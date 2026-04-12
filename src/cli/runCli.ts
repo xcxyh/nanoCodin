@@ -11,6 +11,7 @@ import { loadContextSources } from "../services/contextLoader.js";
 import { RepoIndexer } from "../services/repoIndexer.js";
 import { PermissionController } from "../core/permission.js";
 import { FileSessionCheckpointStore } from "../services/sessionCheckpoint.js";
+import { DurableMemoryStore } from "../services/durableMemory.js";
 import { formatSkillsForPrompt, loadSkills } from "../services/skills.js";
 import { ensureWorkspaceState } from "../services/workspaceState.js";
 import { buildSlashCommands } from "../ui/utils/slashCommands.js";
@@ -64,6 +65,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   await ensureWorkspaceState(args.cwd);
 
   const checkpoint = new FileSessionCheckpointStore(args.cwd);
+  const durableMemoryStore = new DurableMemoryStore(args.cwd);
   if (args.resume.enabled) {
     const restored = await checkpoint.load(args.resume.sessionId ?? undefined);
     if (!restored) {
@@ -80,7 +82,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     }
   }
 
-  const context = loadContextSources(args.cwd);
+  const context = await loadContextSources(args.cwd);
   const skills = await loadSkills(args.cwd);
   const slashCommands = buildSlashCommands(skills);
   context.sources.availableSkills = formatSkillsForPrompt(skills);
@@ -99,8 +101,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     runtimeConfig: runtime.config,
     repoIndex: repoIndexer,
     commandLogs: [],
-    sessionMemory: null,
+    workingMemory: null,
+    compressionSnapshot: null,
     contextSources: context.sources,
+    durableMemoryStore,
     permission: permissionController,
     askUserQuestion: permissionController.questionController,
     checkpoint
