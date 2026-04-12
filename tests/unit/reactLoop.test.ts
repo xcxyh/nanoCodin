@@ -54,30 +54,16 @@ describe("parseAgentResponse", () => {
       "discover",
       {
         goal: "Inspect the project.",
-        activePlan: ["Use repo index first"],
+        decisions: ["Use repo index first"],
         touchedFiles: ["src/index.ts"],
-        openQuestions: [],
-        verification: [],
-        recentFailures: [],
+        pendingVerification: [],
+        failureNotes: [],
         nextAction: "Read the entrypoint"
       },
-      null,
       {
         projectRules: ["Keep diffs small"],
         projectContext: "Use npm run typecheck for TS checks.",
-        durableMemory: {
-          entries: [
-            {
-              id: "durable-1",
-              kind: "pitfall",
-              content: "Avoid broad scans.",
-              tags: ["repo"],
-              createdAt: 1,
-              updatedAt: 1
-            }
-          ],
-          legacyText: null
-        },
+        persistentMemory: "Avoid broad scans.",
         availableSkills: "$frontend-design | Build polished UI | /Users/test/.agents/skills/frontend-design/SKILL.md"
       },
       "Todo state:\n(none)",
@@ -86,12 +72,11 @@ describe("parseAgentResponse", () => {
 
     expect(messages[0]?.content).toContain("Project rules:");
     expect(messages[0]?.content).toContain("Keep diffs small");
-    expect(messages[0]?.content).toContain("Durable memory:");
+    expect(messages[0]?.content).toContain("Persistent memory:");
     expect(messages[0]?.content).toContain("Available skills:");
     expect(messages[0]?.content).toContain("$frontend-design");
-    expect(messages[1]?.content).toContain("Working memory:");
-    expect(messages[1]?.content).toContain("Next action: Read the entrypoint");
-    expect(messages[1]?.content).toContain("Compressed history summary:");
+    expect(messages[1]?.content).toContain("Session memory summary:");
+    expect(messages[1]?.content).toContain("&quot;nextAction&quot;: &quot;Read the entrypoint&quot;");
   });
 
   it("emits structured todo items in execution snapshots", () => {

@@ -1,10 +1,9 @@
 import type { AgentStep, Message, TokenUsage, ToolCall } from "../core/messageTypes.js";
-import type { CompressionSnapshot, ContextSources, TodoItem, TodoState, ToolContext, WorkingMemory } from "../core/toolTypes.js";
+import type { ContextSources, SessionMemory, TodoItem, TodoState, ToolContext } from "../core/toolTypes.js";
 import type { ModelProvider } from "../llm/modelRouter.js";
 import { renderTemplate } from "../prompts/templateEngine.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import { MAX_TODO_ITEMS } from "../tools/planning/todoLimits.js";
-import { buildPromptMemoryBlock } from "../services/memoryManager.js";
 
 export interface ParsedAgentOutput {
   thought: string;
@@ -130,6 +129,13 @@ function formatProjectRules(rules: string[]): string {
   return rules.map((rule) => `- ${rule}`).join("\n");
 }
 
+function formatSessionMemory(memory: SessionMemory | null): string {
+  if (!memory) {
+    return "(none)";
+  }
+  return JSON.stringify(memory, null, 2);
+}
+
 function formatExecutionState(
   todoState: TodoState,
   latestVerification: string | null
@@ -184,13 +190,10 @@ function formatTodoProgressText(completed: number, total: number): string {
 }
 
 export async function buildAgentMessages(messages: Message[], steps: AgentStep[], toolsDescription: string): Promise<Message[]> {
-  return buildAgentMessagesWithContext(messages, steps, toolsDescription, "discover", null, null, {
+  return buildAgentMessagesWithContext(messages, steps, toolsDescription, "discover", null, {
     projectRules: [],
     projectContext: null,
-    durableMemory: {
-      entries: [],
-      legacyText: null
-    },
+    persistentMemory: null,
     availableSkills: null
   }, "(none)", "(none)");
 }
@@ -200,22 +203,16 @@ export async function buildAgentMessagesWithContext(
   steps: AgentStep[],
   toolsDescription: string,
   phase: AgentPhase,
-  workingMemory: WorkingMemory | null,
-  compressionSnapshot: CompressionSnapshot | null,
+  sessionMemory: SessionMemory | null,
   contextSources: ContextSources,
   executionState: string,
   toolHelp: string
 ): Promise<Message[]> {
-  const promptMemoryBlock = buildPromptMemoryBlock(
-    workingMemory,
-    compressionSnapshot,
-    contextSources.durableMemory
-  );
   const systemPrompt = await renderTemplate("system", {
     tools: toolsDescription,
     projectRules: formatProjectRules(contextSources.projectRules),
     projectContext: formatSourceText(contextSources.projectContext),
-    durableMemory: promptMemoryBlock.durableMemory,
+    persistentMemory: formatSourceText(contextSources.persistentMemory),
     availableSkills: formatSourceText(contextSources.availableSkills),
     toolHelp,
     maxTodoItems: MAX_TODO_ITEMS
@@ -224,8 +221,7 @@ export async function buildAgentMessagesWithContext(
     conversation: formatConversation(messages),
     trajectory: formatTrajectory(steps),
     phase,
-    workingMemory: promptMemoryBlock.workingMemory,
-    compressedHistory: promptMemoryBlock.compressedHistory,
+    sessionMemory: formatSessionMemory(sessionMemory),
     executionState
   });
 
@@ -238,7 +234,7 @@ export async function buildAgentMessagesWithContext(
 export function buildAgentExecutionSnapshot(
   phase: AgentPhase,
   todos: TodoState,
-  workingMemory: WorkingMemory | null,
+  sessionMemory: SessionMemory | null,
   latestVerification: string | null,
   tokenUsage: TokenUsage | null
 ): AgentExecutionSnapshot {
@@ -261,8 +257,8 @@ export function buildAgentExecutionSnapshot(
     latestVerification,
     tokenUsage,
     subtaskSummaries: todos.taskBundle.results.map((result) => `${result.status} ${result.task}: ${result.summary}`),
-    sessionNextAction: workingMemory?.nextAction ?? null,
-    touchedFiles: workingMemory?.touchedFiles ?? []
+    sessionNextAction: sessionMemory?.nextAction ?? null,
+    touchedFiles: sessionMemory?.touchedFiles ?? []
   };
 }
 

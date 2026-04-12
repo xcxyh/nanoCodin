@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Tool } from "../../core/toolTypes.js";
 
 const schema = z.object({
-  source: z.enum(["project_rules", "project_context", "persistent_memory", "durable_memory"]),
+  source: z.enum(["project_rules", "project_context", "persistent_memory"]),
   startLine: z.number().int().min(1).optional(),
   endLine: z.number().int().min(1).optional()
 });
@@ -23,11 +23,7 @@ export const readContextTool: Tool<Input> = {
       ? context.contextSources.projectRules.join("\n")
       : input.source === "project_context"
         ? (context.contextSources.projectContext ?? "")
-        : input.source === "persistent_memory"
-          ? (context.contextSources.durableMemory.legacyText ?? "")
-          : context.contextSources.durableMemory.entries
-            .map((entry) => `${entry.kind}: ${entry.content}${entry.tags.length > 0 ? ` [${entry.tags.join(", ")}]` : ""}`)
-            .join("\n");
+        : (context.contextSources.persistentMemory ?? "");
 
     if (!raw.trim()) {
       return { ok: true, output: `No content available for ${input.source}.` };
@@ -45,9 +41,7 @@ export const readContextTool: Tool<Input> = {
       ? "Use this for hard constraints and collaboration rules."
       : input.source === "project_context"
         ? "Use this for repo architecture and operating conventions."
-        : input.source === "persistent_memory"
-          ? "Use this for legacy imported memory text."
-          : "Use this for durable lessons, user preferences, and workspace facts.";
+        : "Use this for durable lessons or prior pitfalls.";
     return {
       ok: true,
       output: [`source=${input.source}`, `hint=${hint}`, ...numbered].join("\n")

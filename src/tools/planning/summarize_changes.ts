@@ -15,7 +15,7 @@ export const summarizeChangesTool: Tool<Input> = {
   schema,
   execute: async (input, context) => {
     const summary = buildFinalSummary({
-      workingMemory: context.workingMemory,
+      sessionMemory: context.sessionMemory,
       todos: context.todos,
       subtasks: context.todos.taskBundle.results,
       latestVerification: input.latestVerification ?? null

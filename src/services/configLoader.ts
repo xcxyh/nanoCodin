@@ -7,7 +7,7 @@ import {
   type ResolvedRuntimeConfigResult,
   type SandboxPolicyDecision
 } from "../core/runtimeConfig.js";
-import { parseAgentsGuidelines, resolveContextFilePaths } from "./contextLoader.js";
+import { loadContextSources } from "./contextLoader.js";
 import { resolveNanoCodinPaths } from "./userPaths.js";
 import { parseSimpleYaml, stringifySimpleYaml } from "./yamlConfig.js";
 
@@ -413,13 +413,13 @@ export function normalizeModelProvider(value: string | undefined, fallback: Mode
 export function loadRuntimeConfig(cwd: string, argv: string[] = process.argv.slice(2)): ResolvedRuntimeConfigResult {
   const config = cloneDefaultConfig();
   const paths = resolveNanoCodinPaths(cwd);
-  const contextPaths = resolveContextFilePaths(cwd);
+  const context = loadContextSources(cwd);
   const configYamlExists = existsSync(paths.configYamlPath);
 
   loadYamlConfig(paths.configYamlPath, config);
   loadEnvConfig(config);
   loadCliOverrides(config, argv);
-  config.agentsGuidelines = parseAgentsGuidelines(contextPaths.agentsPath);
+  config.agentsGuidelines = context.sources.projectRules;
 
   if (config.agent.recursionLimit < config.agent.maxSteps + 2) {
     config.agent.recursionLimit = config.agent.maxSteps + 2;
@@ -432,9 +432,9 @@ export function loadRuntimeConfig(cwd: string, argv: string[] = process.argv.sli
       configYamlExists,
       workspaceStateDir: paths.workspaceStateDir,
       workspaceId: paths.workspaceId,
-      agentsPath: contextPaths.agentsPath,
-      contextPath: contextPaths.contextPath,
-      memoryPath: contextPaths.memoryPath
+      agentsPath: context.paths.agentsPath,
+      contextPath: context.paths.contextPath,
+      memoryPath: context.paths.memoryPath
     }
   };
 }

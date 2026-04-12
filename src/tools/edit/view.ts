@@ -17,7 +17,7 @@ export const viewTool: Tool<Input> = {
   capabilities: ["read_only"],
   schema,
   execute: async (input, context) => {
-    const fallbackPath = context.workingMemory?.touchedFiles.at(-1);
+    const fallbackPath = context.sessionMemory?.touchedFiles.at(-1);
     const selectedPath = input.path ?? fallbackPath;
 
     if (!selectedPath) {

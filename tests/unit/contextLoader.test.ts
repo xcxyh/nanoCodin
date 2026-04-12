@@ -15,12 +15,11 @@ describe("loadContextSources", () => {
     await writeFile(paths.contextPath, "Architecture overview");
     await writeFile(paths.memoryPath, "Remember the test command");
 
-    const loaded = await loadContextSources(cwd);
+    const loaded = loadContextSources(cwd);
 
     expect(loaded.sources.projectRules).toEqual(["Keep diffs small", "Verify before final"]);
     expect(loaded.sources.projectContext).toBe("Architecture overview");
-    expect(loaded.sources.durableMemory.legacyText).toBe("Remember the test command");
-    expect(loaded.sources.durableMemory.entries).toEqual([]);
+    expect(loaded.sources.persistentMemory).toBe("Remember the test command");
     expect(loaded.sources.availableSkills).toBeNull();
   });
 
@@ -28,14 +27,11 @@ describe("loadContextSources", () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-context-"));
     process.env.NANOCODIN_HOME = await mkdtemp(path.join(os.tmpdir(), "nanocodin-home-"));
 
-    const loaded = await loadContextSources(cwd);
+    const loaded = loadContextSources(cwd);
 
     expect(loaded.sources.projectRules).toEqual([]);
     expect(loaded.sources.projectContext).toBeNull();
-    expect(loaded.sources.durableMemory).toEqual({
-      entries: [],
-      legacyText: null
-    });
+    expect(loaded.sources.persistentMemory).toBeNull();
     expect(loaded.sources.availableSkills).toBeNull();
   });
 });

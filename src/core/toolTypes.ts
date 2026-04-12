@@ -39,49 +39,21 @@ export interface CommandExecutionLog {
   ok: boolean;
 }
 
-export interface DurableMemoryStoreLike {
-  load(): Promise<DurableMemory>;
-  save(memory: DurableMemory): Promise<void>;
-  upsert(entry: DurableMemoryEntry): Promise<DurableMemory>;
-  remove(kind: DurableMemoryKind, content: string): Promise<DurableMemory>;
-}
-
 export interface WorkingMemory {
   goal: string;
-  activePlan: string[];
-  touchedFiles: string[];
-  openQuestions: string[];
-  verification: string[];
-  nextAction: string;
-  recentFailures: string[];
-}
-
-export interface CompressionSnapshot {
-  summary: string;
   decisions: string[];
-  completedWork: string[];
-  pendingWork: string[];
-  importantEvidence: string[];
-  sourceStepRange: {
-    start: number;
-    end: number;
-  };
+  touchedFiles: string[];
+  openIssues: string[];
+  nextAction: string;
 }
 
-export type DurableMemoryKind = "decision" | "pitfall" | "preference" | "workspace_fact";
-
-export interface DurableMemoryEntry {
-  id: string;
-  kind: DurableMemoryKind;
-  content: string;
-  tags: string[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface DurableMemory {
-  entries: DurableMemoryEntry[];
-  legacyText: string | null;
+export interface SessionMemory {
+  goal: string;
+  decisions: string[];
+  touchedFiles: string[];
+  pendingVerification: string[];
+  failureNotes: string[];
+  nextAction: string;
 }
 
 export interface VerificationCheckpoint {
@@ -95,7 +67,7 @@ export interface VerificationCheckpoint {
 export interface ContextSources {
   projectRules: string[];
   projectContext: string | null;
-  durableMemory: DurableMemory;
+  persistentMemory: string | null;
   availableSkills: string | null;
 }
 
@@ -154,10 +126,8 @@ export interface ToolContext {
   runtimeConfig: ResolvedRuntimeConfig;
   repoIndex: RepoIndexProvider;
   commandLogs: CommandExecutionLog[];
-  workingMemory: WorkingMemory | null;
-  compressionSnapshot: CompressionSnapshot | null;
+  sessionMemory: SessionMemory | null;
   contextSources: ContextSources;
-  durableMemoryStore?: DurableMemoryStoreLike;
   abortSignal?: AbortSignal;
   permission?: PermissionController;
   askUserQuestion?: AskUserQuestionController;
@@ -170,17 +140,9 @@ export interface SessionCheckpoint {
   id: string;
   task: string;
   updatedAt: number;
-  workingMemory: WorkingMemory | null;
-  compressionSnapshot: CompressionSnapshot | null;
+  sessionMemory: SessionMemory | null;
   todos: TodoState;
   latestVerification: string | null;
-  tokenUsage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    source: "actual" | "estimated" | "mixed";
-  } | null;
-  recentStepsDigest?: string[];
 }
 
 export interface SessionCheckpointSummary {
