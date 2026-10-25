@@ -17,7 +17,7 @@
 
 ## CLI
 
-需要 Node.js 20.3+。
+需要 Node.js 20.5+。
 
 ```bash
 npm install -g nano-codin
@@ -45,6 +45,9 @@ model:
   provider: openai
   name: your-model
   apiKey: your-key
+  requestTimeoutMs: 600000
+  idleTimeoutMs: 120000
+  maxRetries: 1
 agent:
   maxSteps: 50
   maxHistoryChars: 48000
@@ -52,6 +55,8 @@ sandbox:
   defaultPolicy: ask
   timeoutMs: 60000
 ```
+
+模型总预算包括重试与兼容回退；收到响应字节会重置无数据计时，不会重置总预算。CLI 可用 `--model-timeout-ms`、`--model-idle-timeout-ms`、`--model-max-retries` 覆盖，也支持 `MODEL_REQUEST_TIMEOUT_MS`、`MODEL_IDLE_TIMEOUT_MS`、`MODEL_MAX_RETRIES`。认证和 schema 错误不自动重试，用户取消会停止重试；超时后会保留会话并给出续接方式，不重放写工具。
 
 `maxSteps` 是每次任务的模型请求轮数；`maxHistoryChars` 限制送入模型的工具历史，磁盘记录保留完整事件。它不是总上下文 token 上限，用户请求、规则和显式调用的 skill 正文另计。
 
@@ -126,13 +131,17 @@ node --import tsx examples/custom-agent.ts
 
 默认工具：`ls`、`grep`、`view`、`create`、`str_replace`、`bash`、`todo`、`ask_user_question`。使用 `nano-codin/tools` 的 `createDefaultTools()` 获取，也可逐个选择或完全替换。`final` 是保留的完成协议名。
 
-工具通过 `ToolResult.effects` 声明实际改动、计划或命令验证事实。默认 coding CLI 使用 `requireVerification` 完成回调，要求最新改动后有成功检查；自定义工具与 shell 修改应准确声明这些事实。该机制不推断任意 shell 脚本的所有文件改动，也不能证明测试覆盖了业务需求。
+`create` 仅新建文件。已有文件可用原有 `str_replace` 精确替换；整文件改写需先 `view` 取得 SHA256，再传 `{ mode: "rewrite", path, expectedHash, newText }`。旧参数仍有效。改写使用版本检查和同目录原子替换；拒绝编辑符号链接/硬链接/特殊文件，保留权限位。它降低陈旧覆盖风险，不对不合作的并发写者承诺严格 CAS。文本读写上限 8 MiB；大输出按实际行/列返回续读位置。
+
+工具通过 `ToolResult.effects` 声明实际改动、计划或命令验证事实。已知前置失败返回 `changed=false`；可能存在副作用的失败/脚本返回 `uncertainChanges=true`，不伪装成已修改文件。任意 shell 脚本的副作用无法完整推断；需要精确的只读操作时优先使用专用工具。默认 coding CLI 使用 `requireVerification` 完成回调，要求最新改动后有成功检查；自定义工具与 shell 修改应准确声明这些事实。该机制不推断任意 shell 脚本的所有文件改动，也不能证明测试覆盖了业务需求。
 
 同一 Agent 的普通 `run()` 开始新的任务验收；`run(task, { continuation: true })` 延续原任务的计划和检查要求。CLI 的 `continue` / `继续` 和 `--resume` 使用续接语义。新任务不继承旧任务的验收状态，review 仍保留整个会话的改动记录。
 
 默认 bash 验收只接受独立、无修改的单条命令。请分别执行修改和检查；复合命令、管道以及检查后再修改不算验收通过。默认审批策略下，`find`、`sed`、`awk`、`tree` 等可写入或执行其他程序的工具需要确认；显式 `allow` 策略仍可放行。取消和超时会清理 shell 子进程，并保留已经捕获的输出。恢复未结束的写操作后，需要重新运行检查，不会自动重放写入。
 
-`nano-codin/session` 提供 `FileSessionStore`；`nano-codin/context` 提供 `loadProjectInstructions` 和 skill 发现函数。它们都是可选适配器。
+原生工具协议按事实顺序构建 assistant/tool 消息；文本回退独立处理。部分服务（如 DeepSeek thinking 工具调用）要求回传协议续接字段，这些数据可保留在私有会话中，但不会显示为思考过程或加入普通文本工具历史；过大或旧会话缺失时降级为明确的历史事实，不执行旧调用。`RunResult.failure` 和模型结束事件可提供分类、尝试次数、耗时、HTTP 状态及响应字节摘要。失败调用没有返回的 usage 不视为零费用。
+
+`nano-codin/session` 提供 `FileSessionStore`（`loadResult()` 区分不存在、损坏、版本和读取错误，`load()` 保留可空返回兼容）；`nano-codin/context` 提供 `loadProjectInstructions` 和 skill 发现函数。它们都是可选适配器。
 
 ## 用 Handlebars 定制 prompt
 

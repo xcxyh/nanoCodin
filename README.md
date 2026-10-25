@@ -12,7 +12,7 @@ The CLI uses that same core with eight coding tools, project rules, skills, comm
 
 ## CLI
 
-Requires Node.js 20.3+.
+Requires Node.js 20.5+.
 
 ```bash
 npm install -g nano-codin
@@ -38,6 +38,9 @@ model:
   provider: openai
   name: your-model
   apiKey: your-key
+  requestTimeoutMs: 600000
+  idleTimeoutMs: 120000
+  maxRetries: 1
 agent:
   maxSteps: 50
   maxHistoryChars: 48000
@@ -45,6 +48,8 @@ sandbox:
   defaultPolicy: ask
   timeoutMs: 60000
 ```
+
+Model request policy separates total and idle budgets. Response bytes refresh only the idle timer. Configure `model.requestTimeoutMs`, `idleTimeoutMs`, and `maxRetries`, or use `--model-timeout-ms`, `--model-idle-timeout-ms`, `--model-max-retries` and their `MODEL_REQUEST_TIMEOUT_MS`, `MODEL_IDLE_TIMEOUT_MS`, `MODEL_MAX_RETRIES` environment variables. Authentication/schema failures are not retried; cancellation stops retries. SDK retries are disabled so the adapter owns the bounded policy.
 
 `maxSteps` limits model rounds per run. `maxHistoryChars` bounds tool history sent to the model, not the entire prompt. Saved sessions retain all events.
 
@@ -106,6 +111,10 @@ node --import tsx examples/custom-agent.ts
 | `run(task, { onEvent, signal })` | Observe facts or cancel execution |
 
 Default tools from `nano-codin/tools`: `ls`, `grep`, `view`, `create`, `str_replace`, `bash`, `todo`, `ask_user_question`. Select individual tools, use `createDefaultTools()`, or replace them all. `final` is reserved for completion.
+
+For an existing file, keep using exact `str_replace`, or first `view` its SHA256 and explicitly pass `{mode:"rewrite",path,expectedHash,newText}`. `create` still never overwrites. Guarded edits use a version check and atomic replacement, preserve permission bits, and reject symlinks, hard links and special files. This is not a strict CAS against uncooperative concurrent writers. Text files are bounded to 8 MiB; clipped views provide continuation line/column metadata.
+
+Known precondition failures report `changed=false`; potentially interrupted/script effects report `uncertainChanges=true`. Generic shell scripts are not a complete filesystem-change detector. Native assistant/tool history preserves ordering; provider-required continuation data stays private and is not displayed as reasoning or inserted into legacy text history. Missing/oversized continuation becomes explicit historical evidence, never an automatic replay. `RunResult.failure` provides typed request diagnostics; `FileSessionStore.loadResult()` distinguishes missing, corrupt, incompatible and unavailable records while `load()` remains nullable.
 
 `ToolResult.effects` declares edits, plans and command evidence. The CLI's replaceable `requireVerification` hook checks successful validation after the latest declared edit. Custom tools and shell edits must declare effects accurately; this is not a complete filesystem-change detector or proof of test coverage.
 
