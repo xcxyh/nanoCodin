@@ -10,6 +10,7 @@ import { FileSessionStore } from "../../src/session/store.js";
 import { loadProjectContext } from "../../src/context/project.js";
 import { loadRuntimeConfig } from "../../src/config/load.js";
 import { buildAiSdkToolSet } from "../../src/model/tools.js";
+import { isWriteCommand } from "../../src/tools/shell.js";
 import { z } from "zod";
 const dirs: string[] = []; const env = { ...process.env };
 afterEach(async () => { process.env = { ...env }; await Promise.all(dirs.splice(0).map((p) => rm(p, { recursive: true, force: true }))); });
@@ -38,9 +39,10 @@ describe("reliability contracts", () => {
     expect(denied.ok).toBe(false); expect(denied.reason).toBe("denied");
     await writeFile(path.join(cwd, "README.md"), "npm install\n");
     const allowed = new ToolRegistry(createDefaultTools({ ...DEFAULT_RUNTIME_CONFIG.sandbox, defaultPolicy: "allow" }));
-    for (const command of ['rg -n "npm install" README.md', 'find . -name README.md -print 2>/dev/null']) {
+    expect(isWriteCommand('rg -n "npm install" README.md')).toBe(false);
+    for (const command of ['grep -n "npm install" README.md', 'find . -name README.md -print 2>/dev/null']) {
       const result = await allowed.execute("bash", { command, purpose: "inspect" }, { cwd });
-      expect(result.ok).toBe(true); expect(result.effects?.changed).not.toBe(true); expect(result.effects?.uncertainChanges).not.toBe(true);
+      expect(result.ok, `${command}: ${result.output}`).toBe(true); expect(result.effects?.changed).not.toBe(true); expect(result.effects?.uncertainChanges).not.toBe(true);
     }
   });
   it("guards full rewrites, preserves permissions and never marks EEXIST as a change", async () => {
