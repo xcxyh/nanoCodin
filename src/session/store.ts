@@ -4,7 +4,7 @@ import path from "node:path";
 import type { AgentEvent, Session } from "./types.js";
 import { resolveNanoCodinPaths } from "../config/paths.js";
 
-const eventTypes = new Set(["user", "usage", "tool_start", "tool_end", "notice", "finish"]);
+const eventTypes = new Set(["user", "model_start", "model_end", "usage", "tool_start", "tool_end", "notice", "finish"]);
 /** Optional local adapter. The Harness only knows its save(session) callback. */
 export class FileSessionStore {
   readonly directory: string;
@@ -44,6 +44,8 @@ function validEvent(raw: unknown): raw is AgentEvent {
   if (typeof event.at !== "number" || !eventTypes.has(event.type)) return false;
   if (event.type === "user" || event.type === "notice") return typeof event.text === "string";
   if (event.type === "finish") return ["complete", "incomplete", "error", "cancelled"].includes(event.status) && typeof event.answer === "string";
+  if (event.type === "model_start") return typeof event.requestId === "string" && Number.isInteger(event.round) && event.round > 0;
+  if (event.type === "model_end") return typeof event.requestId === "string" && ["complete", "error", "cancelled"].includes(event.status);
   if (event.type === "usage") return event.usage && [event.usage.promptTokens, event.usage.completionTokens, event.usage.totalTokens].every((value) => typeof value === "number" && Number.isFinite(value) && value >= 0) && ["actual", "estimated", "mixed"].includes(event.usage.source);
   return typeof event.callId === "string" && event.call && typeof event.call.name === "string" && (event.type === "tool_start" || (event.result && typeof event.result.ok === "boolean" && typeof event.result.output === "string"));
 }

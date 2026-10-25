@@ -50,7 +50,13 @@ sandbox:
 
 Common flags: `--cwd`, `--prompt`, `--print`, `--resume [id]`, `--review [id]`, `--new-session`, `--max-steps`, `--sandbox-policy`, `--sandbox-timeout-ms`, `--print-config`, `--help`, `--version`.
 
-`--print` runs once without a TUI and prints only the final answer; noninteractive input selects it automatically. Exit codes: complete `0`, error `1`, incomplete `2`, cancelled `130`. Commands requiring approval fail explicitly when no interaction handler is available. Shell policies are command checks, not OS isolation.
+`--print` runs once without a TUI and prints only the final answer; noninteractive input selects it automatically.
+
+In the TUI, the execution timeline remains visible after completion, failure or cancellation. Press Ctrl+O for details, Up/Down to select an operation, and Left/Right to page through saved parameters and output. Closing details restores the input draft. Questions retain keyboard priority; Esc and Ctrl+C still cancel active work. Long detail lines wrap to the terminal width and oversized content is explicitly clipped.
+
+Model requests display waiting time and request round. Commands show bounded stdout/stderr tails while running. Operation duration includes approval waiting; unfinished restored calls are labeled as interrupted. Plans show item counts, not overall task percentages. Raw model reasoning is not displayed. `run(..., { onProgress })` receives `{at, callId, stream, text}` snapshots; custom tools may use `context.onOutput({stream, text})`. Live snapshots are not saved or fed into model context; `tool_end` remains authoritative. Durable `model_start` / `model_end` events record request lifecycles, and display observer failures do not interrupt execution.
+
+Exit codes: complete `0`, error `1`, incomplete `2`, cancelled `130`. Commands requiring approval fail explicitly when no interaction handler is available. Shell policies are command checks, not OS isolation.
 
 In the TUI: `@` selects a file; `/` selects a command or skill. Use arrows to navigate, Enter to insert, then Enter again to submit. Esc closes a picker or cancels an active run. Ctrl+C cancels while running; press it twice to exit while idle. `/clear` starts a new session; `/quit` exits. Bordered input, task progress, highlighted approval choices and the model/token footer are retained.
 

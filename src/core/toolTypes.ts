@@ -15,8 +15,15 @@ export interface CommandEvidence {
   verification: boolean;
 }
 
+export interface ToolOutput {
+  stream: "stdout" | "stderr";
+  /** Bounded tail snapshot for this stream, not an append-only delta. */
+  text: string;
+}
+
 export interface ToolResult {
   ok: boolean;
+  reason?: "denied" | "cancelled" | "timeout";
   output: string;
   /** Facts consumed by optional workflows, never hidden agent state. */
   effects?: {
@@ -32,6 +39,8 @@ export interface ToolContext {
   cwd: string;
   sessionId?: string;
   signal?: AbortSignal;
+  /** Optional live display; snapshots are never persisted as session events. */
+  onOutput?: (output: ToolOutput) => void | Promise<void>;
   ask?: <T extends string>(request: AskUserQuestionRequest<T>, signal?: AbortSignal) => Promise<T>;
 }
 

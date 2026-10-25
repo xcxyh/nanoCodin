@@ -1,4 +1,4 @@
-import { runShell } from "./process.js";
+import { outputTail, runShell } from "./process.js";
 import { isSingleCommand, splitSingleCommand } from "./shellCommand.js";
 import { z } from "zod";
 import type { SandboxConfig } from "../core/runtimeConfig.js";
@@ -50,9 +50,9 @@ export function createShellTool(config: SandboxConfig): Tool {
       const changed = input.purpose === "edit" || isWriteCommand(input.command);
       const verification = !changed && isSingleCommand(input.command) && (input.purpose === "verify" || isVerificationCommand(input.command));
       const evidence = (exitCode: number | null, stdout = "", stderr = "") => ({ command: input.command, exitCode, stdout, stderr, durationMs: Date.now() - started, verification });
-      if (policy === "deny") return { ok: false, output: "Command denied by policy.", effects: { command: evidence(null) } };
+      if (policy === "deny") return { ok: false, reason: "denied", output: "Command denied by policy.", effects: { command: evidence(null) } };
       if (policy === "ask" && approvedSession !== context.sessionId) {
-        if (!context.ask) return { ok: false, output: "Command requires approval; interactive approval is unavailable. Use an explicit shell policy or run interactively.", effects: { command: evidence(null) } };
+        if (!context.ask) return { ok: false, reason: "denied", output: "Command requires approval; interactive approval is unavailable. Use an explicit shell policy or run interactively.", effects: { command: evidence(null) } };
         let choice: string;
         try {
           choice = await context.ask({
@@ -61,23 +61,23 @@ export function createShellTool(config: SandboxConfig): Tool {
           }, context.signal);
         } catch (error) {
           if (!context.signal?.aborted) throw error;
-          return { ok: false, output: "Command cancelled.", effects: { command: evidence(null) } };
+          return { ok: false, reason: "cancelled", output: "Command cancelled.", effects: { command: evidence(null) } };
         }
-        if (choice === "deny") return { ok: false, output: "Permission denied by user.", effects: { command: evidence(null) } };
+        if (choice === "deny") return { ok: false, reason: "denied", output: "Permission denied by user.", effects: { command: evidence(null) } };
         if (choice === "session") approvedSession = context.sessionId;
       }
-      const tail = (text: string) => Buffer.from(text).subarray(-config.maxOutputBytes).toString("utf8");
+      const tail = (text: string) => outputTail(text, config.maxOutputBytes);
       try {
-        const { result, stopped } = await runShell(input.command, context.cwd, input.timeoutMs ?? config.timeoutMs, context.signal);
+        const { result, stopped, stdout, stderr } = await runShell(input.command, context.cwd, input.timeoutMs ?? config.timeoutMs, context.signal, context.onOutput, config.maxOutputBytes);
         const diagnostic = stopped === "cancelled" ? "Command cancelled." : stopped === "timed out" ? `Command timed out after ${input.timeoutMs ?? config.timeoutMs}ms.` : result.signal ? `Command stopped by ${result.signal}.` : "";
         const error = result.failed && result.exitCode === undefined && !stopped ? result.shortMessage : "";
-        const log = evidence(stopped ? null : result.exitCode ?? null, tail(result.stdout), tail([result.stderr, diagnostic, error].filter(Boolean).join("\n")));
+        const log = evidence(stopped ? null : result.exitCode ?? null, tail(stdout), tail([stderr, diagnostic, error].filter(Boolean).join("\n")));
         const output = `exit=${log.exitCode}\n${log.stdout}${log.stderr ? `\nstderr:\n${log.stderr}` : ""}`;
-        return { ok: !stopped && !result.failed && result.exitCode === 0,
-          output: stopped === "cancelled" ? `Command cancelled.${result.stdout || result.stderr ? `\n${output}` : ""}` : output,
+        return { ok: !stopped && !result.failed && result.exitCode === 0, reason: stopped === "cancelled" ? "cancelled" : stopped === "timed out" ? "timeout" : undefined,
+          output: stopped === "cancelled" ? `Command cancelled.${stdout || stderr ? `\n${output}` : ""}` : output,
           effects: { changed, command: log } };
       } catch (error) {
-        if (context.signal?.aborted) return { ok: false, output: "Command cancelled.", effects: { changed, command: evidence(null) } };
+        if (context.signal?.aborted) return { ok: false, reason: "cancelled", output: "Command cancelled.", effects: { changed, command: evidence(null) } };
         const message = error instanceof Error ? error.message : String(error);
         const log = evidence(null, "", tail(message));
         return { ok: false, output: `Command interrupted or timed out: ${log.stderr}`, effects: { changed, command: log } };

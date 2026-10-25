@@ -20,7 +20,7 @@ describe("minimal customizable Harness", () => {
     const agent = createAgent({ ...script([{ text: "普通回答" }]) });
     const result = await agent.run("你好");
     expect(result).toMatchObject({ status: "complete", answer: "普通回答" });
-    expect(agent.session.events.map((event) => event.type)).toEqual(["user", "finish"]);
+    expect(agent.session.events.map((event) => event.type)).toEqual(["user", "model_start", "model_end", "finish"]);
   });
   it("executes a typed custom tool and gives its actual result to an injected model", async () => {
     const { model, prompts } = script([call("echo", { text: 'unique: "<content>"' }), done()]);

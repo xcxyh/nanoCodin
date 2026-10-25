@@ -66,6 +66,10 @@ sandbox:
 
 交互中，`@` 选择文件，`/` 选择内置命令或 skill；↑↓ 导航、Enter 插入，再次 Enter 提交。Esc 先关闭选择器，任务执行中则取消。Ctrl+C 在任务运行时取消，空闲时连续按两次退出；`/clear` 新建会话，`/quit` 退出。保留边框输入区、任务进度、权限高亮、模型与 token 状态栏。
 
+执行时间线在完成、失败和取消后保留。`Ctrl+O` 展开详情，↑↓ 选择操作、←→ 翻页；收起后继续编辑原输入。详情中可查看已保存的参数和结果；长行按终端宽度分段，超长内容会标明截断。审批和提问优先，运行中 Esc / Ctrl+C 仍取消任务。
+
+模型请求显示真实的等待状态、轮次和已等待时长；命令执行期间显示有界的 stdout/stderr 尾部。操作耗时包含审批等待，旧会话中未结束的操作显示为“上次中断 · 待核对”。todo 只显示完成项数，不作为整体任务进度。界面不展示模型原始思考文本。
+
 无界面模式的退出码：完成 `0`、执行错误 `1`、未完成 `2`、取消 `130`。无交互回调时，需要审批的命令会明确失败，不会自动批准。`sandbox` 是命令策略检查，不是操作系统隔离环境。
 
 ## 嵌入自己的程序
@@ -117,6 +121,8 @@ node --import tsx examples/custom-agent.ts
 | `ask(request, signal)` | 接入自己的权限与提问 UI；应响应取消信号 |
 | `save(session)` | 可选存储回调；失败会显式记录并通过返回值报告 |
 | `run(..., { onEvent, signal })` | 订阅执行事实，取消当前运行 |
+
+`run(..., { onProgress })` 可接收 `{ at, callId, stream, text }` 实时输出，`text` 是该流最新的有界尾部快照，不是追加增量。自定义工具通过可选 `context.onOutput({ stream, text })` 提供相同快照。实时数据不进入会话文件或模型上下文；`tool_end` 才是最终结果。`model_start` / `model_end` 是会话事实，记录请求生命周期；观察回调失败不会中断任务。
 
 默认工具：`ls`、`grep`、`view`、`create`、`str_replace`、`bash`、`todo`、`ask_user_question`。使用 `nano-codin/tools` 的 `createDefaultTools()` 获取，也可逐个选择或完全替换。`final` 是保留的完成协议名。
 

@@ -1,4 +1,8 @@
 import React from "react";
+import { z } from "zod";
+import { createShellTool } from "../../src/tools/shell.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
+import type { Session } from "../../src/session/types.js";
 import { PassThrough } from "node:stream";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -116,7 +120,7 @@ describe("restored keyboard interactions through Ink", () => {
       return { text: "完成" };
     } } })} modelName="test" version="test" />);
     await vi.waitFor(() => expect(ui.frame()).toContain("继续检查？"));
-    expect(ui.frame()).toContain("已完成 1/2 (50%)");
+    expect(ui.frame()).toContain("已完成 1/2");
     expect(ui.frame()).toContain("修改 (进行中)");
     expect(ui.frame()).toContain("等待用户选择");
     await ui.key("y"); await vi.waitFor(() => expect(ui.frame()).toContain("⏺ 完成"));
@@ -139,6 +143,99 @@ describe("restored keyboard interactions through Ink", () => {
     await ui.key("\u001b");
     await vi.waitFor(() => expect(agents[0].session.events.at(-1)).toMatchObject({ type: "finish", status: "cancelled" }));
   });
+});
+
+describe("execution timeline and live feedback through Ink", () => {
+  it("shows real model waiting with elapsed time and cancellation", async () => {
+    const agent = createAgent({ model: { async generate(_messages, options) {
+      return new Promise((resolve) => options?.abortSignal?.addEventListener("abort", () => resolve({ text: "unused" }), { once: true }));
+    } } });
+    const ui = mount(<App task="wait" makeAgent={() => agent} modelName="fixture" version="fixture" />);
+    await vi.waitFor(() => expect(ui.frame()).toContain("等待模型响应 · 第 1 轮"));
+    await vi.waitFor(() => expect(Number(ui.frame().match(/已等待 ([\d.]+)s/)?.[1])).toBeGreaterThan(0));
+    expect(ui.frame()).not.toContain("思考中");
+    await ui.key("\u001b");
+    await vi.waitFor(() => expect(agent.session.events.at(-1)).toMatchObject({ type: "finish", status: "cancelled" }));
+    expect(ui.frame()).not.toContain("等待模型响应");
+  });
+  it("keeps old interrupted work separate from the resumed model request", async () => {
+    let finish!: () => void;
+    const saved: Session = { version: 1, id: "fixture", cwd: process.cwd(), createdAt: 1, events: [
+      { at: 1, type: "user", text: "old task", continuation: false },
+      { at: 2, type: "tool_start", callId: "old", call: { name: "create", input: { path: "old.ts" } }, mutates: true }
+    ] };
+    const agent = createAgent({ session: saved, model: { async generate() { await new Promise<void>((resolve) => { finish = resolve; }); return { text: "done" }; } } });
+    const ui = mount(<App resume makeAgent={() => agent} modelName="fixture" version="fixture" />);
+    await vi.waitFor(() => expect(ui.frame()).toContain("等待模型响应"));
+    expect(ui.frame()).toContain("上次中断 · 待核对");
+    expect(ui.frame()).not.toContain("执行 创建文件");
+    finish(); await vi.waitFor(() => expect(ui.frame()).toContain("⏺ done"));
+  });
+  it("keeps the completed timeline and browses older details without changing an input draft", async () => {
+    let round = 0;
+    const agent = createAgent({ model: { async generate() { return ++round === 1 ? { text: "", toolCalls: Array.from({ length: 12 }, (_, i) => ({ name: "echo", input: { text: `ROW_${i}` } })) } : { text: "done" }; } },
+      tools: [{ name: "echo", description: "fixture", schema: z.object({ text: z.string() }), async execute(input) { return { ok: true, output: input.text }; } }]
+    });
+    const ui = mount(<App task="many" makeAgent={() => agent} modelName="fixture" version="fixture" />);
+    await vi.waitFor(() => expect(ui.frame()).toContain("⏺ done"));
+    expect(ui.frame()).toContain("执行记录 · 12 项");
+    expect(ui.frame()).toContain("较早 4 项");
+    expect(ui.frame()).toMatch(/\d+\.\ds/);
+    await ui.key("draft"); await ui.key("\u000f");
+    expect(ui.frame()).toContain("操作详情 12/12");
+    expect(ui.frame()).toContain("ROW_11");
+    for (let i = 0; i < 11; i++) await ui.key("\u001b[A");
+    expect(ui.frame()).toContain("操作详情 1/12");
+    expect(ui.frame()).toContain("ROW_0");
+    await ui.key("\r"); expect(agent.session.events.filter((event) => event.type === "user")).toHaveLength(1);
+    await ui.key("\u000f"); await ui.key("\r");
+    await vi.waitFor(() => expect(agent.session.events.filter((event) => event.type === "user")).toHaveLength(2));
+    expect(agent.session.events.filter((event) => event.type === "user").at(-1)).toMatchObject({ text: "draft" });
+    expect(ui.frame()).toContain("执行记录 · 12 项");
+  });
+  it("shows meaningful stderr and pages through saved output after completion", async () => {
+    let round = 0;
+    const agent = createAgent({ model: { async generate() { return ++round === 1 ? { text: "", toolCalls: [{ name: "check", input: {} }] } : { text: "not complete" }; } },
+      tools: [{ name: "check", description: "fixture", schema: z.object({}), async execute() { return { ok: false, output: "exit=7", effects: { command: { command: "test", exitCode: 7, stdout: "output", stderr: "REAL_ERROR\n" + Array.from({ length: 28 }, (_, i) => `DETAIL_${i}`).join("\n"), durationMs: 1400, verification: true } } }; } }]
+    });
+    const ui = mount(<App task="error" makeAgent={() => agent} modelName="fixture" version="fixture" />);
+    await vi.waitFor(() => expect(ui.frame()).toContain("⏺ not complete"));
+    expect(ui.frame()).toContain("REAL_ERROR"); expect(ui.frame()).toContain("exit=7"); expect(ui.frame()).toContain("1.4s");
+    await ui.key("\u000f"); await ui.key("\u001b[C");
+    expect(ui.frame()).toContain("页 2/"); expect(ui.frame()).toContain("DETAIL_");
+    for (let i = 0; i < 8; i++) await ui.key("\u001b[C");
+    await ui.key("\u001b[D"); expect(ui.frame()).toContain("页 2/3");
+  });
+  it("keeps question keys ahead of detail navigation and does not treat Ctrl+O as an approval", async () => {
+    let activeAgent!: ReturnType<typeof createAgent>;
+    const ui = mount(<App task="ask" makeAgent={(ask) => {
+      activeAgent = createAgent({ tools: [askUserQuestion], ask, model: { async generate() { return { text: "", toolCalls: [{ name: "ask_user_question", input: { title: "APPROVAL", options: [{ label: "allow", value: "allow", shortcutKey: "o" }] } }] }; } } });
+      return activeAgent;
+    }} modelName="fixture" version="fixture" />);
+    await vi.waitFor(() => expect(ui.frame()).toContain("APPROVAL"));
+    await ui.key("\u000f");
+    expect(ui.frame()).not.toContain("操作详情");
+    expect(activeAgent.session.events.some((event) => event.type === "tool_end")).toBe(false);
+    await ui.key("\u001b");
+    await vi.waitFor(() => expect(activeAgent.session.events.at(-1)).toMatchObject({ type: "finish", status: "cancelled" }));
+  });
+  it("renders actual command output before completion and retains the final output in details", async () => {
+    let round = 0;
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-live-ui-"));
+    const agent = createAgent({ cwd, tools: [createShellTool({ ...DEFAULT_RUNTIME_CONFIG.sandbox, defaultPolicy: "allow" })],
+      model: { async generate() { return ++round === 1 ? { text: "", toolCalls: [{ name: "bash", input: { command: `node -e 'const fs=require("fs");console.log("LIVE_FROM_PROCESS");const t=setInterval(()=>{if(fs.existsSync("release")){clearInterval(t);console.log("FINAL_FROM_PROCESS")}},20);setTimeout(()=>process.exit(4),4000).unref()'` } }] } : { text: "done" }; } }
+    });
+    const ui = mount(<App task="live" makeAgent={() => agent} modelName="fixture" version="fixture" />);
+    await vi.waitFor(() => expect(ui.frame()).toContain("│ LIVE_FROM_PROCESS"), { timeout: 3000 });
+    expect(agent.session.events.some((event) => event.type === "finish")).toBe(false);
+    await writeFile(path.join(cwd, "release"), "go");
+    await vi.waitFor(() => expect(ui.frame()).toContain("⏺ done"), { timeout: 4000 });
+    expect(ui.frame()).toContain("exit=0");
+    await ui.key("\u000f");
+    const savedOutput = /│\s+FINAL_FROM_PROCESS\s+│/;
+    for (let i = 0; i < 3 && !savedOutput.test(ui.frame()); i++) await ui.key("\u001b[C");
+    expect(ui.frame()).toMatch(savedOutput);
+  }, 7000);
 });
 
 describe("workspace-scoped file suggestions", () => {

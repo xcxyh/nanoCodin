@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Message, ModelResponse } from "../core/messageTypes.js";
 import type { Tool, ToolContext } from "../core/toolTypes.js";
 import { ToolRegistry } from "../tools/registry.js";
-import type { AgentEvent, RunStatus, Session } from "../session/types.js";
+import type { AgentEvent, ToolOutputEvent, RunStatus, Session } from "../session/types.js";
 import { buildMessages } from "./context.js";
 import { parseTextAction } from "./protocol.js";
 
@@ -27,6 +27,8 @@ export interface RunOptions {
   signal?: AbortSignal;
   continuation?: boolean;
   onEvent?: (event: AgentEvent) => void;
+  /** Live output only; does not call save() or alter the conversation. */
+  onProgress?: (event: ToolOutputEvent) => void | Promise<void>;
 }
 export interface RunResult {
   status: RunStatus;
@@ -63,7 +65,7 @@ export function createAgent(options: AgentOptions) {
       const emit = async (event: AgentEvent): Promise<void> => {
         session.events.push(event);
         // Observers receive copies and cannot mutate the runtime's source of truth.
-        try { run.onEvent?.(structuredClone(event)); } catch { /* Observer failures do not interrupt tools. */ }
+        observe(run.onEvent, structuredClone(event));
         if (options.save) {
           try { await options.save(structuredClone(session)); }
           catch (error) {
@@ -71,7 +73,7 @@ export function createAgent(options: AgentOptions) {
               persistenceError = errorMessage(error);
               const warning: AgentEvent = { at: Date.now(), type: "notice", kind: "persistence", text: `会话保存失败：${persistenceError}` };
               session.events.push(warning);
-              try { run.onEvent?.(structuredClone(warning)); } catch { /* Same observer contract. */ }
+              observe(run.onEvent, structuredClone(warning));
             }
           }
         }
@@ -86,7 +88,17 @@ export function createAgent(options: AgentOptions) {
         const instructions = custom ?? DEFAULT_INSTRUCTIONS;
         for (let round = 0; round < maxSteps; round++) {
           run.signal?.throwIfAborted();
-          const response = await options.model.generate(buildMessages(session, instructions, options.maxHistoryChars), { tools: tools.list(), abortSignal: run.signal });
+          const requestId = randomUUID();
+          await emit({ at: Date.now(), type: "model_start", requestId, round: round + 1 });
+          let response: ModelResponse;
+          try {
+            run.signal?.throwIfAborted();
+            response = await options.model.generate(buildMessages(session, instructions, options.maxHistoryChars), { tools: tools.list(), abortSignal: run.signal });
+          } catch (error) {
+            await emit({ at: Date.now(), type: "model_end", requestId, status: run.signal?.aborted || (error instanceof Error && error.name === "AbortError") ? "cancelled" : "error" });
+            throw error;
+          }
+          await emit({ at: Date.now(), type: "model_end", requestId, status: run.signal?.aborted ? "cancelled" : "complete" });
           run.signal?.throwIfAborted();
           if (response.usage) await emit({ at: Date.now(), type: "usage", usage: response.usage });
           let calls = response.toolCalls?.length ? response.toolCalls : response.toolCall ? [response.toolCall] : [];
@@ -120,13 +132,20 @@ export function createAgent(options: AgentOptions) {
             const callId = randomUUID();
             await emit({ at: Date.now(), type: "tool_start", callId, call, mutates: tools.getToolByName(call.name)?.mutates ?? false });
             let result;
+            let outputOpen = true;
+            const onOutput: ToolContext["onOutput"] = (output) => {
+              if (!outputOpen) return;
+              observe(run.onProgress, { ...output, at: Date.now(), callId });
+            };
             try {
-              result = await tools.execute(call.name, call.input, { cwd: session.cwd, sessionId: session.id, signal: run.signal, ask: options.ask });
+              result = await tools.execute(call.name, call.input, { cwd: session.cwd, sessionId: session.id, signal: run.signal, ask: options.ask, onOutput });
             } catch (error) {
+              outputOpen = false;
               // An interrupted write may have partial effects. Record the attempt; never replay it automatically.
-              await emit({ at: Date.now(), type: "tool_end", callId, call, result: { ok: false, output: errorMessage(error), effects: tools.getToolByName(call.name)?.mutates ? { changed: true } : undefined } });
+              await emit({ at: Date.now(), type: "tool_end", callId, call, result: { ok: false, reason: run.signal?.aborted || (error instanceof Error && error.name === "AbortError") ? "cancelled" : undefined, output: errorMessage(error), effects: tools.getToolByName(call.name)?.mutates ? { changed: true } : undefined } });
               throw error;
             }
+            outputOpen = false;
             await emit({ at: Date.now(), type: "tool_end", callId, call, result });
             run.signal?.throwIfAborted();
           }
@@ -142,3 +161,7 @@ export function createAgent(options: AgentOptions) {
 export type Agent = ReturnType<typeof createAgent>;
 function newSession(cwd: string): Session { return { version: 1, id: `${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`, cwd: path.resolve(cwd), createdAt: Date.now(), events: [] }; }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+
+function observe<T>(callback: ((event: T) => unknown) | undefined, event: T): void {
+  try { void Promise.resolve(callback?.(event)).catch(() => {}); } catch { /* Observers never control execution. */ }
+}

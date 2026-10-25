@@ -1,3 +1,4 @@
+import { ConsoleMessagePane } from "../../src/ui/components/ConsoleMessagePane.js";
 import { projectUi } from "../../src/ui/project.js";
 import { describe, expect, it } from "vitest";
 import { ConsoleInputBar } from "../../src/ui/components/ConsoleInputBar.js";
@@ -40,6 +41,18 @@ describe("retained presentation details", () => {
     ] });
     expect(view.warnings).toEqual(["会话保存失败：disk full"]);
     expect(view.activity).toEqual([]);
+  });
+  it("keeps stdout progress visible beside a longer stderr tail", () => {
+    const view = projectUi({ version: 1, id: "fixture", cwd: ".", createdAt: 1, events: [
+      { at: 1, type: "user", text: "task", continuation: false },
+      { at: 2, type: "tool_start", callId: "a", call: { name: "bash", input: { command: "test" } } }
+    ] }, true);
+    const node = ConsoleMessagePane({ view, busy: true, now: 1000,
+      live: { callId: "a", stdout: "NEW_PROGRESS", stderr: "oldA\noldB\noldC" }
+    });
+    expect(text(node)).toContain("stdout │ NEW_PROGRESS");
+    expect(text(node)).toContain("stderr │ oldC");
+    expect(text(node)).not.toContain("oldA");
   });
   it("preserves token totals and usage source labels", () => {
     expect(formatTotalTokenUsageText(null)).toBe("0");

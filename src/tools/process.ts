@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import type { ToolContext } from "../core/toolTypes.js";
 import { execa } from "execa";
 
 // execa skips exit cleanup for detached processes. Share hooks only while groups
@@ -35,11 +36,37 @@ function trackGroup(pid: number): () => void {
   return () => { activeGroups.delete(pid); if (!activeGroups.size) removeExitHooks?.(); };
 }
 
+/** Keep a UTF-8 tail without introducing a replacement character at its boundary. */
+export function outputTail(text: string, maxBytes: number): string {
+  const bytes = Buffer.from(text);
+  let start = Math.max(0, bytes.length - maxBytes);
+  while (start < bytes.length && (bytes[start] & 0xc0) === 0x80) start++;
+  return bytes.subarray(start).toString("utf8");
+}
+
 /** Own the shell's process group so cancellation and timeout also stop its children. */
-export async function runShell(command: string, cwd: string, timeoutMs: number, signal?: AbortSignal) {
+export async function runShell(command: string, cwd: string, timeoutMs: number, signal?: AbortSignal, onOutput?: ToolContext["onOutput"], maxOutputBytes = 8192) {
   signal?.throwIfAborted();
   const grouped = process.platform !== "win32";
-  const child = execa("bash", ["-lc", command], { cwd, detached: grouped, reject: false });
+  const child = execa("bash", ["-lc", command], { cwd, detached: grouped, reject: false, buffer: false });
+  const tails = { stdout: "", stderr: "" };
+  const dirty = new Set<"stdout" | "stderr">();
+  let outputTimer: ReturnType<typeof setTimeout> | undefined;
+  const flush = () => {
+    if (outputTimer) clearTimeout(outputTimer);
+    outputTimer = undefined;
+    for (const stream of dirty) {
+      try { void Promise.resolve(onOutput?.({ stream, text: tails[stream] })).catch(() => {}); } catch { /* Observers are optional. */ }
+    }
+    dirty.clear();
+  };
+  const capture = (stream: "stdout" | "stderr", text: string) => {
+    tails[stream] = outputTail(tails[stream] + text, maxOutputBytes);
+    dirty.add(stream);
+    if (!outputTimer) outputTimer = setTimeout(flush, 100);
+  };
+  child.stdout?.setEncoding("utf8").on("data", (text: string) => capture("stdout", text));
+  child.stderr?.setEncoding("utf8").on("data", (text: string) => capture("stderr", text));
   const releaseGroup = grouped && child.pid ? trackGroup(child.pid) : undefined;
   let stopped: "cancelled" | "timed out" | undefined;
   let forceKill: ReturnType<typeof setTimeout> | undefined;
@@ -67,8 +94,9 @@ export async function runShell(command: string, cwd: string, timeoutMs: number, 
   const timeout = setTimeout(() => stop("timed out"), timeoutMs);
   try {
     const result = await child;
-    return { result, stopped };
+    return { result, stopped, stdout: tails.stdout.replace(/\r?\n$/, ""), stderr: tails.stderr.replace(/\r?\n$/, "") };
   } finally {
+    flush();
     clearTimeout(timeout);
     if (forceKill) clearTimeout(forceKill);
     // The shell can exit before a TERM-resistant child closes its own descriptors.
