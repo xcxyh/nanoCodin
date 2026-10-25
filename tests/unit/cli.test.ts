@@ -15,7 +15,7 @@ describe("CLI entry points", () => {
     expect(await runCli(["--help"], output.io)).toBe(0);
     expect(output.stdout.join("\n")).toContain("--print");
     expect(await runCli(["--version"], output.io)).toBe(0);
-    expect(output.stdout.at(-1)).toBe("0.1.7");
+    expect(output.stdout.at(-1)).toBe("0.2.0");
     expect(await runCli(["--unknown"], output.io)).toBe(1);
     expect(output.stderr.join("\n")).toContain("Unknown option");
   });

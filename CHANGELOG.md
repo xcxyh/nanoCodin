@@ -6,6 +6,29 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+### Changed
+- Rebuilt the runtime as a small, embeddable TypeScript Harness with one async execution loop and an event-based session. Model, tools, instructions, questions, event observers, persistence and completion checks can be replaced independently.
+- Split the public API into the core `createAgent` / `defineTool` entry and optional model, tool, session, context and Handlebars template adapters. Importing the core does not load the CLI, model SDKs, shell executor or user configuration.
+- Require Node.js 20.5 or newer. Old phase, recursion, indexing, recovery and compression controls no longer govern execution; legacy CLI controls report deprecation. Legacy checkpoints are preserved but are not imported into the new event-session format. See the README migration notes before upgrading from 0.1.x.
+
+### Added
+- Execution timeline with elapsed times, expandable saved details, model-wait status and bounded live command output. Completed records collapse automatically and can be reopened with Ctrl+O without losing the input draft.
+- Configurable model total/idle timeouts and bounded transport retries, classified failures, request diagnostics and explicit session continuation after failure. DeepSeek thinking tool calls retain required private protocol continuation without displaying raw reasoning.
+- SHA256-protected full-file rewrites through `str_replace`, bounded text reads and searches, and explicit distinction between confirmed changes and uncertain side effects.
+- Full-source coverage, Linux/macOS CI, minimum-runtime package-consumer checks, and type/dependency-isolation checks for the packed public API.
+
+### Fixed
+- Cancellation, shell child-process cleanup, command approval, verification invalidation and interrupted-write recovery boundaries; failed precondition checks no longer claim that files changed.
+- Tool schema and final-response consistency, strict text-action parsing, native tool-result pairing, retention of recent write/check evidence, provider-specific configuration defaults, Unicode skill names and canonical workspace session identities.
+
+### Validation
+- 191 regression tests, typecheck, full-source coverage, build and package-consumer checks pass on the verified source. A controlled DeepSeek Flash task completed reading, guarded edits, autonomous build and final delivery in four requests; this is evidence for one isolated task, not all real projects. The previous incomplete acceptance remains documented in `docs/RELIABILITY_ACCEPTANCE.md`.
+
+### Removed
+- Graph/phase orchestration, repository indexing, delegated sub-agents, automatic long-term memory and mandatory long execution summaries from the runtime.
+
 ## [0.1.7] - 2026-04-07
 
 ### Added

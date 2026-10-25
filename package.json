@@ -1,6 +1,6 @@
 {
   "name": "nano-codin",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "description": "A small, customizable TypeScript coding-agent harness with a terminal CLI.",
   "private": false,
   "type": "module",
