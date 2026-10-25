@@ -112,10 +112,9 @@ describe("modelRouter token usage", () => {
 
     expect(result.structured).toBe(true);
     expect(result.finishReason).toBe("tool-calls");
-    expect(result.toolCall).toEqual({ name: "echo", input: { text: "hello" } });
+    expect(result.toolCall).toEqual({ id: "1", name: "echo", input: { text: "hello" } });
     expect(hoisted.generateTextSpy).toHaveBeenCalledWith(expect.objectContaining({
-      system: "system prompt",
-      prompt: "USER: hello world",
+      messages: [{ role: "system", content: "system prompt" }, { role: "user", content: "hello world" }],
       toolChoice: "auto",
       maxSteps: 1,
       tools: expect.objectContaining({
@@ -129,7 +128,7 @@ describe("modelRouter token usage", () => {
     process.env.MODEL_PROVIDER = "openai";
     process.env.OPENAI_API_KEY = "test-key";
     hoisted.generateTextSpy
-      .mockRejectedValueOnce(new Error("tools unsupported by this endpoint"))
+      .mockRejectedValueOnce(Object.assign(new Error("tools unsupported by this endpoint"), { statusCode: 400 }))
       .mockResolvedValueOnce({
         text: "Thought: done\nAction: final\nAction Input: {\"answer\":\"ok\"}"
       });

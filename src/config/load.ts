@@ -3,6 +3,7 @@ import { z } from "zod";
 import { DEFAULT_RUNTIME_CONFIG, type ModelProviderName, type ResolvedModelConfig, type ResolvedRuntimeConfig, type ResolvedRuntimeConfigResult } from "../core/runtimeConfig.js";
 import { resolveContextFilePaths } from "../context/project.js";
 import { resolveNanoCodinPaths } from "./paths.js";
+import { applyModelPatch, resolveModelConfigFromEnv } from "./model.js";
 import { parseSimpleYaml, stringifySimpleYaml } from "./yaml.js";
 
 const integer = (min: number, max = Number.MAX_SAFE_INTEGER) => z.number().finite().transform((value) => Math.max(min, Math.min(max, Math.floor(value))));
@@ -12,7 +13,10 @@ const configSchema = z.object({
     provider: z.enum(["openai", "anthropic"]).optional(),
     name: z.string().min(1).optional(),
     baseUrl: z.string().nullable().optional(),
-    apiKey: z.string().nullable().optional()
+    apiKey: z.string().nullable().optional(),
+    requestTimeoutMs: z.number().int().min(1).max(3600000).optional(),
+    idleTimeoutMs: z.number().int().min(1).max(3600000).optional(),
+    maxRetries: z.number().int().min(0).max(5).optional()
   }).optional(),
   agent: z.object({
     maxSteps: integer(1).optional(),
@@ -35,7 +39,7 @@ function applyPatch(config: ResolvedRuntimeConfig, raw: unknown): void {
     throw new Error(`Invalid nano-codin config: ${result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
   }
   const patch = result.data;
-  Object.assign(config.model, patch.model);
+  if (patch.model) config.model = applyModelPatch(config.model, patch.model);
   Object.assign(config.sandbox, patch.sandbox);
   if (patch.agent?.maxSteps !== undefined) config.agent.maxSteps = patch.agent.maxSteps;
   if (patch.agent?.maxHistoryChars !== undefined) config.agent.maxHistoryChars = patch.agent.maxHistoryChars;
@@ -67,14 +71,7 @@ export function loadRuntimeConfig(cwd: string, argv: string[] = process.argv.sli
   const configYamlExists = existsSync(paths.configYamlPath);
   if (configYamlExists) applyPatch(config, parseSimpleYaml(readFileSync(paths.configYamlPath, "utf8")));
   const env = process.env;
-  const provider = normalizeModelProvider(env.MODEL_PROVIDER, config.model.provider ?? "openai");
-  const model: ResolvedModelConfig = {
-    provider,
-    name: env.MODEL_NAME ?? (provider === "openai" ? env.OPENAI_MODEL : env.ANTHROPIC_MODEL) ?? config.model.name,
-    baseUrl: env.MODEL_BASE_URL ?? (provider === "openai" ? env.OPENAI_BASE_URL : env.ANTHROPIC_BASE_URL) ?? config.model.baseUrl,
-    apiKey: env.MODEL_API_KEY ?? (provider === "openai" ? env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY) ?? config.model.apiKey
-  };
-  applyPatch(config, { model });
+  applyPatch(config, { model: resolveModelConfigFromEnv(env, config.model) });
   if (env.AGENT_MAX_STEPS && /^\d+$/.test(env.AGENT_MAX_STEPS) && Number(env.AGENT_MAX_STEPS) > 0) {
     applyPatch(config, { agent: { maxSteps: Number(env.AGENT_MAX_STEPS) } });
   }
@@ -83,6 +80,10 @@ export function loadRuntimeConfig(cwd: string, argv: string[] = process.argv.sli
     if (flag === "max-steps") {
       if (!/^\d+$/.test(value) || Number(value) < 1) throw new Error("--max-steps must be a positive integer.");
       applyPatch(config, { agent: { maxSteps: Number(value) } });
+    } else if (["model-timeout-ms", "model-idle-timeout-ms", "model-max-retries"].includes(flag)) {
+      if (!/^\d+$/.test(value)) throw new Error(`--${flag} must be an integer.`);
+      const key = flag === "model-timeout-ms" ? "requestTimeoutMs" : flag === "model-idle-timeout-ms" ? "idleTimeoutMs" : "maxRetries";
+      applyPatch(config, { model: { [key]: Number(value) } });
     } else if (flag === "sandbox-policy") {
       applyPatch(config, { sandbox: { defaultPolicy: value } });
     } else if (flag === "sandbox-timeout-ms") {

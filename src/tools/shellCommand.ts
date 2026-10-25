@@ -32,3 +32,23 @@ export function splitSingleCommand(command: string, allowPatterns = true): strin
 export function isSingleCommand(command: string): boolean {
   return (splitSingleCommand(command)?.length ?? 0) > 0;
 }
+
+/** Split simple command lists without inspecting quoted argument contents as commands. */
+export function splitCommandList(command: string): string[] | null {
+  const parts: string[] = []; let quote = ""; let start = 0;
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    if (char === "\\" && quote !== "'") { i++; continue; }
+    if (quote) { if (char === quote) quote = ""; continue; }
+    if (char === "'" || char === '"') { quote = char; continue; }
+    if (/[;|&\n]/.test(char)) {
+      if (char === "&" && command[i + 1] !== "&") return null;
+      parts.push(command.slice(start, i).trim());
+      if ((char === "&" || char === "|") && command[i + 1] === char) i++;
+      start = i + 1;
+    }
+  }
+  if (quote) return null;
+  parts.push(command.slice(start).trim());
+  return parts.filter(Boolean);
+}

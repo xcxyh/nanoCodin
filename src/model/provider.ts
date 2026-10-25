@@ -1,14 +1,22 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, zodSchema } from "ai";
-import type { LanguageModel, ToolChoice, ToolSet } from "ai";
+import type { CoreMessage, LanguageModel, ToolChoice, ToolSet } from "ai";
 import type { Message, ModelResponse, TokenUsage } from "../core/messageTypes.js";
 import type { ModelProviderName, ResolvedModelConfig } from "../core/runtimeConfig.js";
+import { resolveModelConfigFromEnv } from "../config/model.js";
+export { resolveModelConfigFromEnv } from "../config/model.js";
+import { runModelRequest, requestPolicy } from "./request.js";
 import { buildAiSdkToolSet } from "./tools.js";
 import type { Tool } from "../core/toolTypes.js";
 
 export interface ModelGenerateOptions {
   abortSignal?: AbortSignal;
+  fetch?: typeof fetch;
+  nativeMessages?: readonly Message[];
+  maxOutputTokens?: number;
+  /** Explicit OpenAI-compatible wire option; never silently changes thinking defaults. */
+  reasoningEffort?: "none" | "low" | "high" | "max";
   tools?: readonly Tool[];
   toolChoice?: "auto" | "required" | "none";
   structuredToolCalling?: boolean;
@@ -24,33 +32,7 @@ type CompleteModelConfig = ResolvedModelConfig & {
   apiKey: string;
 };
 
-function defaultModelName(provider: ModelProviderName): string {
-  return provider === "anthropic" ? "claude-3-5-haiku-latest" : "gpt-4o-mini";
-}
-
-function apiKeyEnvName(provider: ModelProviderName): string {
-  return provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
-}
-
-function resolveProviderFromEnv(env: NodeJS.ProcessEnv): ModelProviderName {
-  return env.MODEL_PROVIDER === "anthropic" ? "anthropic" : "openai";
-}
-
-export function resolveModelConfigFromEnv(env: NodeJS.ProcessEnv = process.env): ResolvedModelConfig {
-  const provider = resolveProviderFromEnv(env);
-  return {
-    provider,
-    name: env.MODEL_NAME
-      ?? (provider === "anthropic" ? env.ANTHROPIC_MODEL : env.OPENAI_MODEL)
-      ?? defaultModelName(provider),
-    baseUrl: env.MODEL_BASE_URL
-      ?? (provider === "anthropic" ? env.ANTHROPIC_BASE_URL : env.OPENAI_BASE_URL)
-      ?? null,
-    apiKey: env.MODEL_API_KEY
-      ?? (provider === "anthropic" ? env.ANTHROPIC_API_KEY : env.OPENAI_API_KEY)
-      ?? null
-  };
-}
+function apiKeyEnvName(provider: ModelProviderName): string { return provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"; }
 
 export function getConfiguredModelName(config: Pick<ResolvedModelConfig, "provider" | "name">): string {
   if (config.provider !== "openai" && config.provider !== "anthropic") {
@@ -151,6 +133,9 @@ function isStructuredToolCallingDisabled(options?: ModelGenerateOptions): boolea
 
 function isStructuredToolCallingUnsupported(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
+  const status = (error as { statusCode?: number })?.statusCode;
+  if (![400, 404, 422, 501].includes(status ?? 0) && !(error instanceof Error && error.name === "AI_UnsupportedFunctionalityError")) return false;
+  if (/schema|parameters|properties|additionalProperties|anyOf|oneOf/i.test(message)) return false;
   return /(?:tools?|tool_choice|function calling).{0,60}(?:unsupported|not support|not available)|(?:unsupported|not support).{0,60}(?:tools?|tool_choice|function calling)/i.test(message);
 }
 
@@ -159,7 +144,7 @@ function toStructuredModelResponse(
   result: {
     text: string;
     usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
-    toolCalls?: Array<{ toolName: string; args: unknown }>;
+    toolCalls?: Array<{ toolCallId?: string; toolName: string; args: unknown }>;
     finishReason?: string;
   }
 ): ModelResponse {
@@ -169,9 +154,19 @@ function toStructuredModelResponse(
     usage: normalizeUsage(result.usage, prompt, result.text),
     structured: true,
     finishReason: result.finishReason,
-    toolCall: toolCall ? { name: toolCall.toolName, input: toolCall.args } : undefined,
-    toolCalls: result.toolCalls?.map((call) => ({ name: call.toolName, input: call.args }))
+    toolCall: toolCall ? { ...(toolCall.toolCallId ? { id: toolCall.toolCallId } : {}), name: toolCall.toolName, input: toolCall.args } : undefined,
+    toolCalls: result.toolCalls?.map((call) => ({ ...(call.toolCallId ? { id: call.toolCallId } : {}), name: call.toolName, input: call.args }))
   };
+}
+
+function nativeMessages(messages: readonly Message[]): CoreMessage[] {
+  return messages.map((message): CoreMessage => {
+    if (message.role === "assistant" && message.toolCalls?.length) return { role: "assistant", content: message.toolCalls.map((call) => ({ type: "tool-call", toolCallId: call.id, toolName: call.name, args: call.input as Record<string, unknown> })) };
+    if (message.role === "tool") return message.toolCallId && message.name
+      ? { role: "tool", content: [{ type: "tool-result", toolCallId: message.toolCallId, toolName: message.name, result: message.content }] }
+      : { role: "user", content: `Historical tool result: ${message.content}` };
+    return { role: message.role, content: message.content };
+  });
 }
 
 async function tryGenerateWithStructuredTools(
@@ -189,11 +184,12 @@ async function tryGenerateWithStructuredTools(
   try {
     const result = await generateText({
       model,
-      system,
-      prompt,
+      messages: nativeMessages(options.nativeMessages ?? messages),
       tools: aiTools,
       toolChoice: normalizeToolChoice(options.toolChoice),
       maxSteps: 1,
+      maxRetries: 0,
+      maxTokens: options.maxOutputTokens,
       abortSignal: options.abortSignal
     });
     return toStructuredModelResponse(prompt, result);
@@ -202,7 +198,10 @@ async function tryGenerateWithStructuredTools(
       throw error;
     }
     if (error instanceof Error && (error.name === "AI_NoSuchToolError" || error.name === "AI_InvalidToolArgumentsError")) {
-      return { text: "", error: `No tools were executed. ${error.message} Use the available tool names and input schemas.` };
+      const failure = error as Error & { toolName?: string; cause?: { issues?: Array<{ path: unknown[]; message: string }>; cause?: { issues?: Array<{ path: unknown[]; message: string }> } } };
+      const issues = failure.cause?.issues ?? failure.cause?.cause?.issues;
+      const detail = issues?.slice(0, 8).map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ") ?? "Input did not match the exact JSON schema.";
+      return { text: "", error: `No tools were executed. ${failure.name}: ${failure.toolName ?? "requested tool"}. ${detail} Use the available tool names and input schemas: ${Object.keys(aiTools).join(", ")}.` };
     }
     if (!isStructuredToolCallingUnsupported(error)) {
       throw error;
@@ -219,33 +218,6 @@ function isAbortError(error: unknown): boolean {
     return true;
   }
   return "isCanceled" in error && (error as { isCanceled?: unknown }).isCanceled === true;
-}
-
-function formatProviderError(
-  provider: ModelProviderName,
-  modelName: string,
-  baseURL: string | null,
-  error: unknown
-): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  const statusCode = typeof error === "object" && error !== null && "statusCode" in error
-    ? String((error as { statusCode?: unknown }).statusCode ?? "")
-    : "";
-  const responseBody = typeof error === "object" && error !== null && "responseBody" in error
-    ? String((error as { responseBody?: unknown }).responseBody ?? "")
-    : "";
-
-  const parts = [
-    `LLM request failed for provider=${provider}`,
-    `model=${modelName}`,
-    `baseURL=${baseURL ?? "(default)"}`,
-    statusCode ? `status=${statusCode}` : "",
-    `message=${message}`,
-    responseBody ? `response=${responseBody}` : "",
-    "Hint: check API key, model name, and base URL path."
-  ].filter(Boolean);
-
-  return new Error(parts.join(" | "));
 }
 
 function normalizeAnthropicBaseURL(baseURL: string): string {
@@ -270,47 +242,82 @@ function isNotFoundError(error: unknown): boolean {
 
 class ApiModelProvider implements ModelProvider {
   private structuredSupport = true;
+  private requiresContinuation = false;
   private baseURL: string | null;
 
   constructor(private readonly config: CompleteModelConfig) {
+    requestPolicy(config);
     this.baseURL = config.baseUrl;
+    this.requiresContinuation = Boolean(config.baseUrl && new URL(config.baseUrl).hostname === "api.deepseek.com");
   }
 
   async generate(messages: Message[], options?: ModelGenerateOptions): Promise<ModelResponse> {
-    const abortSignal = AbortSignal.any([
-      ...(options?.abortSignal ? [options.abortSignal] : []), AbortSignal.timeout(120_000)
-    ]);
-    const requestOptions = { ...options, abortSignal };
-    try {
-      return await this.generateAt(messages, requestOptions);
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      if (this.config.provider === "anthropic" && this.baseURL && isNotFoundError(error) && !this.baseURL.replace(/\/+$/, "").endsWith("/v1")) {
-        this.baseURL = normalizeAnthropicBaseURL(this.baseURL);
-        try {
-          return await this.generateAt(messages, requestOptions);
-        } catch (retryError) {
-          if (isAbortError(retryError)) throw retryError;
-          throw formatProviderError(this.config.provider, this.config.name, this.baseURL, retryError);
+    return runModelRequest(this.config, options?.abortSignal, async (transport) => {
+      if (this.config.provider === "anthropic" && options?.reasoningEffort !== undefined) throw new Error("reasoningEffort is an OpenAI-compatible option; use an appropriate Anthropic thinking adapter.");
+      const requestOptions = { ...options, abortSignal: transport.signal, fetch: transport.fetch };
+      try { return await this.generateAt(messages, requestOptions); }
+      catch (error) {
+        if (!this.requiresContinuation && (error as { statusCode?: number })?.statusCode === 400 && /(?:reasoning_content.{0,100}(?:must|required|missing|pass)|(?:missing|required).{0,100}reasoning_content)/i.test(error instanceof Error ? error.message : String(error))) {
+          this.requiresContinuation = true;
+          return this.generateAt(messages, requestOptions);
         }
+        if (this.config.provider === "anthropic" && this.baseURL && isNotFoundError(error)
+          && !/model/i.test(error instanceof Error ? error.message : String(error)) && !this.baseURL.replace(/\/+$/, "").endsWith("/v1")) {
+          this.baseURL = normalizeAnthropicBaseURL(this.baseURL);
+          return this.generateAt(messages, requestOptions);
+        }
+        throw error;
       }
-      throw formatProviderError(this.config.provider, this.config.name, this.baseURL, error);
-    }
+    });
   }
 
   private async generateAt(messages: Message[], options: ModelGenerateOptions): Promise<ModelResponse> {
+    let providerData: Record<string, unknown> | undefined;
+    const transportFetch = options.fetch ?? globalThis.fetch;
+    const requestFetch: typeof fetch = async (url, init) => {
+      let hasTools = false;
+      if (this.config.provider === "openai" && typeof init?.body === "string") {
+        const body = JSON.parse(init.body);
+        const source = options.nativeMessages ?? messages;
+        hasTools = Boolean(body.tools?.length);
+        if (options.reasoningEffort !== undefined) body.reasoning_effort = options.reasoningEffort;
+        const requiresContinuation = this.requiresContinuation && hasTools;
+        let index = 0; const rebuilt: any[] = []; const downgraded = new Set<string>();
+        for (const message of body.messages ?? []) {
+          const metadata = source[index++]?.providerData;
+          if (message.role === "assistant" && requiresContinuation && typeof metadata?.reasoning_content === "string") message.reasoning_content = metadata.reasoning_content;
+          if (message.role === "assistant" && requiresContinuation && message.reasoning_content === undefined) {
+            for (const call of message.tool_calls ?? []) downgraded.add(call.id);
+            const evidence = message.content || (message.tool_calls?.length ? JSON.stringify(message.tool_calls) : "");
+            if (evidence) rebuilt.push({ role: "user", content: `Historical assistant requests/results (provider continuation unavailable; do not replay): ${evidence}` });
+          } else if (message.role === "tool" && downgraded.has(message.tool_call_id)) {
+            rebuilt.push({ role: "user", content: `Historical tool result (inspect actual state; do not replay): ${message.content}` });
+          } else rebuilt.push(message);
+        }
+        init = { ...init, body: JSON.stringify({ ...body, messages: rebuilt }) };
+      }
+      const response = await transportFetch(url, init);
+      if (this.config.provider === "openai" && response.ok && hasTools) {
+        try {
+          const body = await response.clone().json();
+          const message = body.choices?.[0]?.message;
+          if (typeof message?.reasoning_content === "string") { providerData = { reasoning_content: message.reasoning_content }; }
+        } catch { /* The SDK still validates the original response and reports transport errors. */ }
+      }
+      return response;
+    };
     const factory = this.config.provider === "openai" ? createOpenAI : createAnthropic;
-    const model = factory({ apiKey: this.config.apiKey, baseURL: this.baseURL ?? undefined })(this.config.name);
+    const model = factory({ apiKey: this.config.apiKey, baseURL: this.baseURL ?? undefined, fetch: requestFetch })(this.config.name);
     const structured = await tryGenerateWithStructuredTools(model, messages, {
       ...options, structuredToolCalling: this.structuredSupport && options.structuredToolCalling !== false
     });
-    if (structured) return structured;
+    if (structured) return { ...structured, ...(providerData ? { providerData } : {}) };
     if (options.tools && !isStructuredToolCallingDisabled(options)) this.structuredSupport = false;
     const { system, prompt } = splitSystemAndPrompt(messages);
     const schemas = options.tools?.map((tool) => `- ${tool.name}: ${tool.description}\nInput: ${JSON.stringify(zodSchema(tool.schema).jsonSchema)}`).join("\n") ?? "";
     const protocol = `Tools:\n${schemas}\nReturn one text action:\nAction: <exact tool name or final>\nAction Input: <valid JSON object, multiline allowed>\nFor final use {"answer":"...","incomplete":false}. Set incomplete=true only when blocked and explain why.`;
-    const result = await generateText({ model, system: `${system ?? ""}\n${protocol}`, prompt, abortSignal: options.abortSignal });
-    return { ...toModelResponse(prompt, result.text, result.usage), finishReason: result.finishReason };
+    const result = await generateText({ model, system: `${system ?? ""}\n${protocol}`, prompt, maxRetries: 0, maxTokens: options.maxOutputTokens, abortSignal: options.abortSignal });
+    return { ...toModelResponse(prompt, result.text, result.usage), finishReason: result.finishReason, ...(providerData ? { providerData } : {}) };
   }
 }
 
@@ -321,10 +328,16 @@ function assertModelConfig(config: ResolvedModelConfig): CompleteModelConfig {
   if (!config.name) {
     throw new Error(`Model name is required when MODEL_PROVIDER=${config.provider}`);
   }
+  if (config.baseUrl !== null) {
+    let valid = false;
+    try { valid = ["http:", "https:"].includes(new URL(config.baseUrl).protocol); } catch { /* Report without credentials. */ }
+    if (!valid) throw new Error("Invalid model.baseUrl: expected an absolute HTTP(S) URL.");
+  }
   if (!config.apiKey) {
     throw new Error(`${apiKeyEnvName(config.provider)} is required when MODEL_PROVIDER=${config.provider}`);
   }
   return {
+    ...config,
     provider: config.provider,
     name: config.name,
     apiKey: config.apiKey,

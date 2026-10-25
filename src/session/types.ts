@@ -1,16 +1,16 @@
-import type { TokenUsage, ToolCall } from "../core/messageTypes.js";
+import type { ModelFailure, RequestInfo, TokenUsage, ToolCall } from "../core/messageTypes.js";
 import type { ToolOutput, ToolResult } from "../core/toolTypes.js";
 
 export type RunStatus = "complete" | "incomplete" | "error" | "cancelled";
 export type AgentEvent = { at: number } & (
   | { type: "user"; text: string; continuation: boolean }
   | { type: "model_start"; requestId: string; round: number }
-  | { type: "model_end"; requestId: string; status: "complete" | "error" | "cancelled" }
+  | { type: "model_end"; requestId: string; status: "complete" | "error" | "cancelled"; request?: RequestInfo; failure?: ModelFailure; providerData?: Record<string, unknown> }
   | { type: "usage"; usage: TokenUsage }
   | { type: "tool_start"; callId: string; call: ToolCall; mutates?: boolean }
   | { type: "tool_end"; callId: string; call: ToolCall; result: ToolResult }
   | { type: "notice"; text: string; kind?: "persistence" }
-  | { type: "finish"; status: RunStatus; answer: string }
+  | { type: "finish"; status: RunStatus; answer: string; failure?: ModelFailure }
 );
 
 /** Live display data; the final tool_end remains authoritative. */

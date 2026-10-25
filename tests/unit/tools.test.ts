@@ -101,7 +101,7 @@ describe("shell execution and policy", () => {
     expect(failed.effects?.command?.stdout.length).toBeLessThanOrEqual(100);
   });
   it("honors one-off and session approvals and keeps deny rules active", async () => {
-    const { context } = await fixture();
+    const { context } = await fixture(); context.sessionId = "explicit-session";
     let count = 0;
     context.ask = async (request) => { count++; return request.options[1].value; };
     const registry = new ToolRegistry([createShellTool(shellConfig())]);
@@ -176,7 +176,7 @@ describe("review regressions: shell boundaries", () => {
     expect(isWriteCommand("sed -n 'w copy.txt' victim.txt")).toBe(true);
     context.ask = async () => "once" as never;
     const approved = await createShellTool(shellConfig()).execute({ command: "sed -n 'w copy.txt' victim.txt" }, context);
-    expect(approved.effects?.changed).toBe(true);
+    expect(approved.effects?.uncertainChanges).toBe(true);
     expect(await readFile(path.join(cwd, "copy.txt"), "utf8")).toBe("valuable\n");
   });
   it("does not record masked failures or checks preceding an edit as verification", async () => {
@@ -189,7 +189,7 @@ describe("review regressions: shell boundaries", () => {
     }
     await writeFile(path.join(cwd, "package.json"), JSON.stringify({ scripts: { test: "exit 0" } }));
     const mixed = await tool.execute({ command: "npm test && printf bad > result.txt", purpose: "edit" }, context);
-    expect(mixed.effects).toMatchObject({ changed: true, command: { verification: false } });
+    expect(mixed.effects).toMatchObject({ uncertainChanges: true, command: { verification: false } });
     const plain = await tool.execute({ command: "npm test" }, context);
     expect(plain.effects?.command).toMatchObject({ verification: true, exitCode: 0 });
     const quoted = await tool.execute({ command: `node -e 'console.log("a; b && c")'`, purpose: "verify" }, context);

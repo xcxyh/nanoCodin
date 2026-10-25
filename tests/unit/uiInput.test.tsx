@@ -29,7 +29,10 @@ function mount(element: React.ReactNode) {
   const instance = render(element, { stdin: stdin as unknown as NodeJS.ReadStream, stdout: stdout as unknown as NodeJS.WriteStream,
     stderr: stdout as unknown as NodeJS.WriteStream, debug: true, patchConsole: false, exitOnCtrlC: false });
   mounted.push(instance);
-  return { instance, frame: () => frames.at(-1) ?? "", async key(text: string) { stdin.write(text); await new Promise((resolve) => setTimeout(resolve, 25)); } };
+  return { instance, frame: () => frames.at(-1) ?? "", async key(text: string) {
+    // A visible frame may precede the passive input subscription. Flush a turn before injecting input.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    stdin.write(text); await new Promise((resolve) => setTimeout(resolve, 25)); } };
 }
 const skills = buildSlashCommands(Array.from({ length: 8 }, (_, i) => ({ name: `skill-${i}`, description: `Description ${i}`, sourcePath: `/skill-${i}/SKILL.md`, sourceScope: "workspace" as const, command: `/skill-${i}` })));
 

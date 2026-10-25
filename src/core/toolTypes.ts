@@ -21,14 +21,21 @@ export interface ToolOutput {
   text: string;
 }
 
+export class ToolExecutionError extends Error {
+  constructor(readonly code: string, message: string, readonly uncertainChanges = false) { super(message); this.name = "ToolExecutionError"; }
+}
+
 export interface ToolResult {
   ok: boolean;
+  code?: string;
+  data?: Record<string, unknown>;
   reason?: "denied" | "cancelled" | "timeout";
   output: string;
   /** Facts consumed by optional workflows, never hidden agent state. */
   effects?: {
     changedFiles?: string[];
     changed?: boolean;
+    uncertainChanges?: boolean;
     command?: CommandEvidence;
     plan?: PlanItem[];
     verificationCommands?: string[];

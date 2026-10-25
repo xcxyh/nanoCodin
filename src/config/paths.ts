@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
+import { canonicalPath } from "../core/paths.js";
 import os from "node:os";
 import path from "node:path";
 
@@ -7,8 +7,7 @@ export function resolveNanoCodinHome(env: NodeJS.ProcessEnv = process.env): stri
   return env.NANOCODIN_HOME?.trim() ? path.resolve(env.NANOCODIN_HOME) : path.join(os.homedir(), ".nanocodin");
 }
 export function buildWorkspaceId(cwd: string): string {
-  let resolved: string;
-  try { resolved = realpathSync(cwd); } catch { resolved = path.resolve(cwd); }
+  const resolved = canonicalPath(cwd);
   return createHash("sha1").update(resolved).digest("hex").slice(0, 12);
 }
 export function resolveNanoCodinPaths(cwd: string, env: NodeJS.ProcessEnv = process.env) {

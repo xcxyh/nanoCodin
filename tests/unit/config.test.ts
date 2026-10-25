@@ -12,7 +12,7 @@ async function fixture(yaml = "") {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-config-"));
   const home = await mkdtemp(path.join(os.tmpdir(), "nanocodin-config-home-"));
   process.env.NANOCODIN_HOME = home;
-  for (const key of ["MODEL_PROVIDER", "MODEL_NAME", "MODEL_API_KEY", "MODEL_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "AGENT_MAX_STEPS"]) delete process.env[key];
+  for (const key of ["MODEL_PROVIDER", "MODEL_NAME", "MODEL_API_KEY", "MODEL_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "AGENT_MAX_STEPS", "MODEL_REQUEST_TIMEOUT_MS", "MODEL_IDLE_TIMEOUT_MS", "MODEL_MAX_RETRIES"]) delete process.env[key];
   if (yaml) await writeFile(path.join(home, "config.yaml"), yaml);
   return { cwd, home };
 }
@@ -48,4 +48,16 @@ describe("one configuration model", () => {
     const text = stringifySimpleYaml({ model: { name: "quoted \"model\"", apiKey: "a,b:c" }, sandbox: { allowPrefixes: ["node -e \"x\"", "echo a,b"] } });
     expect(parseSimpleYaml(text)).toEqual({ model: { name: 'quoted "model"', apiKey: "a,b:c" }, sandbox: { allowPrefixes: ['node -e "x"', "echo a,b"] } });
   });
+});
+
+
+it("resolves model budgets through YAML, environment and flags and preserves scalar strings", async () => {
+  const { cwd } = await fixture("model:\n  requestTimeoutMs: 5000\n  idleTimeoutMs: 2000\n  maxRetries: 0");
+  process.env.MODEL_REQUEST_TIMEOUT_MS = "6000";
+  const config = loadRuntimeConfig(cwd, ["--model-timeout-ms=7000", "--model-max-retries=1"]).config;
+  expect(config.model).toMatchObject({ requestTimeoutMs: 7000, idleTimeoutMs: 2000, maxRetries: 1 });
+  expect(() => loadRuntimeConfig(cwd, ["--model-max-retries=9"])).toThrow("maxRetries");
+  expect(() => loadRuntimeConfig(cwd, ["--model-idle-timeout-ms=0"])).toThrow("idleTimeoutMs");
+  const raw = { model: { apiKey: "true", name: "123", baseUrl: "null" } };
+  expect(parseSimpleYaml(stringifySimpleYaml(raw))).toEqual(raw);
 });

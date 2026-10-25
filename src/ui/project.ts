@@ -14,7 +14,7 @@ export interface UiActivity {
   call?: ToolCall;
   result?: ToolResult;
 }
-const labels: Record<string, string> = { view: "读取文件", create: "创建文件", str_replace: "修改文件", grep: "搜索代码", ls: "查看目录", bash: "运行命令", todo: "更新计划", ask_user_question: "询问用户" };
+const labels: Record<string, string> = Object.assign(Object.create(null), { view: "读取文件", create: "创建文件", str_replace: "修改文件", grep: "搜索代码", ls: "查看目录", bash: "运行命令", todo: "更新计划", ask_user_question: "询问用户" });
 
 export function projectUi(session: Session, running = false) {
   const turns: Array<{ user: string; answer?: string; status?: string }> = [];

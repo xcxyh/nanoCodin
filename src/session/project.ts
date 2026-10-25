@@ -7,7 +7,8 @@ export function projectSession(session: Session) {
   let plan: PlanItem[] = [];
   const files = new Set<string>();
   let changed = false;
-  let checks: Record<string, boolean> = {};
+  let uncertainChanges = false;
+  let checks: Record<string, boolean> = Object.create(null);
   let requiredChecks: string[] = [];
   let usage: TokenUsage | null = null;
   let task = "";
@@ -24,7 +25,8 @@ export function projectSession(session: Session) {
         plan = [];
         files.clear();
         changed = false;
-        checks = {};
+        uncertainChanges = false;
+        checks = Object.create(null);
         requiredChecks = [];
       }
       finish = null;
@@ -34,19 +36,20 @@ export function projectSession(session: Session) {
       // A crash may occur after effects, before tool_end. Legacy starts lack intent,
       // so unresolved legacy calls are conservatively treated as possible writes.
       if (pendingCalls.has(event.callId) && event.mutates !== false) {
-        changed = true;
-        checks = {};
+        uncertainChanges = true;
+        checks = Object.create(null);
       }
     } else if (event.type === "tool_end") {
       const effect = event.result.effects;
       if (effect?.changed || effect?.changedFiles?.length) {
         changed = true;
-        checks = {};
+        checks = Object.create(null);
         for (const file of effect.changedFiles ?? []) files.add(file);
       }
+      if (effect?.uncertainChanges) { uncertainChanges = true; checks = Object.create(null); }
       if (effect?.plan) plan = effect.plan;
       if (effect?.verificationCommands) requiredChecks = effect.verificationCommands;
-      if (effect?.command?.verification && !effect.changed && !effect.changedFiles?.length && isSingleCommand(effect.command.command)) checks[effect.command.command.trim()] = event.result.ok && effect.command.exitCode === 0;
+      if (effect?.command?.verification && !effect.changed && !effect.changedFiles?.length && !effect.uncertainChanges && isSingleCommand(effect.command.command)) checks[effect.command.command.trim()] = event.result.ok && effect.command.exitCode === 0;
     } else if (event.type === "finish") {
       finish = event;
     }
@@ -55,5 +58,5 @@ export function projectSession(session: Session) {
   const results = Object.values(checks);
   const verified = missingChecks.length === 0 && results.length > 0 && results.every(Boolean);
   const pending = [...pendingCalls.values()].at(-1) ?? null;
-  return { task, plan, files: [...files], changed, checks, missingChecks, verified, usage, pending, finish };
+  return { task, plan, files: [...files], changed, uncertainChanges, checks, missingChecks, verified, usage, pending, finish };
 }

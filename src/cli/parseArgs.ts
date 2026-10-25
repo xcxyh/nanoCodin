@@ -2,6 +2,9 @@ import path from "node:path";
 
 const CONFIG_FLAGS_WITH_VALUES = new Set([
   "max-steps",
+  "model-timeout-ms",
+  "model-idle-timeout-ms",
+  "model-max-retries",
   "recursion-limit",
   "sandbox-policy",
   "sandbox-timeout-ms",

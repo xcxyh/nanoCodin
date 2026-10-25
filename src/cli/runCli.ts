@@ -31,9 +31,9 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
   if (args.printVersion) { io.stdout(getCliVersion()); return 0; }
   const store = new FileSessionStore(args.cwd);
   if (args.review.enabled) {
-    const session = await store.load(args.review.sessionId ?? undefined);
-    if (!session) { io.stderr("找不到会话记录。"); return 1; }
-    io.stdout(formatSessionReview(session)); return 0;
+    const loaded = await store.loadResult(args.review.sessionId ?? undefined);
+    if (loaded.status !== "ok") { io.stderr(`找不到或无法读取会话记录 [${loaded.status}]：${loaded.message}`); return 1; }
+    io.stdout(formatSessionReview(loaded.session)); return 0;
   }
   let runtime = loadRuntimeConfig(args.cwd, args.configArgv);
   if (args.printConfig) { io.stdout(formatConfigText(runtime, args)); return 0; }
@@ -44,7 +44,9 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     await runBootstrap(runtime.config, args.cwd, io);
     runtime = loadRuntimeConfig(args.cwd, args.configArgv);
   }
-  const restored = args.resume.enabled ? await store.load(args.resume.sessionId ?? undefined) : null;
+  const loaded = args.resume.enabled ? await store.loadResult(args.resume.sessionId ?? undefined) : null;
+  const restored = loaded?.status === "ok" ? loaded.session : null;
+  if (loaded && loaded.status !== "ok" && loaded.status !== "not_found") { io.stderr(`无法恢复会话 [${loaded.status}]：${loaded.message}`); return 1; }
   if (args.resume.enabled && !restored) {
     const sessions = await store.list();
     io.stderr(`Checkpoint not found: ${args.resume.sessionId ?? "latest"}${sessions.length ? `\n${sessions.map((item) => `${item.id} ${item.task}`).join("\n")}` : "\nNo resumable sessions found."}`); return 1;
@@ -74,6 +76,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     try {
       const result = await makeAgent().run(args.prompt ?? "continue", { signal: abort.signal, continuation: args.resume.enabled });
       io.stdout(result.answer);
+      if (result.failure && ["timeout", "network", "rate_limit", "provider"].includes(result.failure.kind)) io.stderr(`会话已保留。可使用 nano-codin --resume ${result.session.id} 继续；不会自动重放已记录的写操作。`);
       if (result.persistenceError) io.stderr(`会话保存失败：${result.persistenceError}`);
       return result.status === "complete" ? 0 : result.status === "incomplete" ? 2 : result.status === "cancelled" ? 130 : 1;
     } finally { process.removeListener("SIGINT", cancel); }

@@ -93,6 +93,7 @@ export function parseSkillFile(text: string, skillFilePath: string): Pick<Loaded
   const fallbackName = path.basename(path.dirname(skillFilePath));
   const frontmatter = parseFrontmatter(text);
   const name = normalizeFrontmatterValue(frontmatter.name) || fallbackName;
+  if (!/^[\p{L}\p{N}_.:-]+$/u.test(name)) throw new Error(`Invalid skill name at ${skillFilePath}: ${name}`);
   const description = normalizeFrontmatterValue(frontmatter.description) || "";
 
   return {

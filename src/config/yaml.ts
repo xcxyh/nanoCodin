@@ -47,7 +47,7 @@ function formatScalar(value: YamlPrimitive): string {
     return "null";
   }
   if (typeof value === "string") {
-    if (/^[A-Za-z0-9._/@:-]+$/.test(value)) {
+    if (/^[A-Za-z0-9._/@:-]+$/.test(value) && !/^(?:true|false|null|[-+]?\d+(?:\.\d+)?)$/.test(value)) {
       return value;
     }
     return JSON.stringify(value);
@@ -68,7 +68,7 @@ export function parseSimpleYaml(text: string): Record<string, YamlValue> {
     const line = rawLine.trim();
     const separatorIndex = line.indexOf(":");
     if (separatorIndex <= 0) {
-      continue;
+      throw new Error(`Unsupported YAML line: ${line}. Use key: value and inline arrays.`);
     }
 
     while (stack.length > 1 && indent <= stack[stack.length - 1]!.indent) {

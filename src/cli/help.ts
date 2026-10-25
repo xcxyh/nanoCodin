@@ -1,3 +1,4 @@
+import { displayEndpoint } from "../config/model.js";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -33,6 +34,9 @@ export function formatHelpText(): string {
     "",
     "Config override flags",
     "  --max-steps <n>",
+    "  --model-timeout-ms <n>     Total model request budget (including retries)",
+    "  --model-idle-timeout-ms <n> Model response inactivity budget",
+    "  --model-max-retries <n>    Transport retries, 0-5",
     "  --sandbox-policy <allow|ask|deny>",
     "  --sandbox-timeout-ms <n>",
     "",
@@ -44,7 +48,7 @@ export function formatHelpText(): string {
     "  nano-codin --print-config",
     "",
     "Config precedence",
-    "  CLI flags > shell env > ~/.nanocodin/config.yaml > AGENTS.md guidelines > defaults"
+    "  CLI flags > shell env > ~/.nanocodin/config.yaml > defaults"
   ].join("\n");
 }
 
@@ -69,7 +73,10 @@ export function formatConfigText(runtime: ResolvedRuntimeConfigResult, args: Par
     "Model",
     `  provider: ${config.model.provider}`,
     `  name: ${config.model.name}`,
-    `  baseUrl: ${config.model.baseUrl ?? "(default)"}`,
+    `  baseUrl: ${displayEndpoint(config.model.baseUrl)}`,
+    `  requestTimeoutMs: ${config.model.requestTimeoutMs}`,
+    `  idleTimeoutMs: ${config.model.idleTimeoutMs}`,
+    `  maxRetries: ${config.model.maxRetries}`,
     `  apiKey: ${config.model.apiKey ? "(configured)" : "(missing)"}`,
     "",
     "Agent",
@@ -81,6 +88,6 @@ export function formatConfigText(runtime: ResolvedRuntimeConfigResult, args: Par
     `  timeoutMs: ${config.sandbox.timeoutMs}`,
     "",
     "Precedence",
-    "  CLI flags > shell env > ~/.nanocodin/config.yaml > AGENTS.md guidelines > defaults"
+    "  CLI flags > shell env > ~/.nanocodin/config.yaml > defaults"
   ].join("\n");
 }

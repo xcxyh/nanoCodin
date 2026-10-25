@@ -9,5 +9,5 @@ export function isVerificationCommand(command: string): boolean {
 /** Optional coding workflow. Generic Harness consumers can replace or omit this hook. */
 export function requireVerification(session: Session): string | undefined {
   const state = projectSession(session);
-  if (state.changed && !state.verified) return `Verification required after the latest change.${state.missingChecks.length ? ` Pending checks: ${state.missingChecks.join(", ")}.` : " Run a relevant check and inspect its exit code."}`;
+  if ((state.changed || state.uncertainChanges) && !state.verified) return `Verification required after the latest change.${state.missingChecks.length ? ` Pending checks: ${state.missingChecks.join(", ")}.` : " Run a relevant check and inspect its exit code."}`;
 }

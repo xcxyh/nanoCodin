@@ -5,9 +5,9 @@ import { BRAND_COLOR } from "./ConsoleHeader.js";
 
 export interface LiveOutput { callId: string; stdout: string; stderr: string }
 const marks = { running: "●", success: "✓", error: "✗", denied: "拒绝", cancelled: "取消", timeout: "超时", interrupted: "上次中断 · 待核对" };
-export function ConsoleMessagePane({ view, busy, waitingForUser = false, now = Date.now(), live, details = false, selectedId, page = 0, rows = 40, columns = 80, verification }: {
+export function ConsoleMessagePane({ view, busy, waitingForUser = false, now = Date.now(), live, details = false, selectedId, page = 0, rows = 40, columns = 80, verification, uncertain = false }: {
   view: ReturnType<typeof projectUi>; busy: boolean; waitingForUser?: boolean; now?: number; live?: LiveOutput | null;
-  details?: boolean; selectedId?: string; page?: number; rows?: number; columns?: number; verification?: boolean;
+  details?: boolean; selectedId?: string; page?: number; rows?: number; columns?: number; verification?: boolean; uncertain?: boolean;
 }) {
   const selected = view.activity.find((entry) => entry.id === selectedId) ?? view.activity.at(-1);
   const selectedIndex = selected ? view.activity.indexOf(selected) : 0;
@@ -49,7 +49,7 @@ export function ConsoleMessagePane({ view, busy, waitingForUser = false, now = D
     </Box> : null}
     {output.length ? <Text color="gray">实时输出 · stdout/stderr 尾部</Text> : null}
     {output.map((line, index) => <Text key={index} color="gray" wrap="truncate-end">  {line.slice(0, 500)}</Text>)}
-    {verification !== undefined ? <Text color={verification ? "green" : "yellow"}>最新改动：{verification ? "已验证" : "待验证"}</Text> : null}
+    {verification !== undefined ? <Text color={verification ? "green" : "yellow"}>{uncertain ? "存在不确定操作：" : "最新改动："}{verification ? "已验证" : "待验证"}</Text> : null}
     {busy ? <Text color={BRAND_COLOR}>{"⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[Math.floor(now / 100) % 10]} {status}</Text> : null}
   </Box>;
 }

@@ -55,7 +55,7 @@ describe("review regressions: sessions and context", () => {
       { at: 2, type: "tool_start", callId: "write", call: { name: "custom_write", input: {} }, mutates: true },
       { at: 3, type: "tool_start", callId: "read", call: { name: "read", input: {} }, mutates: false },
       { at: 4, type: "tool_end", callId: "read", call: { name: "read", input: {} }, result: { ok: true, output: "inspected" } });
-    expect(projectSession(saved)).toMatchObject({ changed: true, verified: false, pending: { callId: "write" } });
+    expect(projectSession(saved)).toMatchObject({ uncertainChanges: true, verified: false, pending: { callId: "write" } });
     expect(requireVerification(saved)).toContain("Verification required");
     const result = await createAgent({ session: saved, beforeFinish: requireVerification, maxSteps: 1, model: { async generate() { return { text: "done" }; } } }).run("continue", { continuation: true });
     expect(result.status).toBe("incomplete");

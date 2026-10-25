@@ -6,6 +6,9 @@ export interface ResolvedModelConfig {
   name: string | null;
   baseUrl: string | null;
   apiKey: string | null;
+  requestTimeoutMs?: number;
+  idleTimeoutMs?: number;
+  maxRetries?: number;
 }
 
 export interface AgentConfig {
@@ -43,8 +46,11 @@ export interface ResolvedRuntimeConfigResult {
   sources: RuntimeConfigSources;
 }
 
+export const DEFAULT_MODEL_REQUEST_POLICY = { requestTimeoutMs: 600_000, idleTimeoutMs: 120_000, maxRetries: 1 };
+
 export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
   model: {
+    ...DEFAULT_MODEL_REQUEST_POLICY,
     provider: "openai",
     name: "gpt-4o-mini",
     baseUrl: null,

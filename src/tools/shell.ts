@@ -1,18 +1,42 @@
 import { outputTail, runShell } from "./process.js";
-import { isSingleCommand, splitSingleCommand } from "./shellCommand.js";
+import { isSingleCommand, splitCommandList, splitSingleCommand } from "./shellCommand.js";
 import { z } from "zod";
 import type { SandboxConfig } from "../core/runtimeConfig.js";
 import type { Tool } from "../core/toolTypes.js";
 import { defineTool } from "./define.js";
 import { isVerificationCommand } from "../workflows/verification.js";
 
-export function isWriteCommand(command: string): boolean {
-  const normalized = splitSingleCommand(command)?.join(" ") ?? command;
-  return /\b(tee|sed\s+-i|perl\s+-i|mv|cp|touch|mkdir|rmdir|rm|git\s+(?:add|commit|apply|reset|checkout)|(?:npm|pnpm|yarn)\s+(?:install|add))\b|(?:^|\s)\d*>>?/i.test(normalized)
-    || /\bfind\b[\s\S]*\s-(?:delete|exec|execdir|ok|okdir)\b/i.test(normalized)
-    || /\bsed\b[\s\S]*(?:[\s;'][we](?:\s|$)|--in-place\b)/i.test(normalized)
-    || /\b(?:git\s+(?:diff|log)[\s\S]*--output(?:=|\s)|tree\b[\s\S]*\s-o(?:\s|$)|rg\b[\s\S]*--pre(?:=|\s))/i.test(normalized);
+type ShellEffect = "read" | "write" | "unknown";
+function commandEffect(command: string): ShellEffect {
+  const parts = splitCommandList(command);
+  if (!parts) return "unknown";
+  let unknown = false;
+  for (const part of parts) {
+    const simple = part.replace(/(?:^|\s)\d*>{1,2}\s*\/dev\/null(?=\s|$)/g, " ");
+    const words = splitSingleCommand(simple);
+    if (!words?.length) { unknown = true; continue; }
+    const [name, sub] = words;
+    if (["tee", "mv", "cp", "touch", "mkdir", "rmdir", "rm"].includes(name)) return "write";
+    if (name === "git") {
+      if (["add", "commit", "apply", "reset", "checkout", "clean", "restore"].includes(sub) || words.some((word) => /^--output(?:=|$)/.test(word))) return "write";
+      if (!["status", "diff", "log", "show", "rev-parse", "ls-files"].includes(sub) || words.some((word) => /^--(?:ext-diff|textconv)(?:=|$)/.test(word))) unknown = true;
+    } else if (["npm", "pnpm", "yarn"].includes(name)) {
+      if (["install", "add", "remove", "uninstall", "publish"].includes(sub)) return "write";
+      unknown = true;
+    } else if (name === "find") {
+      if (words.some((word) => /^-(?:delete|exec|execdir|ok|okdir)$/.test(word))) return "write";
+    } else if (name === "sed") {
+      if (words.some((word) => /^-i|^--in-place|(?:^|[;\s\d])[we](?:\s|$)/.test(word))) return "write";
+      if (!words.includes("-n") || !words.some((word) => /^[\d$]+(?:,[\d$]+)?p$/.test(word))) unknown = true;
+    } else if (name === "rg") {
+      if (words.some((word) => /^--(?:pre|hostname-bin)(?:=|$)/.test(word))) return "write";
+    } else if (name === "tree") { if (words.includes("-o")) return "write";
+    } else if (!["ls", "pwd", "cat", "grep", "head", "tail", "wc", "echo", "printf", "cd", "true", "false"].includes(name)) unknown = true;
+  }
+  return unknown ? "unknown" : "read";
 }
+/** Conservative authorization hint, never proof that a file was modified. */
+export function isWriteCommand(command: string): boolean { return commandEffect(command) !== "read"; }
 function requiresUtilityApproval(command: string): boolean {
   const words = splitSingleCommand(command, false);
   if (!words) return true;
@@ -34,7 +58,7 @@ export function decidePolicy(command: string, config: SandboxConfig): "allow" | 
   if (config.defaultPolicy === "allow") return "allow";
   if (config.askPrefixes.some((prefix) => prefixMatches(normalized, prefix))) return "ask";
   // A compound command or substitution cannot inherit the first command's allow prefix.
-  if (!isSingleCommand(normalized) || requiresUtilityApproval(normalized) || isWriteCommand(normalized)) return config.defaultPolicy === "deny" ? "deny" : "ask";
+  if (!isSingleCommand(normalized) || requiresUtilityApproval(normalized) || commandEffect(normalized) === "write") return config.defaultPolicy === "deny" ? "deny" : "ask";
   if (config.allowPrefixes.some((prefix) => prefixMatches(normalized, prefix))) return "allow";
   return config.defaultPolicy;
 }
@@ -47,8 +71,9 @@ export function createShellTool(config: SandboxConfig): Tool {
     async execute(input, context) {
       const started = Date.now();
       const policy = decidePolicy(input.command, config);
-      const changed = input.purpose === "edit" || isWriteCommand(input.command);
-      const verification = !changed && isSingleCommand(input.command) && (input.purpose === "verify" || isVerificationCommand(input.command));
+      const effect = commandEffect(input.command);
+      const verification = input.purpose !== "edit" && effect !== "write" && isSingleCommand(input.command) && (input.purpose === "verify" || isVerificationCommand(input.command));
+      const uncertainChanges = input.purpose === "edit" || effect === "write" || (effect === "unknown" && !verification);
       const evidence = (exitCode: number | null, stdout = "", stderr = "") => ({ command: input.command, exitCode, stdout, stderr, durationMs: Date.now() - started, verification });
       if (policy === "deny") return { ok: false, reason: "denied", output: "Command denied by policy.", effects: { command: evidence(null) } };
       if (policy === "ask" && approvedSession !== context.sessionId) {
@@ -63,8 +88,8 @@ export function createShellTool(config: SandboxConfig): Tool {
           if (!context.signal?.aborted) throw error;
           return { ok: false, reason: "cancelled", output: "Command cancelled.", effects: { command: evidence(null) } };
         }
-        if (choice === "deny") return { ok: false, reason: "denied", output: "Permission denied by user.", effects: { command: evidence(null) } };
-        if (choice === "session") approvedSession = context.sessionId;
+        if (choice !== "once" && choice !== "session") return { ok: false, reason: "denied", output: "Permission denied by user.", effects: { command: evidence(null) } };
+        if (choice === "session" && context.sessionId) approvedSession = context.sessionId;
       }
       const tail = (text: string) => outputTail(text, config.maxOutputBytes);
       try {
@@ -75,12 +100,12 @@ export function createShellTool(config: SandboxConfig): Tool {
         const output = `exit=${log.exitCode}\n${log.stdout}${log.stderr ? `\nstderr:\n${log.stderr}` : ""}`;
         return { ok: !stopped && !result.failed && result.exitCode === 0, reason: stopped === "cancelled" ? "cancelled" : stopped === "timed out" ? "timeout" : undefined,
           output: stopped === "cancelled" ? `Command cancelled.${stdout || stderr ? `\n${output}` : ""}` : output,
-          effects: { changed, command: log } };
+          effects: { uncertainChanges, command: log } };
       } catch (error) {
-        if (context.signal?.aborted) return { ok: false, reason: "cancelled", output: "Command cancelled.", effects: { changed, command: evidence(null) } };
+        if (context.signal?.aborted) return { ok: false, reason: "cancelled", output: "Command cancelled.", effects: { uncertainChanges, command: evidence(null) } };
         const message = error instanceof Error ? error.message : String(error);
         const log = evidence(null, "", tail(message));
-        return { ok: false, output: `Command interrupted or timed out: ${log.stderr}`, effects: { changed, command: log } };
+        return { ok: false, output: `Command interrupted or timed out: ${log.stderr}`, effects: { uncertainChanges, command: log } };
       }
     }
   });

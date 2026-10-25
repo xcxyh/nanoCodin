@@ -98,15 +98,16 @@ export function App({ makeAgent, task, resume, modelName, version, loadFiles, lo
       setPage((value) => Math.max(0, Math.min(max, Math.min(value, max) + (key.rightArrow ? 1 : -1))));
     }
   });
+  const resumeHint = state.finish?.failure && ["timeout", "network", "rate_limit", "provider"].includes(state.finish.failure.kind) ? "输入 continue 或继续可续接本会话 · " : "";
   const hint = question ? "↑↓ 选择，Enter 确认，也可使用快捷键；Esc 取消。"
     : busy ? "正在执行任务，Esc 或 Ctrl+C 取消 · Ctrl+O 详情。"
-    : details ? "↑↓ 选择操作 · ←→ 翻页 · Ctrl+O 收起详情" : exitArmedAt ? "再按一次 Ctrl+C 退出。" : "Enter 执行 · @ 选择文件 · / 选择命令或 skill · Ctrl+C 退出 · Ctrl+O 详情";
+    : details ? "↑↓ 选择操作 · ←→ 翻页 · Ctrl+O 收起详情" : exitArmedAt ? "再按一次 Ctrl+C 退出。" : `${resumeHint}Enter 执行 · @ 选择文件 · / 选择命令或 skill · Ctrl+C 退出 · Ctrl+O 详情`;
   return <Box flexDirection="column" paddingX={1}>
     <ConsoleHeader hint={hint} version={version} modelName={modelName} cwd={session.cwd}
       compact={view.turns.length > 0 || (stdout.columns ?? 80) < 72 || (stdout.rows ?? 40) < 30} />
     <ConsoleMessagePane view={view} busy={busy} now={now} waitingForUser={Boolean(question)} live={live.current}
       details={details && !question} selectedId={selectedId} page={page} rows={stdout.rows ?? 40} columns={stdout.columns ?? 80}
-      verification={state.changed ? state.verified : undefined} />
+      verification={state.changed || state.uncertainChanges ? state.verified : undefined} uncertain={state.uncertainChanges} />
     <ConsoleTodoPane items={state.plan} visible={busy} />
     {question ? <Question key={question.id} request={question.request} choose={question.choose} /> : null}
     <Input enabled={!busy && !question && !details} loadFiles={loadFiles} loadCommands={loadCommands}

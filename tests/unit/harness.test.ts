@@ -121,7 +121,7 @@ describe("minimal customizable Harness", () => {
     const abort = new AbortController();
     const result = await createAgent({ ...script([call("custom_write")]), tools: [{ ...edit, async execute() { abort.abort(); abort.signal.throwIfAborted(); throw new Error("unreachable"); } }] }).run("任务", { signal: abort.signal });
     expect(result.status).toBe("cancelled");
-    expect(projectSession(result.session).changed).toBe(true);
+    expect(projectSession(result.session).uncertainChanges).toBe(true);
   });
   it("restores a supplied session and warns about calls interrupted before a result was saved", async () => {
     const original = createAgent({ ...script([done()]) });

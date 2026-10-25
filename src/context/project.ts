@@ -36,7 +36,7 @@ export async function loadProjectContext(cwd: string, task: string, session?: Se
   const currentTask = /^(continue|继续)$/i.test(task.trim()) && session
     ? session.events.filter((event) => event.type === "user" && !event.continuation).at(-1) : undefined;
   const request = `${currentTask?.type === "user" ? currentTask.text : ""}\n${task}`;
-  const invoked = new Set([...request.matchAll(/(?:^|\s)[$/]([\w.-]+)/g)].map((match) => match[1]));
+  const invoked = new Set([...request.matchAll(/(?:^|\s)[$/]([\p{L}\p{N}_.:-]+)(?![\p{L}\p{N}_./:-])/gu)].map((match) => match[1]));
   const selected = skills.filter((skill) => invoked.has(skill.name));
   const [rules, context, notes] = await Promise.all([optional(paths.agentsPath), optional(paths.contextPath), optional(paths.memoryPath)]);
   const selectedSkills = await Promise.all(selected.map(async (skill) => ({

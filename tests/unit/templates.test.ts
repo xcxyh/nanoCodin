@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { realpath, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -29,7 +29,7 @@ describe("optional Handlebars prompt adapter", () => {
     await writeFile(file, "Updated: {{task}} / {{cwd}}");
     await agent.run("second");
     expect(prompts[0]).toBe('Task: first\nRules: keep "quotes" <plain>');
-    expect(prompts[1]).toBe(`Updated: second / ${cwd}`);
+    expect(prompts[1]).toBe(`Updated: second / ${await realpath(cwd)}`);
   });
   it("reports the source path for broken or missing templates", async () => {
     const agent = createAgent({ instructions: createTemplateInstructions({ file: "/missing/prompt.hbs" }), model: { async generate() { return { text: "unused" }; } } });

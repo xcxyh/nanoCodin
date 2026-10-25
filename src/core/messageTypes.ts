@@ -4,9 +4,14 @@ export interface Message {
   role: Role;
   content: string;
   name?: string;
+  toolCalls?: Array<ToolCall & { id: string }>;
+  toolCallId?: string;
+  /** Opaque provider continuation data; never user-facing reasoning. */
+  providerData?: Record<string, unknown>;
 }
 
 export interface ToolCall {
+  id?: string;
   name: string;
   input: unknown;
 }
@@ -20,7 +25,28 @@ export interface TokenUsage {
   source: TokenUsageSource;
 }
 
+export interface RequestInfo {
+  attempts: number;
+  durationMs: number;
+  receivedBytes: number;
+  firstResponseMs?: number;
+  lastResponseMs?: number;
+  requestId?: string;
+  httpStatus?: number;
+}
+export interface ModelFailure extends RequestInfo {
+  kind: "timeout" | "cancelled" | "auth" | "rate_limit" | "network" | "provider" | "protocol";
+  retryable: boolean;
+  detail?: string;
+  timeoutScope?: "total" | "idle";
+}
+export class ModelRequestError extends Error {
+  constructor(message: string, readonly failure: ModelFailure, options?: ErrorOptions) { super(message, options); this.name = "ModelRequestError"; }
+}
+
 export interface ModelResponse {
+  providerData?: Record<string, unknown>;
+  request?: RequestInfo;
   error?: string;
   text: string;
   usage?: TokenUsage;
