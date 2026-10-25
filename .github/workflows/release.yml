@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
 
       - name: Install
@@ -64,8 +64,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
+      - name: Full regression and coverage
+        run: npm run test && npm run test:coverage
+
+      - name: Build and verify packed API
+        run: npm run test:package
 
       - name: Configure git
         run: |

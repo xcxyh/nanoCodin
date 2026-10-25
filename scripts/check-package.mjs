@@ -55,5 +55,18 @@ exec(process.execPath, ['--input-type=module', '-e', `
 const help = exec(process.execPath, [path.join(destination, 'dist/index.js'), '--help']);
 if (!help.stdout.includes('--print')) throw new Error('Missing CLI help');
 exec(process.execPath, ['--input-type=module', '-e', "await Promise.all(['nano-codin/models','nano-codin/tools','nano-codin/session','nano-codin/context','nano-codin/templates'].map(name => import(name))); console.log('adapters:ok')"]);
-console.log(JSON.stringify({ result: embedded.stdout.trim(), declarations: 'passed', entrypoints: 'core + 5 adapters + CLI', coreDependencies: 'no Ink / AI SDK / execa / Handlebars', packedBytes: metadata.size }));
+await writeFile(path.join(cwd, 'transport.mjs'), `
+import {createAgent} from 'nano-codin';
+import {createModelProvider} from 'nano-codin/models';
+globalThis.fetch=async (_url,init)=>{
+ const body=JSON.parse(init.body);
+ if(!body.messages.some(m=>m.role==='user')) throw new Error('missing native messages');
+ return new Response(JSON.stringify({id:'fixture',object:'chat.completion',created:1,model:'fixture',choices:[{index:0,finish_reason:'tool_calls',message:{role:'assistant',content:null,tool_calls:[{id:'wire',type:'function',function:{name:'final',arguments:JSON.stringify({answer:'wire:ok'})}}]}}],usage:{prompt_tokens:10,completion_tokens:2,total_tokens:12}}),{headers:{'content-type':'application/json'}});
+};
+const model=createModelProvider({provider:'openai',name:'fixture',apiKey:'fixture',baseUrl:'https://fixture.invalid/v1',maxRetries:0,requestTimeoutMs:2000,idleTimeoutMs:1000});
+const result=await createAgent({model}).run('transport smoke');
+if(result.status!=='complete'||result.answer!=='wire:ok'||!result.session.events.some(e=>e.type==='model_end'&&e.request?.attempts===1)) throw new Error('packed SDK transport failed');
+`);
+exec(process.execPath, ['transport.mjs']);
+console.log(JSON.stringify({ result: embedded.stdout.trim(), declarations: 'passed', entrypoints: 'core + 5 adapters + CLI', coreDependencies: 'no Ink / AI SDK / execa / Handlebars', transport: 'mocked native SDK passed', packedBytes: metadata.size }));
 await rm(cwd, { recursive: true, force: true });

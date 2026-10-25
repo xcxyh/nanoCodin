@@ -14,7 +14,7 @@
     "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=20.3"
+    "node": ">=20.5"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
@@ -25,7 +25,7 @@
     "test:coverage": "vitest run --coverage",
     "verify": "npm run typecheck && npm run test && npm run test:coverage",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run typecheck && npm run build",
+    "prepublishOnly": "npm run verify && npm run test:package",
     "preversion": "npm run typecheck && npm run build && npm pack --dry-run",
     "release:patch": "npm version patch -m \"chore(release): %s\"",
     "release:minor": "npm version minor -m \"chore(release): %s\"",

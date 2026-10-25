@@ -12,7 +12,10 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -21,7 +24,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -43,6 +46,18 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: coverage-report-${{ matrix.os }}
           path: coverage
           if-no-files-found: ignore
+
+  minimum-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.5.0
+          cache: npm
+      - run: npm ci
+      - name: Build and test packed runtime without loading the test runner
+        run: npm run test:package

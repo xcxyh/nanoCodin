@@ -9,15 +9,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: [
-        "src/agent/protocol.ts",
-        "src/agent/context.ts",
-        "src/index.ts",
-        "src/config/load.ts",
-        "src/agent/run.ts",
-        "src/session/project.ts",
-        "src/tools/registry.ts"
-      ],
+      include: ["src/**/*.ts", "src/**/*.tsx"],
       exclude: ["tests/**", "dist/**"],
       thresholds: {
         lines: 75,
