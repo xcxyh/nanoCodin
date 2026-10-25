@@ -158,6 +158,31 @@ describe("execution timeline and live feedback through Ink", () => {
     await vi.waitFor(() => expect(agent.session.events.at(-1)).toMatchObject({ type: "finish", status: "cancelled" }));
     expect(ui.frame()).not.toContain("等待模型响应");
   });
+  it.each(["complete", "error", "cancelled"])("auto-collapses details opened during a run on %s, retaining history", async (ending) => {
+    let round = 0; let finish!: () => void;
+    const agent = createAgent({ tools: [{ name: "echo", description: "fixture", schema: z.object({}), async execute() { return { ok: true, output: "SAVED_RESULT" }; } }],
+      model: { async generate(_messages, options) {
+        if (++round === 1) return { text: "", toolCalls: [{ name: "echo", input: {} }] };
+        await new Promise<void>((resolve, reject) => {
+          finish = ending === "error" ? () => reject(new Error("fixture failure")) : resolve;
+          options?.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return { text: "done" };
+      } }
+    });
+    const ui = mount(<App task="task" makeAgent={() => agent} modelName="fixture" version="fixture" />);
+    await vi.waitFor(() => expect(ui.frame()).toContain("等待模型响应 · 第 2 轮"));
+    expect(ui.frame()).toContain("执行记录 · 1 项");
+    await ui.key("\u000f"); expect(ui.frame()).toContain("操作详情");
+    if (ending === "cancelled") await ui.key("\u001b"); else finish();
+    await vi.waitFor(() => {
+      expect(agent.session.events.at(-1)).toMatchObject({ type: "finish", status: ending });
+      expect(ui.frame()).not.toContain("执行记录 ·");
+      expect(ui.frame()).not.toContain("操作详情");
+    });
+    await ui.key("\u000f"); expect(ui.frame()).toContain("SAVED_RESULT");
+    await ui.key("\u000f"); expect(ui.frame()).not.toContain("执行记录 ·");
+  });
   it("keeps old interrupted work separate from the resumed model request", async () => {
     let finish!: () => void;
     const saved: Session = { version: 1, id: "fixture", cwd: process.cwd(), createdAt: 1, events: [
@@ -171,17 +196,17 @@ describe("execution timeline and live feedback through Ink", () => {
     expect(ui.frame()).not.toContain("执行 创建文件");
     finish(); await vi.waitFor(() => expect(ui.frame()).toContain("⏺ done"));
   });
-  it("keeps the completed timeline and browses older details without changing an input draft", async () => {
+  it("collapses completed records and reopens older details without changing an input draft", async () => {
     let round = 0;
     const agent = createAgent({ model: { async generate() { return ++round === 1 ? { text: "", toolCalls: Array.from({ length: 12 }, (_, i) => ({ name: "echo", input: { text: `ROW_${i}` } })) } : { text: "done" }; } },
       tools: [{ name: "echo", description: "fixture", schema: z.object({ text: z.string() }), async execute(input) { return { ok: true, output: input.text }; } }]
     });
     const ui = mount(<App task="many" makeAgent={() => agent} modelName="fixture" version="fixture" />);
     await vi.waitFor(() => expect(ui.frame()).toContain("⏺ done"));
-    expect(ui.frame()).toContain("执行记录 · 12 项");
-    expect(ui.frame()).toContain("较早 4 项");
-    expect(ui.frame()).toMatch(/\d+\.\ds/);
+    expect(ui.frame()).not.toContain("执行记录 ·");
     await ui.key("draft"); await ui.key("\u000f");
+    expect(ui.frame()).toContain("执行记录 · 12 项");
+    expect(ui.frame()).toMatch(/\d+\.\ds/);
     expect(ui.frame()).toContain("操作详情 12/12");
     expect(ui.frame()).toContain("ROW_11");
     for (let i = 0; i < 11; i++) await ui.key("\u001b[A");
@@ -191,7 +216,8 @@ describe("execution timeline and live feedback through Ink", () => {
     await ui.key("\u000f"); await ui.key("\r");
     await vi.waitFor(() => expect(agent.session.events.filter((event) => event.type === "user")).toHaveLength(2));
     expect(agent.session.events.filter((event) => event.type === "user").at(-1)).toMatchObject({ text: "draft" });
-    expect(ui.frame()).toContain("执行记录 · 12 项");
+    await vi.waitFor(() => expect(ui.frame()).not.toContain("执行记录 ·"));
+    await ui.key("\u000f"); expect(ui.frame()).toContain("执行记录 · 12 项");
   });
   it("shows meaningful stderr and pages through saved output after completion", async () => {
     let round = 0;
@@ -200,8 +226,10 @@ describe("execution timeline and live feedback through Ink", () => {
     });
     const ui = mount(<App task="error" makeAgent={() => agent} modelName="fixture" version="fixture" />);
     await vi.waitFor(() => expect(ui.frame()).toContain("⏺ not complete"));
+    expect(ui.frame()).not.toContain("执行记录 ·");
+    await ui.key("\u000f");
     expect(ui.frame()).toContain("REAL_ERROR"); expect(ui.frame()).toContain("exit=7"); expect(ui.frame()).toContain("1.4s");
-    await ui.key("\u000f"); await ui.key("\u001b[C");
+    await ui.key("\u001b[C");
     expect(ui.frame()).toContain("页 2/"); expect(ui.frame()).toContain("DETAIL_");
     for (let i = 0; i < 8; i++) await ui.key("\u001b[C");
     await ui.key("\u001b[D"); expect(ui.frame()).toContain("页 2/3");
@@ -230,8 +258,9 @@ describe("execution timeline and live feedback through Ink", () => {
     expect(agent.session.events.some((event) => event.type === "finish")).toBe(false);
     await writeFile(path.join(cwd, "release"), "go");
     await vi.waitFor(() => expect(ui.frame()).toContain("⏺ done"), { timeout: 4000 });
-    expect(ui.frame()).toContain("exit=0");
+    expect(ui.frame()).not.toContain("执行记录 ·");
     await ui.key("\u000f");
+    expect(ui.frame()).toContain("exit=0");
     const savedOutput = /│\s+FINAL_FROM_PROCESS\s+│/;
     for (let i = 0; i < 3 && !savedOutput.test(ui.frame()); i++) await ui.key("\u001b[C");
     expect(ui.frame()).toMatch(savedOutput);

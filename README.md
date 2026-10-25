@@ -52,7 +52,7 @@ Common flags: `--cwd`, `--prompt`, `--print`, `--resume [id]`, `--review [id]`, 
 
 `--print` runs once without a TUI and prints only the final answer; noninteractive input selects it automatically.
 
-In the TUI, the execution timeline remains visible after completion, failure or cancellation. Press Ctrl+O for details, Up/Down to select an operation, and Left/Right to page through saved parameters and output. Closing details restores the input draft. Questions retain keyboard priority; Esc and Ctrl+C still cancel active work. Long detail lines wrap to the terminal width and oversized content is explicitly clipped.
+In the TUI, execution records automatically collapse when a run ends; the history remains saved in the session. Press Ctrl+O to reopen the timeline and details, Up/Down to select an operation, and Left/Right to page through saved parameters and output. Closing details restores the input draft. Questions retain keyboard priority; Esc and Ctrl+C still cancel active work. Long detail lines wrap to the terminal width and oversized content is explicitly clipped.
 
 Model requests display waiting time and request round. Commands show bounded stdout/stderr tails while running. Operation duration includes approval waiting; unfinished restored calls are labeled as interrupted. Plans show item counts, not overall task percentages. Raw model reasoning is not displayed. `run(..., { onProgress })` receives `{at, callId, stream, text}` snapshots; custom tools may use `context.onOutput({stream, text})`. Live snapshots are not saved or fed into model context; `tool_end` remains authoritative. Durable `model_start` / `model_end` events record request lifecycles, and display observer failures do not interrupt execution.
 

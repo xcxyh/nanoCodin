@@ -60,7 +60,7 @@ export function App({ makeAgent, task, resume, modelName, version, loadFiles, lo
         live.current = { ...previous, [event.stream]: event.text.slice(-8192) };
       }
     }); }
-    finally { live.current = null; active.current = null; setBusy(false); setQuestion(null); repaint((value) => value + 1); }
+    finally { live.current = null; active.current = null; setBusy(false); setDetails(false); setQuestion(null); repaint((value) => value + 1); }
   };
   useEffect(() => {
     if (!booted.current && (task || resume)) { booted.current = true; void run(task ?? "continue", Boolean(resume)); }

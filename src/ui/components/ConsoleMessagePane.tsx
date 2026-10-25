@@ -31,7 +31,7 @@ export function ConsoleMessagePane({ view, busy, waitingForUser = false, now = D
       {turn.answer ? <Text color={turn.status === "complete" ? BRAND_COLOR : turn.status === "error" ? "red" : "yellow"}>⏺ {turn.answer}</Text> : null}
     </Box>)}
     {view.warnings.map((warning) => <Text key={warning} color="yellow">⏺ {warning}</Text>)}
-    {view.activity.length ? <Box flexDirection="column" marginBottom={1}>
+    {view.activity.length && (busy || details) ? <Box flexDirection="column" marginBottom={1}>
       <Text color="gray">执行记录 · {view.activity.length} 项{!details && start ? ` · 较早 ${start} 项可展开查看` : ""} · Ctrl+O {details ? "收起" : "详情"}</Text>
       {visible.map((entry) => <Box key={entry.id} flexDirection="column">
         <Text color={entry.failed ? "yellow" : entry.status === "success" ? "green" : "gray"} wrap="truncate-end">
