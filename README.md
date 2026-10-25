@@ -1,352 +1,150 @@
 # Nano Codin
 
-[![CI](https://github.com/xcxyh/nanoCodin/actions/workflows/ci.yml/badge.svg)](https://github.com/xcxyh/nanoCodin/actions/workflows/ci.yml)
-[![Release](https://github.com/xcxyh/nanoCodin/actions/workflows/release.yml/badge.svg)](https://github.com/xcxyh/nanoCodin/actions/workflows/release.yml)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](./LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Ink](https://img.shields.io/badge/Terminal_UI-Ink-000000)](https://github.com/vadimdemedes/ink)
-[![React](https://img.shields.io/badge/Frontend-React_18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+A small TypeScript coding-agent Harness you can read, customize and embed. A terminal CLI is included.
 
-[English](./README.md) | [中文](./README.zh-CN.md)
+[中文](./README.zh-CN.md) · [Feature decisions and architecture](./docs/REFACTOR.md)
 
-```text
-███╗   ██╗ █████╗ ███╗   ██╗ ██████╗  ██████╗ ██████╗ ██████╗ ██╗███╗   ██╗
-████╗  ██║██╔══██╗████╗  ██║██╔═══██╗██╔════╝██╔═══██╗██╔══██╗██║████╗  ██║
-██╔██╗ ██║███████║██╔██╗ ██║██║   ██║██║     ██║   ██║██║  ██║██║██╔██╗ ██║
-██║╚██╗██║██╔══██║██║╚██╗██║██║   ██║██║     ██║   ██║██║  ██║██║██║╚██╗██║
-██║ ╚████║██║  ██║██║ ╚████║╚██████╔╝╚██████╗╚██████╔╝██████╔╝██║██║ ╚████║
-╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝
-```
+## Why this project
 
-Nano Codin is a TypeScript-based coding agent CLI with a minimal, production-oriented architecture.
-It uses a plain TypeScript ReAct loop (Thought -> Action -> Observation), tool execution, and a terminal UI.
+One async loop, explicit tools, and replaceable integration points. Importing the core does not load Ink, model SDKs, shell tools or user configuration. Choose your own model, tools, instructions, interaction handler and storage.
 
-## Highlights
+The CLI uses that same core with eight coding tools, project rules, skills, command approval and optional session persistence. There are no graph nodes, phase gates, delegated agents, repository indexes or automatic long-term memory.
 
-- ReAct single-agent loop implemented directly in TypeScript
-- AI SDK structured tool calling for tool selection, with text ReAct fallback
-- Pluggable tool registry (`fs`, `edit`, `shell`, `planning`)
-- Repo index cache with `repo_index_query` for faster repo understanding
-- Layered prompt context from `AGENTS.md` and `~/.nanocodin/workspaces/<workspace-id>/{context,memory}.md`
-- Sandbox policy (`allow|ask|deny`) for shell tool execution
-- Phase-aware loop (`discover -> plan -> execute -> verify -> finalize`)
-- Single-step error recovery loop for common failures
-- Token-threshold context compression with structured session memory
-- Lightweight delegated research subtasks via `delegate`
-- Provider routing for OpenAI-compatible and Anthropic-compatible APIs
-- Custom provider base URLs via `~/.nanocodin/config.yaml` or one-shot environment overrides
-- Ink-powered terminal UI with step-by-step agent output
-- npm-distributable CLI (`nano-codin`)
+## CLI
 
-## Requirements
-
-- Node.js 20+
-- npm 9+
-
-## Install
-
-### Global install
+Requires Node.js 20.3+.
 
 ```bash
 npm install -g nano-codin
 nano-codin
+nano-codin "fix the failing tests"
+nano-codin --print --prompt "inspect src/index.ts"
+nano-codin --resume
+nano-codin --review
 ```
 
-### One-off run
-
-```bash
-npx nano-codin
-```
-
-### Local development
-
-```bash
-git clone git@github.com:xcxyh/nanoCodin.git
-cd nanoCodin
-npm install
-npm run dev
-```
-
-## Configuration
-
-`nano-codin` now uses a user-scoped YAML config at `~/.nanocodin/config.yaml`.
-On first run, if model configuration is missing, the CLI enters a bootstrap flow and asks for:
-
-- `MODEL_PROVIDER`
-- `base URL`
-- `model`
-- `api key`
-
-The bootstrap flow writes `~/.nanocodin/config.yaml` and the same process continues without requiring a rerun.
-
-Example generated config:
-
-```yaml
-model:
-  provider: openai
-  baseUrl: https://api.openai.com/v1
-  name: gpt-4o-mini
-  apiKey: your_key
-```
-
-You can still override the YAML file with shell environment variables when needed, which is useful for CI or temporary local testing:
+Interactive startup guides model setup. Configuration is stored in `~/.nanocodin/config.yaml`; CLI overrides environment variables, then YAML, then defaults.
 
 ```bash
 export MODEL_PROVIDER=openai
-export MODEL_NAME=gpt-4o-mini
-export MODEL_API_KEY=your_key
-# optional:
-# export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
+export MODEL_NAME=your-model
+export MODEL_API_KEY=your-key
+# Optional: MODEL_BASE_URL=https://your-compatible-endpoint/v1
 nano-codin
 ```
-
-Provider-specific compatibility env vars are still supported:
-
-```bash
-export OPENAI_API_KEY=your_key
-export OPENAI_MODEL=gpt-4o-mini
-```
-
-```bash
-export ANTHROPIC_API_KEY=your_key
-export ANTHROPIC_MODEL=claude-3-5-haiku-latest
-```
-
-Optional runtime controls:
-
-```bash
-AGENT_MAX_STEPS=12
-AGENT_RECURSION_LIMIT=32
-# optional: force legacy text ReAct instead of structured tool calling
-NANOCODIN_TEXT_REACT=1
-```
-
-Notes:
-
-- `AGENT_MAX_STEPS` controls the ReAct loop stop condition.
-- `AGENT_RECURSION_LIMIT` controls the local agent/tool transition guard. Default is derived from `AGENT_MAX_STEPS`.
-- `NANOCODIN_TEXT_REACT=1` disables AI SDK structured tool calling for providers that do not support tools.
-
-### Project Personalization (`AGENTS.md` + `~/.nanocodin`)
-
-Relevant locations:
-
-- `AGENTS.md` in the workspace (behavior constraints and collaboration preferences)
-- `~/.nanocodin/config.yaml` (user-scoped runtime + model config)
-- `~/.nanocodin/workspaces/<workspace-id>/repo-index.json` (repo index cache)
-- `~/.nanocodin/workspaces/<workspace-id>/session-checkpoint.json` and `checkpoints/` (resume state)
-- `~/.nanocodin/workspaces/<workspace-id>/memory.md` (optional persistent workspace memory)
-- `~/.nanocodin/workspaces/<workspace-id>/context.md` (optional workspace context)
-
-Precedence:
-
-- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md` (guidelines only) > defaults
-
-Example `~/.nanocodin/config.yaml`:
 
 ```yaml
 model:
   provider: openai
-  baseUrl: https://api.openai.com/v1
-  name: gpt-4o-mini
-  apiKey: your_key
-
+  name: your-model
+  apiKey: your-key
 agent:
   maxSteps: 50
-  recursionLimit: 96
-  verifyRequiredKeywords: [fix, bug, implement, refactor, 测试, 修复, 实现]
-  phaseLimits:
-    discover: 32
-    plan: 16
-    executeVerify: 100
-  compression:
-    enabled: true
-    tokenThresholdRatio: 0.7
-    retainRecentRatio: 0.6
-    contextTokenBudget: 6000
-
+  maxHistoryChars: 48000
 sandbox:
   defaultPolicy: ask
-  timeoutMs: 15000
-  maxOutputBytes: 8192
-  askPrefixes: [npm install, git commit, git push, "curl "]
-  allowPrefixes: [ls, cat, grep, rg, "npm run typecheck", "npm run build"]
-  denyPatterns: ["rm -rf /", shutdown, reboot, mkfs, "dd if="]
-
-repoIndex:
-  enabled: true
-  maxBytes: 5000000
-  ignore: [.git, node_modules, dist, .next, coverage]
-
-recovery:
-  enabled: true
-  maxRetryPerStep: 1
-  dedupeWindowSteps: 2
+  timeoutMs: 60000
 ```
 
-## Usage
+`maxSteps` limits model rounds per run. `maxHistoryChars` bounds tool history sent to the model, not the entire prompt. Saved sessions retain all events.
 
-Common entry points:
+Common flags: `--cwd`, `--prompt`, `--print`, `--resume [id]`, `--review [id]`, `--new-session`, `--max-steps`, `--sandbox-policy`, `--sandbox-timeout-ms`, `--print-config`, `--help`, `--version`.
+
+`--print` runs once without a TUI and prints only the final answer; noninteractive input selects it automatically. Exit codes: complete `0`, error `1`, incomplete `2`, cancelled `130`. Commands requiring approval fail explicitly when no interaction handler is available. Shell policies are command checks, not OS isolation.
+
+In the TUI: `@` selects a file; `/` selects a command or skill. Use arrows to navigate, Enter to insert, then Enter again to submit. Esc closes a picker or cancels an active run. Ctrl+C cancels while running; press it twice to exit while idle. `/clear` starts a new session; `/quit` exits. Bordered input, task progress, highlighted approval choices and the model/token footer are retained.
+
+## Embed the Harness
+
+```ts
+import { z } from "zod";
+import { createAgent, defineTool } from "nano-codin";
+import { createModelProvider } from "nano-codin/models";
+
+const add = defineTool({
+  name: "add",
+  description: "Add two numbers",
+  schema: z.object({ a: z.number(), b: z.number() }),
+  async execute({ a, b }) {
+    return { ok: true, output: String(a + b) };
+  }
+});
+
+const agent = createAgent({
+  model: createModelProvider({
+    provider: "openai", name: "your-model",
+    apiKey: process.env.MODEL_API_KEY!, baseUrl: null
+  }),
+  tools: [add],
+  instructions: "Use add to calculate. Answer briefly."
+});
+const result = await agent.run("Calculate 2 + 3");
+console.log(result.answer);
+```
+
+Supply your own `model.generate(messages, options)` to replace the provider entirely. See [the runnable custom-model example](./examples/custom-agent.ts), which needs no key or config:
 
 ```bash
-nano-codin
-nano-codin "fix the failing tests"
-nano-codin --prompt "inspect the repo and propose a plan"
-nano-codin --resume
-nano-codin --print-config
-nano-codin --help
+npm install
+node --import tsx examples/custom-agent.ts
 ```
 
-Key flags:
+| Extension point | Contract |
+| --- | --- |
+| `model` | Return tool calls or final text; the Harness executes tools |
+| `tools` / `defineTool` | Description, Zod schema and execution function; context contains cwd, sessionId, signal and ask |
+| `instructions` | String or async per-run instruction builder |
+| `beforeFinish(session)` | Return a reason to continue; omit for a generic agent |
+| `ask(request, signal)` | Inject interaction and approval UI; honor cancellation |
+| `save(session)` | Optional storage callback; failures remain visible |
+| `run(task, { onEvent, signal })` | Observe facts or cancel execution |
 
-- `-h`, `--help`: show usage and exit
-- `-v`, `--version`: print version and exit
-- `--cwd <path>`: run against a different workspace
-- `--prompt <text>`: start with an initial task
-- `--resume [session-id]`: resume the latest or a named checkpoint
-- `--new-session`: ignore resumable checkpoint state
-- `--print-config`: print effective config and source paths
-- `--max-steps <n>`
-- `--recursion-limit <n>`
-- `--sandbox-policy <allow|ask|deny>`
-- `--sandbox-timeout-ms <n>`
-- `--compression-threshold <0..1>`
-- `--verify-keywords <a,b,c>`
+Default tools from `nano-codin/tools`: `ls`, `grep`, `view`, `create`, `str_replace`, `bash`, `todo`, `ask_user_question`. Select individual tools, use `createDefaultTools()`, or replace them all. `final` is reserved for completion.
 
-Config precedence:
+`ToolResult.effects` declares edits, plans and command evidence. The CLI's replaceable `requireVerification` hook checks successful validation after the latest declared edit. Custom tools and shell edits must declare effects accurately; this is not a complete filesystem-change detector or proof of test coverage.
 
-- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md` (guidelines only) > defaults
+Optional adapters: `FileSessionStore` from `nano-codin/session`; `loadProjectInstructions` and skill discovery from `nano-codin/context`.
 
-Interactive mode:
+## Optional Handlebars prompts
 
-- Run `nano-codin`, type a coding task, then press Enter.
+The core accepts final instructions and does not import Handlebars. Use the independent adapter when you want editable templates:
 
-Example prompts:
+```ts
+import { createTemplateInstructions } from "nano-codin/templates";
+import { loadProjectContext } from "nano-codin/context";
 
-- `Create an Express hello-world server in ./examples/server.ts`
-- `Find where tool parsing happens and explain the flow`
-- `Replace all TODO comments in src with FIXME comments`
-- `Inspect the repo structure, read project context, then propose a 3-step plan with verification`
-
-## Project Structure
-
-```text
-src/
-  agent/
-    reactLoop.ts
-    agentGraph.ts
-  core/
-    messageTypes.ts
-    toolTypes.ts
-  llm/
-    modelRouter.ts
-  prompts/
-    system.hbs
-    react.hbs
-    templateEngine.ts
-  tools/
-    fs/{ls,tree,grep,repo_index_query}.ts
-    edit/{view,create,str_replace,insert}.ts
-    shell/bash.ts
-    planning/todo.ts
-    registry.ts
-  ui/
-    consoleApp.tsx
-  index.ts
-scripts/
-  copy-prompts.mjs
+const instructions = createTemplateInstructions({
+  file: "./prompts/system.hbs",
+  data: (task, session) => loadProjectContext(process.cwd(), task, session)
+});
+// createAgent({ model, tools, instructions })
 ```
+
+CLI template precedence: project `.nanocodin/prompts/system.hbs`, then `~/.nanocodin/prompts/system.hbs`, then the bundled default. File changes take effect on the next task.
+
+Variables: `task`, `cwd`, `session`, `projectRules`, `projectContext`, `workspaceNotes`, `availableSkills`, and `selectedSkills` (name/path/content). Handlebars conditions, loops and partials are supported. Plaintext mode preserves quotes, `<`, and `&`; no HTML escaping is applied. `createTemplateRenderer({ helpers, partials })` creates an isolated renderer for custom layouts.
+
+## Context and sessions
+
+Project `AGENTS.md` is loaded verbatim. Optional `context.md` and `memory.md` under the workspace state directory are read-only notes. Skills are discovered in project `.agents/skills/`, `~/.nanocodin/skills/`, then `~/.agents/skills/`. Invoke `$skill-name` or `/skill-name` to load its body.
+
+Session events live at `~/.nanocodin/workspaces/<workspace-id>/sessions/<id>.json`. Completion, errors, cancellation and budget stops are retained. Resume supplies recorded context and interrupted-call warnings; it never automatically replays writes. `--review` reads local evidence without calling a model.
+
+Removed config keys (`phaseLimits`, `recursionLimit`, `repoIndex`, `recovery`, `compression`) are ignored; old CLI controls warn that they are deprecated. Legacy checkpoint files are preserved but not imported as new event sessions.
 
 ## Development
 
 ```bash
-npm run dev
 npm run typecheck
+npm run test
+npm run test:coverage
+npm run test:package  # build + packed API/type checks
 npm run build
-npm run start
+npm pack --dry-run
 ```
 
-## Release (Maintainers)
+Core: `src/api.ts`, `src/agent/`, `src/tools/registry.ts`. Optional adapters: `src/model/`, `src/session/store.ts`, `src/context/`. CLI/UI: `src/cli/`, `src/ui/`. Coding policy: `src/workflows/`.
 
-```bash
-npm run release:patch   # or release:minor / release:major
-git push
-git push --tags
-npm publish --access public
-```
+Build clears obsolete output before compilation. `frontend/` is an independent landing page. Releases continue through `.github/workflows/release.yml` and `release/*` branches; this refactor does not publish automatically.
 
-Release safeguards:
-
-- `preversion`: runs typecheck + build + `npm pack --dry-run`
-- `prepublishOnly`: runs typecheck + build
-
-Update `CHANGELOG.md` before publishing.
-
-## Automated Release (GitHub Actions)
-
-This repo includes an automated release workflow at:
-
-- `.github/workflows/release.yml`
-
-### What it does
-
-When you push a `release/*` branch, it will:
-
-1. Install dependencies
-2. Bump version (`package.json` + `package-lock.json`)
-3. Run `typecheck` and `build`
-4. Commit release changes and create git tag
-5. Publish to npm
-6. Push release commit and tag back to remote
-
-### Branch naming conventions
-
-- `release/patch` -> `npm version patch`
-- `release/minor` -> `npm version minor`
-- `release/major` -> `npm version major`
-- `release/vX.Y.Z` -> exact version (for example `release/v1.2.0`)
-
-### Required GitHub settings
-
-1. Repository secret:
-   - `NPM_TOKEN`: npm automation token with publish permission
-2. Workflow permissions:
-   - `contents: write` (already declared in workflow)
-3. Ensure Actions can push commits/tags to `release/*` branches
-
-### Example
-
-```bash
-git checkout -b release/minor
-git push -u origin release/minor
-```
-
-After push, GitHub Actions will publish the new version automatically.
-
-## Troubleshooting
-
-If `npm install` is slow or hangs in CN networks:
-
-```bash
-npm config set registry https://registry.npmmirror.com
-npm cache clean --force
-npm install
-```
-
-To fail fast during diagnosis:
-
-```bash
-npm install --fetch-retries=0 --fetch-timeout=15000 --verbose
-```
-
-## Contributing
-
-1. Fork and create a feature branch
-2. Keep changes focused and typed
-3. Run `npm run typecheck` and `npm run build`
-4. Open a PR with clear scope and test notes
-
-## License
-
-GPL-3.0 (see `LICENSE`).
+GPL-3.0.

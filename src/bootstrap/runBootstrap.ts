@@ -2,8 +2,8 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import type { ResolvedRuntimeConfig } from "../core/runtimeConfig.js";
-import { normalizeModelProvider, serializeConfigYaml } from "../services/configLoader.js";
-import { resolveNanoCodinPaths } from "../services/userPaths.js";
+import { normalizeModelProvider, serializeConfigYaml } from "../config/load.js";
+import { resolveNanoCodinPaths } from "../config/paths.js";
 
 export interface BootstrapIo {
   stdout(message: string): void;

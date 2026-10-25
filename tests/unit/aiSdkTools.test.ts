@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { buildAiSdkToolSet, FINAL_TOOL_NAME } from "../../src/llm/aiSdkTools.js";
+import { buildAiSdkToolSet, FINAL_TOOL_NAME } from "../../src/model/tools.js";
 import { ToolRegistry } from "../../src/tools/registry.js";
 
 describe("buildAiSdkToolSet", () => {
@@ -15,7 +15,7 @@ describe("buildAiSdkToolSet", () => {
       }
     ]);
 
-    const tools = buildAiSdkToolSet(registry);
+    const tools = buildAiSdkToolSet(registry.list());
 
     expect(tools.echo?.description).toBe("Echo text");
     expect(tools.echo?.parameters).toBe(schema);
@@ -25,15 +25,9 @@ describe("buildAiSdkToolSet", () => {
   });
 
   it("rejects registries that already define the reserved final tool", () => {
-    const registry = new ToolRegistry([
-      {
-        name: FINAL_TOOL_NAME,
-        description: "reserved",
-        schema: z.object({}),
-        execute: async () => ({ ok: true, output: "ok" })
-      }
-    ]);
-
-    expect(() => buildAiSdkToolSet(registry)).toThrow("reserved");
+    expect(() => buildAiSdkToolSet([{
+      name: FINAL_TOOL_NAME, description: "reserved", schema: z.object({}),
+      execute: async () => ({ ok: true, output: "ok" })
+    }])).toThrow("reserved");
   });
 });

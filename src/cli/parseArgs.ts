@@ -18,6 +18,8 @@ export interface ParsedCliArgs {
   printHelp: boolean;
   printVersion: boolean;
   printConfig: boolean;
+  printResult: boolean;
+  review: { enabled: boolean; sessionId: string | null };
   warnings: string[];
 }
 
@@ -37,6 +39,8 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
   let printHelp = false;
   let printVersion = false;
   let printConfig = false;
+  let printResult = false;
+  const review: ParsedCliArgs["review"] = { enabled: false, sessionId: null };
   const warnings: string[] = [];
   const configArgv: string[] = [];
 
@@ -63,6 +67,16 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
     }
     if (rawArg === "--print-config") {
       printConfig = true;
+      continue;
+    }
+    if (rawArg === "--print") {
+      printResult = true;
+      continue;
+    }
+    if (rawArg === "--review" || rawArg.startsWith("--review=")) {
+      review.enabled = true;
+      if (rawArg.includes("=")) review.sessionId = rawArg.slice(rawArg.indexOf("=") + 1) || null;
+      else if (argv[index + 1] && !argv[index + 1].startsWith("-")) review.sessionId = argv[++index];
       continue;
     }
     if (rawArg === "--new-session") {
@@ -112,7 +126,11 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
       if (!value.ok) {
         return { ok: false, error: value.error };
       }
-      configArgv.push(`--${normalizedFlag}=${value.value}`);
+      if (normalizedFlag === "recursion-limit" || normalizedFlag === "verify-keywords" || normalizedFlag === "compression-threshold") {
+        warnings.push(`--${normalizedFlag} is deprecated and ignored; execution uses --max-steps and actual edit/check results.`);
+      } else {
+        configArgv.push(`--${normalizedFlag}=${value.value}`);
+      }
       index += value.consumedNext ? 1 : 0;
       continue;
     }
@@ -146,6 +164,8 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
       printHelp,
       printVersion,
       printConfig,
+      printResult,
+      review,
       warnings
     }
   };

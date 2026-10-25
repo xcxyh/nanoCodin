@@ -36,6 +36,9 @@ jobs:
       - name: Coverage
         run: npm run test:coverage
 
+      - name: Build and verify package API
+        run: npm run test:package
+
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v4

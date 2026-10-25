@@ -56,33 +56,33 @@ const copy: Record<Locale, Copy> = {
       github: "GitHub",
     },
     hero: {
-      eyebrow: "Lightweight. Production-ready. Terminal-native.",
-      title: "Your coding agent, visible and in control.",
+      eyebrow: "Small core. Typed tools. Your application.",
+      title: "Read it. Customize it. Embed it.",
       body:
-        "Nano Codin is a TypeScript-based coding agent CLI with a ReAct loop you can follow, tools you can inspect, and a terminal UI that stays out of your way. Skills, phases, and sandbox policies—built for real work.",
+        "Nano Codin is a small TypeScript coding-agent Harness. Inject your model, tools and instructions, embed it in your application, or use the included terminal CLI.",
       primary: "Get Started",
       secondary: "See how it works",
       installLabel: "Install",
-      note: "v0.1.7 — Now with Skills & Slash Commands",
+      note: "Embeddable API · Custom tools · Project skills",
     },
     manifesto: {
       lead:
-        "Most AI tools hide the process. Nano Codin makes it visible. Every thought, action, and observation stays in view—so you can understand, trust, and control what happens.",
+        "One async loop connects your model and tools. Explicit interfaces let you change behavior, inspect results and build your own application around the same core.",
       statements: [
         {
           title: "See the loop.",
           body:
-            "Thought → Action → Observation → Verification. A clear rhythm you can follow, inspect, and debug. No black boxes.",
+            "Request → Tool call → Result → Continue. Read the loop, inject a model, and follow actual execution events.",
         },
         {
           title: "Stay in control.",
           body:
-            "Sandbox policies (allow/ask/deny), phase-aware execution, and explicit tools. You decide what runs and when.",
+            "Select the tools, supply interaction callbacks, and replace completion rules through beforeFinish.",
         },
         {
           title: "Extend with Skills.",
           body:
-            "New in v0.1.7: Define custom behaviors with Skills and slash commands. Extend the agent without touching core code.",
+            "Load project rules and invoke skills when needed. Keep behavior instructions outside the execution loop.",
         },
       ],
     },
@@ -90,13 +90,13 @@ const copy: Record<Locale, Copy> = {
       eyebrow: "How it works",
       title: "Real capabilities, not magic.",
       body:
-        "Under the hood: a ReAct loop with phase tracking, repo indexing for faster understanding, context compression for long tasks, and delegated research for complex problems.",
+        "The core runs independently of the terminal UI, model providers and user config. Optional adapters add coding tools, project context and session storage.",
       bullets: [
-        "Phase-aware: discover → plan → execute → verify → finalize",
-        "Repo index cache for instant code navigation",
-        "Token-threshold context compression",
-        "Single-step error recovery",
-        "Skills & slash commands (v0.1.7)",
+        "createAgent({ model, tools, instructions })",
+        "Typed tool schemas and replaceable models",
+        "Bounded prompt history, retained session events",
+        "Tool errors returned for correction",
+        "Project rules and on-demand skills",
       ],
     },
     features: {
@@ -109,9 +109,9 @@ const copy: Record<Locale, Copy> = {
             "Structured tool calling with text fallback. Every step is logged, every decision traceable.",
         },
         {
-          title: "Layered Context",
+          title: "Project Context",
           body:
-            "AGENTS.md guidelines, workspace context, and session memory. The agent knows your project.",
+            "AGENTS.md rules, optional project notes and explicitly invoked skills are assembled outside the core.",
         },
         {
           title: "Sandbox Control",
@@ -152,33 +152,33 @@ const copy: Record<Locale, Copy> = {
       github: "GitHub",
     },
     hero: {
-      eyebrow: "轻量。生产就绪。终端原生。",
-      title: "看得见的 coding agent，掌控在你手中。",
+      eyebrow: "小核心。明确接口。自由扩展。",
+      title: "读得懂，改得动，嵌入你的程序。",
       body:
-        "Nano Codin 是一个基于 TypeScript 的 coding agent CLI。ReAct 循环清晰可见，工具可检查，终端 UI 不打扰。Skills、阶段执行、沙箱策略——为真实工作而生。",
+        "Nano Codin 是一个精简的 TypeScript coding-agent Harness。注入自己的模型、工具和指令，嵌入程序，或直接使用配套终端 CLI。",
       primary: "立即开始",
       secondary: "了解原理",
       installLabel: "安装",
-      note: "v0.1.7 — 新增 Skills 与斜杠命令",
+      note: "可嵌入 API · 自定义工具 · 项目 skills",
     },
     manifesto: {
       lead:
-        "大多数 AI 工具隐藏过程。Nano Codin 让它可见。每一步思考、行动、观察都在视野中——你可以理解、信任、控制发生的一切。",
+        "一个普通异步循环连接模型与工具。通过明确接口调整行为、检查执行结果，并把同一个核心接入自己的应用。",
       statements: [
         {
           title: "看见循环。",
           body:
-            "Thought → Action → Observation → Verification。清晰的节奏，可跟随、可检查、可调试。没有黑盒。",
+            "请求 → 工具调用 → 执行结果 → 继续。可以直接阅读执行循环，注入模型，订阅真实事件。",
         },
         {
           title: "保持控制。",
           body:
-            "沙箱策略 (allow/ask/deny)、阶段感知执行、显式工具。你决定什么可以运行，什么时候需要确认。",
+            "选择工具、提供交互回调，并通过 beforeFinish 替换完成条件。",
         },
         {
           title: "用 Skills 扩展。",
           body:
-            "v0.1.7 新特性：用 Skills 和斜杠命令定义自定义行为。无需修改核心代码即可扩展 agent 能力。",
+            "加载项目规则，按需调用 skills。行为指令与通用执行循环分开维护。",
         },
       ],
     },
@@ -186,13 +186,13 @@ const copy: Record<Locale, Copy> = {
       eyebrow: "工作原理",
       title: "真实能力，不是魔法。",
       body:
-        "底层是 ReAct 循环加阶段追踪、repo 索引加速理解、长任务的上下文压缩、复杂问题的委托研究。",
+        "核心可以独立于终端 UI、模型适配器和用户配置运行。按需组合 coding 工具、项目上下文与会话存储。",
       bullets: [
-        "阶段感知：discover → plan → execute → verify → finalize",
-        "Repo 索引缓存，即时代码导航",
-        "Token 阈值上下文压缩",
-        "单步错误自动恢复",
-        "Skills 与斜杠命令 (v0.1.7)",
+        "createAgent({ model, tools, instructions })",
+        "工具 schema 校验，模型可替换",
+        "有限 prompt 历史，保留会话事件",
+        "工具错误返回给模型纠正",
+        "项目规则与按需 skills",
       ],
     },
     features: {
@@ -205,9 +205,9 @@ const copy: Record<Locale, Copy> = {
             "结构化工具调用，支持文本回退。每一步都有日志，每一个决策都可追溯。",
         },
         {
-          title: "分层上下文",
+          title: "项目上下文",
           body:
-            "AGENTS.md 指南、工作区上下文、会话记忆。Agent 了解你的项目。",
+            "AGENTS.md 规则、可选项目说明与显式调用的 skills，由上下文适配器加载。",
         },
         {
           title: "沙箱控制",
@@ -244,15 +244,14 @@ const copy: Record<Locale, Copy> = {
 };
 
 const terminalLines = [
-  "$ nano-codin",
-  "> add a new skill for generating API docs",
+  '$ nano-codin "fix the failing test"',
+  "❯ fix the failing test",
   "",
-  "[discover] reading AGENTS.md and skill templates",
-  "[discover] indexing src/tools/",
-  "[plan] 1. create skill file  2. add prompts  3. test",
-  "[execute] created .agents/skills/api-docs/SKILL.md",
-  "[verify] skill loaded successfully",
-  "[finalize] skill ready — use /api-docs to generate docs",
+  "✓ view src/math.ts",
+  "✓ str_replace src/math.ts",
+  "✓ bash npm test",
+  "",
+  "Fixed add(); npm test passed.",
 ];
 
 function App() {
@@ -359,10 +358,10 @@ function App() {
               </div>
             </div>
             <div className="terminal-caption">
-              <span>ReAct</span>
-              <span>LangGraph</span>
-              <span>Sandbox</span>
-              <span>Delegate</span>
+              <span>Harness</span>
+              <span>Typed Tools</span>
+              <span>Skills</span>
+              <span>Embeddable</span>
             </div>
           </div>
         </section>

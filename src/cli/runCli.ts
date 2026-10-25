@@ -1,136 +1,87 @@
-import { render } from "ink";
-import React from "react";
-import { CodingAgentGraph } from "../agent/agentGraph.js";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createAgent } from "../agent/run.js";
 import { runBootstrap } from "../bootstrap/runBootstrap.js";
-import { createModelProvider, getConfiguredModelName } from "../llm/modelRouter.js";
-import { createEmptyTodoState, type ToolContext } from "../core/toolTypes.js";
-import { createDefaultToolRegistry } from "../tools/registry.js";
-import { ConsoleApp } from "../ui/consoleApp.js";
-import { isModelConfigComplete, loadRuntimeConfig } from "../services/configLoader.js";
-import { loadContextSources } from "../services/contextLoader.js";
-import { RepoIndexer } from "../services/repoIndexer.js";
-import { PermissionController } from "../core/permission.js";
-import { FileSessionCheckpointStore } from "../services/sessionCheckpoint.js";
-import { DurableMemoryStore } from "../services/durableMemory.js";
-import { formatSkillsForPrompt, loadSkills } from "../services/skills.js";
-import { ensureWorkspaceState } from "../services/workspaceState.js";
+import { loadRuntimeConfig, isModelConfigComplete } from "../config/load.js";
+import { loadSkills } from "../context/skills.js";
 import { buildSlashCommands } from "../ui/utils/slashCommands.js";
-import { parsePositiveIntEnv } from "./runtimeEnv.js";
+import { loadFileSuggestions } from "../ui/fileSuggestions.js";
+import { loadProjectContext } from "../context/project.js";
+import type { ToolContext } from "../core/toolTypes.js";
+import { createModelProvider, getConfiguredModelName } from "../model/provider.js";
+import { FileSessionStore } from "../session/store.js";
+import { formatSessionReview } from "../session/review.js";
+import { createDefaultTools } from "../tools/index.js";
+import { requireVerification } from "../workflows/verification.js";
 import { formatConfigText, formatHelpText, getCliVersion } from "./help.js";
 import { parseCliArgs } from "./parseArgs.js";
+import { resolveNanoCodinHome } from "../config/paths.js";
+import { createTemplateInstructions } from "../templates/index.js";
 
-export interface CliIo {
-  stdout(message: string): void;
-  stderr(message: string): void;
-}
+export interface CliIo { stdout(message: string): void; stderr(message: string): void }
+const defaultIo: CliIo = { stdout: (text) => process.stdout.write(`${text}\n`), stderr: (text) => process.stderr.write(`${text}\n`) };
 
-export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = process.cwd()): Promise<number> {
+export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = process.cwd(), interactive = Boolean(process.stdin.isTTY)): Promise<number> {
   const parsed = parseCliArgs(argv, baseCwd);
-  if (!parsed.ok) {
-    io.stderr(parsed.error ?? "Unknown CLI parse error.");
-    return 1;
-  }
-
+  if (!parsed.ok || !parsed.args) { io.stderr(parsed.error ?? "CLI arguments unavailable."); return 1; }
   const args = parsed.args;
-  if (!args) {
-    io.stderr("CLI arguments were not available after parsing.");
-    return 1;
+  for (const warning of args.warnings) io.stderr(warning);
+  if (args.printHelp) { io.stdout(formatHelpText()); return 0; }
+  if (args.printVersion) { io.stdout(getCliVersion()); return 0; }
+  const store = new FileSessionStore(args.cwd);
+  if (args.review.enabled) {
+    const session = await store.load(args.review.sessionId ?? undefined);
+    if (!session) { io.stderr("找不到会话记录。"); return 1; }
+    io.stdout(formatSessionReview(session)); return 0;
   }
-  for (const warning of args.warnings) {
-    io.stderr(`Warning: ${warning}`);
-  }
-
-  if (args.printHelp) {
-    io.stdout(formatHelpText());
-    return 0;
-  }
-
-  if (args.printVersion) {
-    io.stdout(getCliVersion());
-    return 0;
-  }
-
-  process.chdir(args.cwd);
   let runtime = loadRuntimeConfig(args.cwd, args.configArgv);
-  if (args.printConfig) {
-    io.stdout(formatConfigText(runtime, args));
-    return 0;
-  }
-
-  if (!runtime.sources.configYamlExists || !isModelConfigComplete(runtime.config.model)) {
+  if (args.printConfig) { io.stdout(formatConfigText(runtime, args)); return 0; }
+  const print = args.printResult || !interactive;
+  if (print && !args.prompt && !args.resume.enabled) { io.stderr("请提供任务，或使用 --resume。交互模式请在终端运行 nano-codin。"); return 1; }
+  if (!isModelConfigComplete(runtime.config.model)) {
+    if (print) { io.stderr("模型配置不完整。请设置 MODEL_PROVIDER、MODEL_NAME、MODEL_API_KEY，或在终端运行配置向导。"); return 1; }
     await runBootstrap(runtime.config, args.cwd, io);
     runtime = loadRuntimeConfig(args.cwd, args.configArgv);
   }
-
-  await ensureWorkspaceState(args.cwd);
-
-  const checkpoint = new FileSessionCheckpointStore(args.cwd);
-  const durableMemoryStore = new DurableMemoryStore(args.cwd);
-  if (args.resume.enabled) {
-    const restored = await checkpoint.load(args.resume.sessionId ?? undefined);
-    if (!restored) {
-      const sessions = await checkpoint.list();
-      const available = sessions.length === 0
-        ? "No resumable checkpoints found. Start a new task or use --new-session."
-        : `Available checkpoints:\n${sessions.map((session) => `  ${session.id}  ${session.task}`).join("\n")}`;
-      io.stderr(
-        args.resume.sessionId
-          ? `Checkpoint not found: ${args.resume.sessionId}\n${available}`
-          : available
-      );
-      return 1;
-    }
+  const restored = args.resume.enabled ? await store.load(args.resume.sessionId ?? undefined) : null;
+  if (args.resume.enabled && !restored) {
+    const sessions = await store.list();
+    io.stderr(`Checkpoint not found: ${args.resume.sessionId ?? "latest"}${sessions.length ? `\n${sessions.map((item) => `${item.id} ${item.task}`).join("\n")}` : "\nNo resumable sessions found."}`); return 1;
   }
-
-  const context = await loadContextSources(args.cwd);
-  const skills = await loadSkills(args.cwd);
-  const slashCommands = buildSlashCommands(skills);
-  context.sources.availableSkills = formatSkillsForPrompt(skills);
-  const version = getCliVersion();
-  const modelName = getConfiguredModelName(runtime.config.model);
   const model = createModelProvider(runtime.config.model);
-  const repoIndexer = new RepoIndexer(args.cwd, runtime.config.repoIndex);
-  const tools = createDefaultToolRegistry();
-  const permissionController = new PermissionController();
-  const maxSteps = runtime.config.agent.maxSteps ?? parsePositiveIntEnv(process.env.AGENT_MAX_STEPS, 12);
-  const recursionLimit = runtime.config.agent.recursionLimit ?? parsePositiveIntEnv(process.env.AGENT_RECURSION_LIMIT, maxSteps * 2 + 8);
-
-  const toolContext: ToolContext = {
-    cwd: args.cwd,
-    todos: createEmptyTodoState(),
-    runtimeConfig: runtime.config,
-    repoIndex: repoIndexer,
-    commandLogs: [],
-    workingMemory: null,
-    compressionSnapshot: null,
-    contextSources: context.sources,
-    durableMemoryStore,
-    permission: permissionController,
-    askUserQuestion: permissionController.questionController,
-    checkpoint
+  const templateFile = [
+    path.join(args.cwd, ".nanocodin", "prompts", "system.hbs"),
+    path.join(resolveNanoCodinHome(), "prompts", "system.hbs")
+  ].find((file) => existsSync(file)) ?? fileURLToPath(new URL("../prompts/system.hbs", import.meta.url));
+  const instructions = createTemplateInstructions({
+    file: templateFile,
+    data: (task, current) => loadProjectContext(args.cwd, task, current)
+  });
+  let initialSession = restored;
+  const makeAgent = (ask?: ToolContext["ask"]) => {
+    const session = initialSession ?? undefined; initialSession = null;
+    return createAgent({
+      model, tools: createDefaultTools(runtime.config.sandbox), cwd: args.cwd, session,
+      maxSteps: runtime.config.agent.maxSteps, maxHistoryChars: runtime.config.agent.maxHistoryChars,
+      instructions,
+      ask, save: (current) => store.save(current), beforeFinish: requireVerification
+    });
   };
-
-  await repoIndexer.init().catch(() => undefined);
-
-  const graph = new CodingAgentGraph(model, tools, toolContext, maxSteps, recursionLimit);
-  render(React.createElement(ConsoleApp, {
-    graph,
-    permissionController,
-    questionController: permissionController.questionController,
-    modelName,
-    version,
-    cwd: args.cwd,
-    checkpoint,
-    slashCommands,
-    initialTask: args.prompt ?? undefined,
-    resumeSessionId: args.resume.enabled ? (args.resume.sessionId ?? "__LATEST__") : undefined,
-    disableCheckpointRestore: args.newSession
-  }));
-
+  if (print) {
+    const abort = new AbortController();
+    const cancel = () => abort.abort(); process.once("SIGINT", cancel);
+    try {
+      const result = await makeAgent().run(args.prompt ?? "continue", { signal: abort.signal, continuation: args.resume.enabled });
+      io.stdout(result.answer);
+      if (result.persistenceError) io.stderr(`会话保存失败：${result.persistenceError}`);
+      return result.status === "complete" ? 0 : result.status === "incomplete" ? 2 : result.status === "cancelled" ? 130 : 1;
+    } finally { process.removeListener("SIGINT", cancel); }
+  }
+  const [{ render }, React, { App }] = await Promise.all([import("ink"), import("react"), import("../ui/App.js")]);
+  render(React.createElement(App, { makeAgent, task: args.prompt ?? undefined, resume: args.resume.enabled, modelName: getConfiguredModelName(runtime.config.model), version: getCliVersion(),
+    loadFiles: (signal: AbortSignal) => loadFileSuggestions(args.cwd, signal),
+    loadCommands: async () => buildSlashCommands(await loadSkills(args.cwd))
+  }), { exitOnCtrlC: false });
   return 0;
 }
-
-const defaultIo: CliIo = {
-  stdout: (message) => process.stdout.write(`${message}\n`),
-  stderr: (message) => process.stderr.write(`${message}\n`)
-};

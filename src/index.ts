@@ -3,7 +3,6 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCli } from "./cli/runCli.js";
-export { parsePositiveIntEnv } from "./cli/runtimeEnv.js";
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   return runCli(argv);
@@ -28,5 +27,8 @@ const isDirectExecutionEntry = isDirectExecution(import.meta.url);
 if (isDirectExecutionEntry) {
   void main().then((exitCode) => {
     process.exitCode = exitCode;
+  }).catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
   });
 }

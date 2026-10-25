@@ -11,13 +11,6 @@ export interface ToolCall {
   input: unknown;
 }
 
-export interface AgentStep {
-  thought: string;
-  action?: ToolCall;
-  observation?: string;
-  phase?: "discover" | "plan" | "execute" | "verify" | "finalize";
-}
-
 export type TokenUsageSource = "actual" | "estimated" | "mixed";
 
 export interface TokenUsage {
@@ -28,9 +21,11 @@ export interface TokenUsage {
 }
 
 export interface ModelResponse {
+  error?: string;
   text: string;
   usage?: TokenUsage;
   toolCall?: ToolCall;
+  toolCalls?: ToolCall[];
   finishReason?: string;
   structured?: boolean;
 }

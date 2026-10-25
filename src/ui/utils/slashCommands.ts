@@ -1,4 +1,4 @@
-import { formatSkillDescriptionForList, type LoadedSkill, type SkillSourceScope } from "../../services/skills.js";
+import { formatSkillDescriptionForList, type LoadedSkill, type SkillSourceScope } from "../../context/skills.js";
 
 export type SlashCommandSourceScope = SkillSourceScope | "builtin";
 
@@ -22,14 +22,14 @@ export function buildSlashCommands(skills: LoadedSkill[]): SlashCommandItem[] {
     {
       kind: "builtin",
       name: "clear",
-      description: "Clear visible transcript and session context.",
+      description: "清空对话，开始新会话。",
       command: "/clear",
       sourceScope: "builtin"
     },
     {
       kind: "builtin",
       name: "quit",
-      description: "Quit the TUI.",
+      description: "退出 Nano Codin。",
       command: "/quit",
       sourceScope: "builtin"
     },

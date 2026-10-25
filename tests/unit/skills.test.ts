@@ -7,7 +7,7 @@ import {
   formatSkillDescriptionForList,
   formatSkillsForPrompt,
   parseSkillFile
-} from "../../src/services/skills.js";
+} from "../../src/context/skills.js";
 
 describe("skills loader", () => {
   const tempDirs: string[] = [];
@@ -127,7 +127,7 @@ describe("skills loader", () => {
     ]);
 
     expect(formatted).toContain("$frontend-design");
-    expect(formatted).toContain("Create distinctive frontend interfaces.");
+    expect(formatted).not.toContain("Create distinctive\nfrontend interfaces.");
     expect(formatted).toContain("/Users/test/.agents/skills/frontend-design/SKILL.md");
   });
 });

@@ -15,4 +15,4 @@ for (const entry of entries) {
   await copyFile(path.join(srcDir, entry.name), path.join(outDir, entry.name));
 }
 
-console.log('Copied prompt templates to dist/prompts');
+console.log('Copied prompts to dist/prompts');

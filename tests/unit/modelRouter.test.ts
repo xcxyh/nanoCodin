@@ -8,8 +8,8 @@ const hoisted = vi.hoisted(() => ({
   anthropicFactorySpy: vi.fn()
 }));
 
-vi.mock("ai", () => ({
-  generateText: hoisted.generateTextSpy
+vi.mock("ai", async (importOriginal) => ({
+  ...await importOriginal<typeof import("ai")>(), generateText: hoisted.generateTextSpy
 }));
 
 vi.mock("@ai-sdk/openai", () => ({
@@ -52,7 +52,7 @@ describe("modelRouter token usage", () => {
       }
     });
 
-    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const { createModelProviderFromEnv } = await import("../../src/model/provider.js");
     const provider = createModelProviderFromEnv();
     const result = await provider.generate([{ role: "user", content: "hello world" }]);
 
@@ -71,7 +71,7 @@ describe("modelRouter token usage", () => {
       text: "finished"
     });
 
-    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const { createModelProviderFromEnv } = await import("../../src/model/provider.js");
     const provider = createModelProviderFromEnv();
     const result = await provider.generate([{ role: "user", content: "please solve this task" }]);
 
@@ -103,12 +103,12 @@ describe("modelRouter token usage", () => {
       }
     ]);
 
-    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const { createModelProviderFromEnv } = await import("../../src/model/provider.js");
     const provider = createModelProviderFromEnv();
     const result = await provider.generate([
       { role: "system", content: "system prompt" },
       { role: "user", content: "hello world" }
-    ], { tools });
+    ], { tools: tools.list() });
 
     expect(result.structured).toBe(true);
     expect(result.finishReason).toBe("tool-calls");
@@ -116,7 +116,7 @@ describe("modelRouter token usage", () => {
     expect(hoisted.generateTextSpy).toHaveBeenCalledWith(expect.objectContaining({
       system: "system prompt",
       prompt: "USER: hello world",
-      toolChoice: "required",
+      toolChoice: "auto",
       maxSteps: 1,
       tools: expect.objectContaining({
         echo: expect.objectContaining({ description: "Echo text" }),
@@ -142,9 +142,9 @@ describe("modelRouter token usage", () => {
       }
     ]);
 
-    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const { createModelProviderFromEnv } = await import("../../src/model/provider.js");
     const provider = createModelProviderFromEnv();
-    const result = await provider.generate([{ role: "user", content: "hello world" }], { tools });
+    const result = await provider.generate([{ role: "user", content: "hello world" }], { tools: tools.list() });
 
     expect(result.structured).toBeUndefined();
     expect(result.toolCall).toBeUndefined();
@@ -171,9 +171,9 @@ describe("modelRouter token usage", () => {
       }
     ]);
 
-    const { createModelProviderFromEnv } = await import("../../src/llm/modelRouter.js");
+    const { createModelProviderFromEnv } = await import("../../src/model/provider.js");
     const provider = createModelProviderFromEnv();
-    const result = await provider.generate([{ role: "user", content: "hello world" }], { tools });
+    const result = await provider.generate([{ role: "user", content: "hello world" }], { tools: tools.list() });
 
     expect(result.structured).toBeUndefined();
     expect(result.toolCall).toBeUndefined();
@@ -184,7 +184,7 @@ describe("modelRouter token usage", () => {
   });
 
   it("derives configured model names from env", async () => {
-    const { getConfiguredModelNameFromEnv } = await import("../../src/llm/modelRouter.js");
+    const { getConfiguredModelNameFromEnv } = await import("../../src/model/provider.js");
 
     expect(getConfiguredModelNameFromEnv({
       MODEL_PROVIDER: "openai",

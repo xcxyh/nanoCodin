@@ -43,3 +43,12 @@ export function getVisiblePickerWindow<T>(items: T[], selectedIndex: number, max
   const start = Math.min(Math.max(0, clampedIndex - windowSize + 1), maxStart);
   return items.slice(start, start + windowSize);
 }
+
+export function insertFileReference(input: string, cursor: number, start: number, file: string): { input: string; cursor: number } {
+  const replacement = /\s/.test(file) ? JSON.stringify(file) : file;
+  const remainder = input.slice(cursor);
+  const boundary = remainder.search(/\s/);
+  const suffix = boundary < 0 ? "" : remainder.slice(boundary).trimStart();
+  const prefix = input.slice(0, start);
+  return { input: `${prefix}${replacement} ${suffix}`, cursor: prefix.length + replacement.length + 1 };
+}

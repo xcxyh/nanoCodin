@@ -1,352 +1,202 @@
 # Nano Codin
 
-[![CI](https://github.com/xcxyh/nanoCodin/actions/workflows/ci.yml/badge.svg)](https://github.com/xcxyh/nanoCodin/actions/workflows/ci.yml)
-[![Release](https://github.com/xcxyh/nanoCodin/actions/workflows/release.yml/badge.svg)](https://github.com/xcxyh/nanoCodin/actions/workflows/release.yml)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](./LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Ink](https://img.shields.io/badge/Terminal_UI-Ink-000000)](https://github.com/vadimdemedes/ink)
-[![React](https://img.shields.io/badge/Frontend-React_18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+一个可以读懂、修改、嵌入自己程序的 TypeScript coding-agent Harness，也提供终端 CLI。
 
-[English](./README.md) | [中文](./README.zh-CN.md)
+[English](./README.md) · [功能取舍与重构方案](./docs/REFACTOR.md)
 
-```text
-███╗   ██╗ █████╗ ███╗   ██╗ ██████╗  ██████╗ ██████╗ ██████╗ ██╗███╗   ██╗
-████╗  ██║██╔══██╗████╗  ██║██╔═══██╗██╔════╝██╔═══██╗██╔══██╗██║████╗  ██║
-██╔██╗ ██║███████║██╔██╗ ██║██║   ██║██║     ██║   ██║██║  ██║██║██╔██╗ ██║
-██║╚██╗██║██╔══██║██║╚██╗██║██║   ██║██║     ██║   ██║██║  ██║██║██║╚██╗██║
-██║ ╚████║██║  ██║██║ ╚████║╚██████╔╝╚██████╗╚██████╔╝██████╔╝██║██║ ╚████║
-╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝
-```
+## 核心能力
 
-Nano Codin 是一个基于 TypeScript 的 Coding Agent CLI，采用简洁且面向生产的架构。
-它使用纯 TypeScript ReAct 循环（Thought -> Action -> Observation）、工具执行以及终端 UI。
+- 一个普通异步执行循环；没有 Graph、阶段门禁或多层递归预算。
+- 注入自己的模型、工具、指令、提问回调、事件监听和会话存储。
+- 工具 schema 校验；失败反馈给模型纠正；批量调用按顺序执行。
+- OpenAI / Anthropic 兼容适配器；不支持工具协议的接口可回退到带参数 schema 的文本调用。
+- 默认 coding 工具、项目规则、skills、命令审批和可取消的终端界面。
+- 可选会话保存与恢复；默认结果简短，详细记录按需查看。
 
-## 核心特性
+特色体现在可定制边界：导入核心不会加载 Ink、模型 SDK、shell 工具或用户配置。内置模型和工具均由使用者显式选择。coding 验证规则是可替换的完成回调。
 
-- 直接用 TypeScript 实现的 ReAct 单代理循环
-- 使用 AI SDK structured tool calling 选择工具，并保留文本 ReAct fallback
-- 可插拔工具注册表（`fs`、`edit`、`shell`、`planning`）
-- 通过 `repo_index_query` 仓库索引缓存提升仓库理解速度
-- 从 `AGENTS.md` 与 `~/.nanocodin/workspaces/<workspace-id>/{context,memory}.md` 分层注入提示词上下文
-- 为 shell 工具执行提供沙箱策略（`allow|ask|deny`）
-- 阶段感知循环（`discover -> plan -> execute -> verify -> finalize`）
-- 面向常见失败场景的单步错误恢复
-- 基于 Token 阈值的上下文压缩与结构化 session memory
-- 通过 `delegate` 支持轻量级委托式研究子任务
-- 支持 OpenAI 兼容与 Anthropic 兼容 API 的 Provider 路由
-- 支持通过 `~/.nanocodin/config.yaml` 或一次性环境变量覆盖自定义 Provider Base URL
-- 基于 Ink 的终端 UI，逐步展示 Agent 输出
-- 可通过 npm 分发的 CLI（`nano-codin`）
+## CLI
 
-## 环境要求
-
-- Node.js 20+
-- npm 9+
-
-## 安装
-
-### 全局安装
+需要 Node.js 20.3+。
 
 ```bash
 npm install -g nano-codin
 nano-codin
+nano-codin "修复测试失败"
+nano-codin --print --prompt "分析 src/index.ts"
+nano-codin --resume
+nano-codin --review
 ```
 
-### 一次性运行
-
-```bash
-npx nano-codin
-```
-
-### 本地开发
-
-```bash
-git clone git@github.com:xcxyh/nanoCodin.git
-cd nanoCodin
-npm install
-npm run dev
-```
-
-## 配置
-
-`nano-codin` 现在默认使用用户级 YAML 配置文件：`~/.nanocodin/config.yaml`。
-首次运行如果缺少模型配置，会先进入 bootstrap 引导，收集：
-
-- `MODEL_PROVIDER`
-- `base URL`
-- `model`
-- `api key`
-
-引导完成后会写入 `~/.nanocodin/config.yaml`，并在同一进程继续启动，无需手动重跑。
-
-生成后的配置示例：
-
-```yaml
-model:
-  provider: openai
-  baseUrl: https://api.openai.com/v1
-  name: gpt-4o-mini
-  apiKey: your_key
-```
-
-如果需要做临时覆盖，仍然可以使用 shell 环境变量，这对 CI 或临时切换模型比较方便：
+首次在终端运行会引导配置模型；也可用环境变量配置：
 
 ```bash
 export MODEL_PROVIDER=openai
-export MODEL_NAME=gpt-4o-mini
-export MODEL_API_KEY=your_key
-# optional:
-# export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
+export MODEL_NAME=your-model
+export MODEL_API_KEY=your-key
+# 可选：MODEL_BASE_URL=https://your-compatible-endpoint/v1
 nano-codin
 ```
 
-仍兼容旧的 provider-specific 环境变量：
-
-```bash
-export OPENAI_API_KEY=your_key
-export OPENAI_MODEL=gpt-4o-mini
-```
-
-```bash
-export ANTHROPIC_API_KEY=your_key
-export ANTHROPIC_MODEL=claude-3-5-haiku-latest
-```
-
-可选运行时控制：
-
-```bash
-AGENT_MAX_STEPS=12
-AGENT_RECURSION_LIMIT=32
-# optional: 强制使用旧文本 ReAct，而不是 structured tool calling
-NANOCODIN_TEXT_REACT=1
-```
-
-说明：
-
-- `AGENT_MAX_STEPS` 控制 ReAct 循环停止条件。
-- `AGENT_RECURSION_LIMIT` 控制本地 agent/tool 转换安全保护，默认值由 `AGENT_MAX_STEPS` 推导。
-- `NANOCODIN_TEXT_REACT=1` 会关闭 AI SDK structured tool calling，用于不支持 tools 的 Provider。
-
-### 项目个性化（`AGENTS.md` + `~/.nanocodin`）
-
-相关位置：
-
-- 工作区内的 `AGENTS.md`（行为约束与协作偏好）
-- `~/.nanocodin/config.yaml`（用户级运行时与模型配置）
-- `~/.nanocodin/workspaces/<workspace-id>/repo-index.json`（仓库索引缓存）
-- `~/.nanocodin/workspaces/<workspace-id>/session-checkpoint.json` 与 `checkpoints/`（恢复状态）
-- `~/.nanocodin/workspaces/<workspace-id>/memory.md`（可选，工作区持久记忆）
-- `~/.nanocodin/workspaces/<workspace-id>/context.md`（可选，工作区上下文）
-
-优先级：
-
-- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md`（仅指南）> defaults
-
-示例 `~/.nanocodin/config.yaml`：
+配置文件是 `~/.nanocodin/config.yaml`，优先级：CLI > 环境变量 > YAML > 默认值。
 
 ```yaml
 model:
   provider: openai
-  baseUrl: https://api.openai.com/v1
-  name: gpt-4o-mini
-  apiKey: your_key
-
+  name: your-model
+  apiKey: your-key
 agent:
   maxSteps: 50
-  recursionLimit: 96
-  verifyRequiredKeywords: [fix, bug, implement, refactor, 测试, 修复, 实现]
-  phaseLimits:
-    discover: 32
-    plan: 16
-    executeVerify: 100
-  compression:
-    enabled: true
-    tokenThresholdRatio: 0.7
-    retainRecentRatio: 0.6
-    contextTokenBudget: 6000
-
+  maxHistoryChars: 48000
 sandbox:
   defaultPolicy: ask
-  timeoutMs: 15000
-  maxOutputBytes: 8192
-  askPrefixes: [npm install, git commit, git push, "curl "]
-  allowPrefixes: [ls, cat, grep, rg, "npm run typecheck", "npm run build"]
-  denyPatterns: ["rm -rf /", shutdown, reboot, mkfs, "dd if="]
-
-repoIndex:
-  enabled: true
-  maxBytes: 5000000
-  ignore: [.git, node_modules, dist, .next, coverage]
-
-recovery:
-  enabled: true
-  maxRetryPerStep: 1
-  dedupeWindowSteps: 2
+  timeoutMs: 60000
 ```
 
-## 使用方式
+`maxSteps` 是每次任务的模型请求轮数；`maxHistoryChars` 限制送入模型的工具历史，磁盘记录保留完整事件。它不是总上下文 token 上限，用户请求、规则和显式调用的 skill 正文另计。
 
-常见入口：
+- `--cwd <path>`：选择工作区。
+- `--prompt <text>`：提供任务，也支持位置参数。
+- `--print`：无 TUI 单次执行，只向 stdout 输出最终答复。非交互环境自动使用此模式。
+- `--resume [id]`：加载最近或指定的新格式会话并继续。
+- `--review [id]`：只读查看本地会话结果与命令记录，不调用模型。
+- `--new-session`：从新会话开始；默认每次启动都是新会话。
+- `--max-steps <n>`、`--sandbox-policy <allow|ask|deny>`、`--sandbox-timeout-ms <n>`：临时覆盖配置。
+- `--print-config`、`--help`、`--version`：查看配置、帮助和版本。
+
+交互中，`@` 选择文件，`/` 选择内置命令或 skill；↑↓ 导航、Enter 插入，再次 Enter 提交。Esc 先关闭选择器，任务执行中则取消。Ctrl+C 在任务运行时取消，空闲时连续按两次退出；`/clear` 新建会话，`/quit` 退出。保留边框输入区、任务进度、权限高亮、模型与 token 状态栏。
+
+无界面模式的退出码：完成 `0`、执行错误 `1`、未完成 `2`、取消 `130`。无交互回调时，需要审批的命令会明确失败，不会自动批准。`sandbox` 是命令策略检查，不是操作系统隔离环境。
+
+## 嵌入自己的程序
+
+```ts
+import { z } from "zod";
+import { createAgent, defineTool } from "nano-codin";
+import { createModelProvider } from "nano-codin/models";
+
+const add = defineTool({
+  name: "add",
+  description: "计算两个数的和",
+  schema: z.object({ a: z.number(), b: z.number() }),
+  async execute({ a, b }) {
+    return { ok: true, output: String(a + b) };
+  }
+});
+
+const agent = createAgent({
+  model: createModelProvider({
+    provider: "openai", name: "your-model",
+    apiKey: process.env.MODEL_API_KEY!, baseUrl: null
+  }),
+  tools: [add],
+  instructions: "使用 add 工具计算，简短回答。"
+});
+
+const result = await agent.run("计算 2 + 3", {
+  onEvent(event) { /* 接入自己的 UI 或日志 */ }
+});
+console.log(result.answer);
+```
+
+也可以完全替换 `model`，只需实现 `generate(messages, options)`。无需 API Key 的完整示例见 [examples/custom-agent.ts](./examples/custom-agent.ts)：
 
 ```bash
-nano-codin
-nano-codin "fix the failing tests"
-nano-codin --prompt "inspect the repo and propose a plan"
-nano-codin --resume
-nano-codin --print-config
-nano-codin --help
+npm install
+node --import tsx examples/custom-agent.ts
 ```
 
-常用参数：
+扩展接口：
 
-- `-h`, `--help`：显示帮助并退出
-- `-v`, `--version`：输出版本并退出
-- `--cwd <path>`：在指定工作区中运行
-- `--prompt <text>`：以初始任务启动
-- `--resume [session-id]`：恢复最近一次或指定 checkpoint
-- `--new-session`：忽略可恢复的 checkpoint 状态
-- `--print-config`：输出生效配置和来源路径
-- `--max-steps <n>`
-- `--recursion-limit <n>`
-- `--sandbox-policy <allow|ask|deny>`
-- `--sandbox-timeout-ms <n>`
-- `--compression-threshold <0..1>`
-- `--verify-keywords <a,b,c>`
+| 接口 | 用途 |
+| --- | --- |
+| `model` | 自定义模型请求及响应；工具结果执行由 Harness 负责 |
+| `tools` / `defineTool` | schema、描述、执行函数；工具上下文只有 cwd、sessionId、signal、ask |
+| `instructions` | 字符串或每次任务生成指令的异步函数 |
+| `beforeFinish(session)` | 返回原因则继续工作；不传就没有 coding 专用门禁 |
+| `ask(request, signal)` | 接入自己的权限与提问 UI；应响应取消信号 |
+| `save(session)` | 可选存储回调；失败会显式记录并通过返回值报告 |
+| `run(..., { onEvent, signal })` | 订阅执行事实，取消当前运行 |
 
-配置优先级：
+默认工具：`ls`、`grep`、`view`、`create`、`str_replace`、`bash`、`todo`、`ask_user_question`。使用 `nano-codin/tools` 的 `createDefaultTools()` 获取，也可逐个选择或完全替换。`final` 是保留的完成协议名。
 
-- CLI flags > shell env > `~/.nanocodin/config.yaml` > `AGENTS.md`（仅指南）> defaults
+工具通过 `ToolResult.effects` 声明实际改动、计划或命令验证事实。默认 coding CLI 使用 `requireVerification` 完成回调，要求最新改动后有成功检查；自定义工具与 shell 修改应准确声明这些事实。该机制不推断任意 shell 脚本的所有文件改动，也不能证明测试覆盖了业务需求。
 
-交互模式：
+`nano-codin/session` 提供 `FileSessionStore`；`nano-codin/context` 提供 `loadProjectInstructions` 和 skill 发现函数。它们都是可选适配器。
 
-- 运行 `nano-codin`，输入编码任务后按 Enter。
+## 用 Handlebars 定制 prompt
 
-示例提示词：
+核心仍然只接收最终的 `instructions`，不会导入 Handlebars。可选适配器通过独立入口使用：
 
-- `Create an Express hello-world server in ./examples/server.ts`
-- `Find where tool parsing happens and explain the flow`
-- `Replace all TODO comments in src with FIXME comments`
-- `Inspect the repo structure, read project context, then propose a 3-step plan with verification`
+```ts
+import { createTemplateInstructions } from "nano-codin/templates";
+import { loadProjectContext } from "nano-codin/context";
 
-## 项目结构
-
-```text
-src/
-  agent/
-    reactLoop.ts
-    agentGraph.ts
-  core/
-    messageTypes.ts
-    toolTypes.ts
-  llm/
-    modelRouter.ts
-  prompts/
-    system.hbs
-    react.hbs
-    templateEngine.ts
-  tools/
-    fs/{ls,tree,grep,repo_index_query}.ts
-    edit/{view,create,str_replace,insert}.ts
-    shell/bash.ts
-    planning/todo.ts
-    registry.ts
-  ui/
-    consoleApp.tsx
-  index.ts
-scripts/
-  copy-prompts.mjs
+const instructions = createTemplateInstructions({
+  file: "./prompts/system.hbs",
+  data: (task, session) => loadProjectContext(process.cwd(), task, session)
+});
+// createAgent({ model, tools, instructions })
 ```
 
-## 开发命令
+CLI 模板优先级：项目 `.nanocodin/prompts/system.hbs` > `~/.nanocodin/prompts/system.hbs` > 包内默认模板。修改文件在下一次任务生效，无需重启。
+
+可用变量：`task`、`cwd`、`session`、`projectRules`、`projectContext`、`workspaceNotes`、`availableSkills`、`selectedSkills`（含 name、path、content）。例如：
+
+```hbs
+你是项目助手，请完成任务并简短回复。
+{{#if projectRules}}
+项目规则：
+{{projectRules}}
+{{/if}}
+{{#each selectedSkills}}
+Skill {{name}}：
+{{content}}
+{{/each}}
+```
+
+适配器为纯文本 prompt 配置，不做 HTML 转义，代码里的引号、`<` 和 `&` 会原样保留。`createTemplateRenderer({ helpers, partials })` 可提供独立的 helper 和 partial，每个实例互不污染。
+
+## 项目规则和 skills
+
+- 项目根目录的 `AGENTS.md` 原样作为规则加载。
+- 可选项目说明：`~/.nanocodin/workspaces/<workspace-id>/context.md`、`memory.md`，仅只读使用。
+- Skills 顺序：项目 `.agents/skills/` > `~/.nanocodin/skills/` > `~/.agents/skills/`。
+- 通过 `$skill-name` 或 `/skill-name` 显式调用，加载匹配 `SKILL.md` 正文。
+- 不自动写长期记忆，不维护仓库索引，不启动子 Agent。
+
+会话文件：`~/.nanocodin/workspaces/<workspace-id>/sessions/<id>.json`。成功、错误、取消和限额停止都保留。恢复提供已有事实与中断提示，不自动重放写操作。
+
+旧版 `phaseLimits`、`recursionLimit`、`repoIndex`、`recovery`、`compression` 配置不再生效；对应旧 CLI 参数给出弃用提示。旧 checkpoint 不自动迁移为新事件记录，旧文件保留。
+
+## 开发
 
 ```bash
 npm run dev
 npm run typecheck
+npm run test
+npm run test:coverage
+npm run test:package  # build + packed API/type checks
 npm run build
-npm run start
+npm pack --dry-run
 ```
 
-## 发布（维护者）
-
-```bash
-npm run release:patch   # or release:minor / release:major
-git push
-git push --tags
-npm publish --access public
+```text
+src/
+  api.ts           公开 Harness API
+  agent/           执行循环、协议和有限上下文
+  tools/           文件、shell、交互工具与注册校验
+  model/           可选模型适配器
+  session/         事件格式、派生视图和可选文件存储
+  workflows/       可替换的 coding 验证规则
+  context/         项目规则与 skills
+  config/          CLI 配置与路径
+  cli/  ui/        默认终端应用
+  prompts/         默认 coding 指令
 ```
 
-发布保护：
+`npm run build` 先清理旧产物再编译，避免已删除模块留在发布包。`frontend/` 是独立宣传站。
 
-- `preversion`：运行 typecheck + build + `npm pack --dry-run`
-- `prepublishOnly`：运行 typecheck + build
+发布沿用 `.github/workflows/release.yml` 的 `release/*` 分支流程。本次重构不自动发布。
 
-发布前请更新 `CHANGELOG.md`。
-
-## 自动化发布（GitHub Actions）
-
-本仓库提供自动化发布工作流：
-
-- `.github/workflows/release.yml`
-
-### 作用
-
-当你推送 `release/*` 分支时，它会：
-
-1. 安装依赖
-2. 更新版本（`package.json` + `package-lock.json`）
-3. 执行 `typecheck` 和 `build`
-4. 提交发布变更并创建 git tag
-5. 发布到 npm
-6. 将发布提交和 tag 推回远端
-
-### 分支命名规范
-
-- `release/patch` -> `npm version patch`
-- `release/minor` -> `npm version minor`
-- `release/major` -> `npm version major`
-- `release/vX.Y.Z` -> 指定精确版本（例如 `release/v1.2.0`）
-
-### 必需的 GitHub 设置
-
-1. 仓库密钥：
-   - `NPM_TOKEN`：具备发布权限的 npm automation token
-2. 工作流权限：
-   - `contents: write`（已在 workflow 中声明）
-3. 确保 Actions 可以向 `release/*` 分支推送提交和 tag
-
-### 示例
-
-```bash
-git checkout -b release/minor
-git push -u origin release/minor
-```
-
-推送后，GitHub Actions 会自动发布新版本。
-
-## 故障排查
-
-如果在中国网络环境中 `npm install` 很慢或卡住：
-
-```bash
-npm config set registry https://registry.npmmirror.com
-npm cache clean --force
-npm install
-```
-
-诊断时快速失败：
-
-```bash
-npm install --fetch-retries=0 --fetch-timeout=15000 --verbose
-```
-
-## 贡献指南
-
-1. Fork 并创建功能分支
-2. 保持改动聚焦并具备类型约束
-3. 运行 `npm run typecheck` 和 `npm run build`
-4. 提交范围清晰、包含测试说明的 PR
-
-## 许可证
-
-GPL-3.0（见 `LICENSE`）。
+GPL-3.0。

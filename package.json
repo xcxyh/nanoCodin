@@ -1,7 +1,7 @@
 {
   "name": "nano-codin",
   "version": "0.1.7",
-  "description": "Minimal ReAct-style coding agent CLI built with TypeScript, a plain agent loop, and Ink.",
+  "description": "A small, customizable TypeScript coding-agent harness with a terminal CLI.",
   "private": false,
   "type": "module",
   "bin": {
@@ -10,10 +10,11 @@
   "files": [
     "dist",
     "README.md",
+    "README.zh-CN.md",
     "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.3"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
@@ -28,7 +29,9 @@
     "preversion": "npm run typecheck && npm run build && npm pack --dry-run",
     "release:patch": "npm version patch -m \"chore(release): %s\"",
     "release:minor": "npm version minor -m \"chore(release): %s\"",
-    "release:major": "npm version major -m \"chore(release): %s\""
+    "release:major": "npm version major -m \"chore(release): %s\"",
+    "prebuild": "node scripts/clean-dist.mjs",
+    "test:package": "npm run build && node scripts/check-package.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.18",
@@ -47,5 +50,32 @@
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
     "vitest": "^4.0.18"
+  },
+  "types": "./dist/api.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/api.d.ts",
+      "import": "./dist/api.js"
+    },
+    "./models": {
+      "types": "./dist/model/provider.d.ts",
+      "import": "./dist/model/provider.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
+    },
+    "./session": {
+      "types": "./dist/session/store.d.ts",
+      "import": "./dist/session/store.js"
+    },
+    "./context": {
+      "types": "./dist/context/index.d.ts",
+      "import": "./dist/context/index.js"
+    },
+    "./templates": {
+      "types": "./dist/templates/index.d.ts",
+      "import": "./dist/templates/index.js"
+    }
   }
 }

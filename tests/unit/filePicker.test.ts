@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampFilePickerIndex, getFilePickerQuery } from "../../src/ui/utils/filePicker.js";
+import { clampFilePickerIndex, getFilePickerQuery, insertFileReference } from "../../src/ui/utils/filePicker.js";
 
 describe("getFilePickerQuery", () => {
   it("returns the active query after the @ trigger", () => {
@@ -27,5 +27,14 @@ describe("clampFilePickerIndex", () => {
 
   it("falls back to zero when there are no files", () => {
     expect(clampFilePickerIndex(2, 0)).toBe(0);
+  });
+});
+
+describe("file reference insertion", () => {
+  it("quotes spaces and replaces the whole token while preserving suffix text", () => {
+    const input = "open @src/old.ts then inspect";
+    expect(insertFileReference(input, 10, 5, "src/my file.ts")).toEqual({
+      input: 'open "src/my file.ts" then inspect', cursor: 22
+    });
   });
 });

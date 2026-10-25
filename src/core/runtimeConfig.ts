@@ -8,25 +8,9 @@ export interface ResolvedModelConfig {
   apiKey: string | null;
 }
 
-export interface PhaseLimits {
-  discover: number;
-  plan: number;
-  executeVerify: number;
-}
-
-export interface ContextCompressionConfig {
-  enabled: boolean;
-  tokenThresholdRatio: number;
-  retainRecentRatio: number;
-  contextTokenBudget: number;
-}
-
 export interface AgentConfig {
   maxSteps: number;
-  recursionLimit: number;
-  phaseLimits: PhaseLimits;
-  verifyRequiredKeywords: string[];
-  compression: ContextCompressionConfig;
+  maxHistoryChars: number;
 }
 
 export interface SandboxConfig {
@@ -38,26 +22,10 @@ export interface SandboxConfig {
   maxOutputBytes: number;
 }
 
-export interface RepoIndexConfig {
-  enabled: boolean;
-  maxBytes: number;
-  ignore: string[];
-  refreshMode: "mtime";
-}
-
-export interface RecoveryConfig {
-  enabled: boolean;
-  maxRetryPerStep: number;
-  dedupeWindowSteps: number;
-}
-
 export interface ResolvedRuntimeConfig {
   model: ResolvedModelConfig;
   agent: AgentConfig;
   sandbox: SandboxConfig;
-  repoIndex: RepoIndexConfig;
-  recovery: RecoveryConfig;
-  agentsGuidelines: string[];
 }
 
 export interface RuntimeConfigSources {
@@ -84,19 +52,7 @@ export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
   },
   agent: {
     maxSteps: 50,
-    recursionLimit: 96,
-    phaseLimits: {
-      discover: 32,
-      plan: 16,
-      executeVerify: 100
-    },
-    verifyRequiredKeywords: ["fix", "bug", "implement", "refactor", "测试", "修复", "实现"],
-    compression: {
-      enabled: true,
-      tokenThresholdRatio: 0.7,
-      retainRecentRatio: 0.6,
-      contextTokenBudget: 6000
-    }
+    maxHistoryChars: 48000
   },
   sandbox: {
     defaultPolicy: "ask",
@@ -144,19 +100,7 @@ export const DEFAULT_RUNTIME_CONFIG: ResolvedRuntimeConfig = {
       "npm run typecheck",
       "npm run build"
     ],
-    timeoutMs: 15000,
+    timeoutMs: 60000,
     maxOutputBytes: 8192
-  },
-  repoIndex: {
-    enabled: true,
-    maxBytes: 5_000_000,
-    ignore: [".git", "node_modules", "dist", ".next", "coverage"],
-    refreshMode: "mtime"
-  },
-  recovery: {
-    enabled: true,
-    maxRetryPerStep: 1,
-    dedupeWindowSteps: 2
-  },
-  agentsGuidelines: []
+  }
 };

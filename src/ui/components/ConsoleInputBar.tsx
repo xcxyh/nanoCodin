@@ -16,7 +16,8 @@ export function ConsoleInputBar({
   busy,
   pickerFiles = [],
   commandSuggestions = [],
-  pickerSelectedIndex = 0
+  pickerSelectedIndex = 0,
+  pickerMessage
 }: {
   input: string;
   cursor: number;
@@ -24,14 +25,15 @@ export function ConsoleInputBar({
   pickerFiles?: string[];
   commandSuggestions?: SlashCommandItem[];
   pickerSelectedIndex?: number;
+  pickerMessage?: string;
 }) {
   const before = input.slice(0, cursor);
   const cursorChar = cursor < input.length ? input[cursor] : " ";
   const after = cursor < input.length ? input.slice(cursor + 1) : "";
   const visibleCommands = getVisiblePickerWindow(commandSuggestions, pickerSelectedIndex, MAX_VISIBLE_PICKER_ITEMS);
   const visibleFiles = getVisiblePickerWindow(pickerFiles, pickerSelectedIndex, MAX_VISIBLE_PICKER_ITEMS);
-  const commandWindowStart = Math.max(0, pickerSelectedIndex - visibleCommands.length + 1);
-  const fileWindowStart = Math.max(0, pickerSelectedIndex - visibleFiles.length + 1);
+  const commandWindowStart = Math.max(0, commandSuggestions.indexOf(visibleCommands[0]));
+  const fileWindowStart = Math.max(0, pickerFiles.indexOf(visibleFiles[0]));
 
   return (
     <Box borderStyle="round" borderColor={BRAND_COLOR} paddingX={1} flexDirection="column">
@@ -73,6 +75,7 @@ export function ConsoleInputBar({
           })}
         </Box>
       ) : null}
+      {pickerMessage ? <Text color="gray">{pickerMessage}</Text> : null}
       <Box>
         <Text color={BRAND_COLOR}>{">"}</Text>
         <Text>{" "}{before}</Text>
