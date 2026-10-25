@@ -163,12 +163,13 @@ describe("shell execution and policy", () => {
 describe("review regressions: shell boundaries", () => {
   it("requires approval for executable utilities even when an old config allows their prefixes", async () => {
     const { cwd, context } = await fixture();
-    await writeFile(path.join(cwd, "victim.txt"), "valuable");
+    // Keep BSD and GNU sed's treatment of an unterminated last line out of this test.
+    await writeFile(path.join(cwd, "victim.txt"), "valuable\n");
     for (const command of ["find victim.txt -delete", "sed -n 'w copy.txt' victim.txt", "awk 'BEGIN {print 1}'", "rg --pre=sh needle victim.txt", "git diff --output=copy.txt", "tree -o copy.txt", 'rg --pr\\e=sh needle victim.txt', 'rg --pr""e=sh needle victim.txt', 'git diff --out""put=copy.txt', 'git diff --out{pu,pu}t=copy.txt', 'rg needle *']) {
       const result = await createShellTool(shellConfig()).execute({ command }, context);
       expect(result.ok).toBe(false); expect(result.output).toContain("approval");
     }
-    expect(await readFile(path.join(cwd, "victim.txt"), "utf8")).toBe("valuable");
+    expect(await readFile(path.join(cwd, "victim.txt"), "utf8")).toBe("valuable\n");
     expect(isWriteCommand('git diff --out""put=copy.txt')).toBe(true);
     expect(isWriteCommand('rg --pr\\e=sh needle victim.txt')).toBe(true);
     expect(isWriteCommand("find victim.txt -delete")).toBe(true);
