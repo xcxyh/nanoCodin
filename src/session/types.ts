@@ -5,9 +5,9 @@ export type RunStatus = "complete" | "incomplete" | "error" | "cancelled";
 export type AgentEvent = { at: number } & (
   | { type: "user"; text: string; continuation: boolean }
   | { type: "usage"; usage: TokenUsage }
-  | { type: "tool_start"; callId: string; call: ToolCall }
+  | { type: "tool_start"; callId: string; call: ToolCall; mutates?: boolean }
   | { type: "tool_end"; callId: string; call: ToolCall; result: ToolResult }
-  | { type: "notice"; text: string }
+  | { type: "notice"; text: string; kind?: "persistence" }
   | { type: "finish"; status: RunStatus; answer: string }
 );
 

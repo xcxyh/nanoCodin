@@ -122,6 +122,10 @@ node --import tsx examples/custom-agent.ts
 
 工具通过 `ToolResult.effects` 声明实际改动、计划或命令验证事实。默认 coding CLI 使用 `requireVerification` 完成回调，要求最新改动后有成功检查；自定义工具与 shell 修改应准确声明这些事实。该机制不推断任意 shell 脚本的所有文件改动，也不能证明测试覆盖了业务需求。
 
+同一 Agent 的普通 `run()` 开始新的任务验收；`run(task, { continuation: true })` 延续原任务的计划和检查要求。CLI 的 `continue` / `继续` 和 `--resume` 使用续接语义。新任务不继承旧任务的验收状态，review 仍保留整个会话的改动记录。
+
+默认 bash 验收只接受独立、无修改的单条命令。请分别执行修改和检查；复合命令、管道以及检查后再修改不算验收通过。默认审批策略下，`find`、`sed`、`awk`、`tree` 等可写入或执行其他程序的工具需要确认；显式 `allow` 策略仍可放行。取消和超时会清理 shell 子进程，并保留已经捕获的输出。恢复未结束的写操作后，需要重新运行检查，不会自动重放写入。
+
 `nano-codin/session` 提供 `FileSessionStore`；`nano-codin/context` 提供 `loadProjectInstructions` 和 skill 发现函数。它们都是可选适配器。
 
 ## 用 Handlebars 定制 prompt

@@ -1,3 +1,4 @@
+import { projectUi } from "../../src/ui/project.js";
 import { describe, expect, it } from "vitest";
 import { ConsoleInputBar } from "../../src/ui/components/ConsoleInputBar.js";
 import { AskUserQuestionBox } from "../../src/ui/components/AskUserQuestionBox.js";
@@ -32,6 +33,13 @@ describe("retained presentation details", () => {
     expect(text(ConsoleHeader(props))).toContain("███");
     expect(text(ConsoleHeader({ ...props, compact: true }))).not.toContain("███");
     expect(text(ConsoleHeader({ ...props, compact: true }))).toContain("/workspace");
+  });
+  it("puts persistent storage warnings in a single UI slot", () => {
+    const view = projectUi({ version: 1, id: "fixture", cwd: ".", createdAt: 1, events: [
+      { at: 1, type: "notice", kind: "persistence", text: "会话保存失败：disk full" }
+    ] });
+    expect(view.warnings).toEqual(["会话保存失败：disk full"]);
+    expect(view.activity).toEqual([]);
   });
   it("preserves token totals and usage source labels", () => {
     expect(formatTotalTokenUsageText(null)).toBe("0");

@@ -111,7 +111,7 @@ export function normalizeUsage(
   prompt: string,
   text: string
 ): TokenUsage {
-  if (!usage) {
+  if (!usage || ![usage.promptTokens, usage.completionTokens, usage.totalTokens].every((value) => Number.isFinite(value) && value >= 0)) {
     return estimateUsage(prompt, text);
   }
 

@@ -5,7 +5,8 @@ export function formatSessionReview(session: Session): string {
   const state = projectSession(session);
   const lines = [`会话：${session.id}`, `任务：${state.task}`, `状态：${state.finish?.status ?? "interrupted"}`];
   if (state.finish) lines.push(`结果：${state.finish.answer}`);
-  if (state.files.length) lines.push(`文件改动：${state.files.join(", ")}`);
+  const files = [...new Set(session.events.flatMap((event) => event.type === "tool_end" ? event.result.effects?.changedFiles ?? [] : []))];
+  if (files.length) lines.push(`文件改动：${files.join(", ")}`);
   for (const event of session.events) {
     if (event.type !== "tool_end" || !event.result.effects?.command) continue;
     const log = event.result.effects.command;

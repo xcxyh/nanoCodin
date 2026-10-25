@@ -1,11 +1,11 @@
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createAgent, projectSession } from "../../src/api.js";
 import { ToolRegistry } from "../../src/tools/registry.js";
 import { createDefaultTools } from "../../src/tools/index.js";
-import { createShellTool, decidePolicy } from "../../src/tools/shell.js";
+import { createShellTool, decidePolicy, isWriteCommand } from "../../src/tools/shell.js";
 import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
 import type { ToolContext } from "../../src/core/toolTypes.js";
 
@@ -77,6 +77,7 @@ describe("shell execution and policy", () => {
     expect(decidePolicy("ls", config)).toBe("allow");
     expect(decidePolicy("ls && touch a", config)).toBe("ask");
     expect(decidePolicy("lsbad", config)).toBe("ask");
+    expect(decidePolicy('rg "needle.*" src', config)).toBe("allow");
     expect(decidePolicy("git push origin main", config)).toBe("ask");
     expect(decidePolicy("rm -rf /", config)).toBe("deny");
   });
@@ -156,4 +157,74 @@ describe("shell execution and policy", () => {
     expect(result.output).toContain("timed out");
     expect(result.effects?.command?.exitCode).toBeNull();
   });
+});
+
+
+describe("review regressions: shell boundaries", () => {
+  it("requires approval for executable utilities even when an old config allows their prefixes", async () => {
+    const { cwd, context } = await fixture();
+    await writeFile(path.join(cwd, "victim.txt"), "valuable");
+    for (const command of ["find victim.txt -delete", "sed -n 'w copy.txt' victim.txt", "awk 'BEGIN {print 1}'", "rg --pre=sh needle victim.txt", "git diff --output=copy.txt", "tree -o copy.txt", 'rg --pr\\e=sh needle victim.txt', 'rg --pr""e=sh needle victim.txt', 'git diff --out""put=copy.txt', 'git diff --out{pu,pu}t=copy.txt', 'rg needle *']) {
+      const result = await createShellTool(shellConfig()).execute({ command }, context);
+      expect(result.ok).toBe(false); expect(result.output).toContain("approval");
+    }
+    expect(await readFile(path.join(cwd, "victim.txt"), "utf8")).toBe("valuable");
+    expect(isWriteCommand('git diff --out""put=copy.txt')).toBe(true);
+    expect(isWriteCommand('rg --pr\\e=sh needle victim.txt')).toBe(true);
+    expect(isWriteCommand("find victim.txt -delete")).toBe(true);
+    expect(isWriteCommand("sed -n 'w copy.txt' victim.txt")).toBe(true);
+    context.ask = async () => "once" as never;
+    const approved = await createShellTool(shellConfig()).execute({ command: "sed -n 'w copy.txt' victim.txt" }, context);
+    expect(approved.effects?.changed).toBe(true);
+    expect(await readFile(path.join(cwd, "copy.txt"), "utf8")).toBe("valuable\n");
+  });
+  it("does not record masked failures or checks preceding an edit as verification", async () => {
+    const { cwd, context } = await fixture();
+    await writeFile(path.join(cwd, "package.json"), JSON.stringify({ scripts: { test: "exit 9" } }));
+    const tool = createShellTool({ ...shellConfig(), defaultPolicy: "allow" });
+    for (const command of ["npm test; true", "npm test || true", "npm test | cat", "npm test &", "! npm test", "coproc npm test", 'npm test "$(true)"']) {
+      const result = await tool.execute({ command, purpose: "verify" }, context);
+      expect(result.effects?.command?.verification).toBe(false);
+    }
+    await writeFile(path.join(cwd, "package.json"), JSON.stringify({ scripts: { test: "exit 0" } }));
+    const mixed = await tool.execute({ command: "npm test && printf bad > result.txt", purpose: "edit" }, context);
+    expect(mixed.effects).toMatchObject({ changed: true, command: { verification: false } });
+    const plain = await tool.execute({ command: "npm test" }, context);
+    expect(plain.effects?.command).toMatchObject({ verification: true, exitCode: 0 });
+    const quoted = await tool.execute({ command: `node -e 'console.log("a; b && c")'`, purpose: "verify" }, context);
+    expect(quoted.effects?.command).toMatchObject({ verification: true, exitCode: 0 });
+  });
+  it.each(["cancel", "timeout"])("stops shell children and preserves partial logs on %s", async (mode) => {
+    const { cwd, context } = await fixture();
+    const abort = new AbortController(); context.signal = abort.signal;
+    const tool = createShellTool({ ...shellConfig(), defaultPolicy: "allow" });
+    // The trailing command prevents bash's single-command exec optimization.
+    const command = `node -e 'console.log("CHILD_READY"); console.error("PART_A_DONE"); require("fs").writeFileSync("ready.txt","ready"); setTimeout(()=>require("fs").writeFileSync("late.txt","bad"),1800)'; true`;
+    const running = tool.execute({ command, purpose: "edit", timeoutMs: mode === "cancel" ? 5000 : 1000 }, context);
+    if (mode === "cancel") {
+      await vi.waitFor(async () => expect(await readFile(path.join(cwd, "ready.txt"), "utf8")).toBe("ready"));
+      abort.abort();
+    }
+    const result = await running;
+    expect(result.ok).toBe(false);
+    expect(result.effects?.command).toMatchObject({ exitCode: null, stdout: "CHILD_READY" });
+    expect(result.effects?.command?.stderr).toContain("PART_A_DONE");
+    expect(result.output).toContain("CHILD_READY");
+    expect(result.output).toContain("PART_A_DONE");
+    expect(result.effects?.command?.stderr).toContain(mode === "cancel" ? "cancelled" : "timed out");
+    await new Promise((resolve) => setTimeout(resolve, 1900));
+    await expect(readFile(path.join(cwd, "late.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  }, 6000);
+  it("force-stops a child that ignores SIGTERM", async () => {
+    const { cwd, context } = await fixture();
+    const abort = new AbortController(); context.signal = abort.signal;
+    const tool = createShellTool({ ...shellConfig(), defaultPolicy: "allow" });
+    const command = `node -e 'process.on("SIGTERM",()=>{}); require("fs").writeFileSync("ready.txt","ready"); setTimeout(()=>require("fs").writeFileSync("late.txt","bad"),1400)'; true`;
+    const running = tool.execute({ command, purpose: "edit", timeoutMs: 5000 }, context);
+    await vi.waitFor(async () => expect(await readFile(path.join(cwd, "ready.txt"), "utf8")).toBe("ready"));
+    abort.abort();
+    expect((await running).ok).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await expect(readFile(path.join(cwd, "late.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  }, 6000);
 });

@@ -69,7 +69,7 @@ export function createAgent(options: AgentOptions) {
           catch (error) {
             if (!persistenceError) {
               persistenceError = errorMessage(error);
-              const warning: AgentEvent = { at: Date.now(), type: "notice", text: `会话保存失败：${persistenceError}` };
+              const warning: AgentEvent = { at: Date.now(), type: "notice", kind: "persistence", text: `会话保存失败：${persistenceError}` };
               session.events.push(warning);
               try { run.onEvent?.(structuredClone(warning)); } catch { /* Same observer contract. */ }
             }
@@ -118,7 +118,7 @@ export function createAgent(options: AgentOptions) {
               return await finish(input.incomplete === true ? "incomplete" : "complete", input.answer.trim());
             }
             const callId = randomUUID();
-            await emit({ at: Date.now(), type: "tool_start", callId, call });
+            await emit({ at: Date.now(), type: "tool_start", callId, call, mutates: tools.getToolByName(call.name)?.mutates ?? false });
             let result;
             try {
               result = await tools.execute(call.name, call.input, { cwd: session.cwd, sessionId: session.id, signal: run.signal, ask: options.ask });

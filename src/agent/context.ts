@@ -6,17 +6,21 @@ import { projectSession } from "../session/project.js";
 export function buildMessages(session: Session, instructions: string, maxHistoryChars = 48_000): Message[] {
   const entries: string[] = [];
   const conversation: Message[] = [];
+  let currentTask: Message | undefined;
   const pending = new Map<string, string>();
   for (const event of session.events) {
-    if (event.type === "user") conversation.push({ role: "user", content: event.text });
-    else if (event.type === "finish") conversation.push({ role: "assistant", content: event.answer });
+    if (event.type === "user") {
+      const message: Message = { role: "user", content: event.text };
+      conversation.push(message);
+      if (!event.continuation) currentTask = message;
+    } else if (event.type === "finish") conversation.push({ role: "assistant", content: event.answer });
     else if (event.type === "tool_start") pending.set(event.callId, `${event.call.name} ${JSON.stringify(event.call.input)}`);
     else if (event.type === "tool_end") {
       pending.delete(event.callId);
-      entries.push(`${event.call.name} ${JSON.stringify(event.call.input)}\n${event.result.ok ? "OK" : "ERROR"}: ${event.result.output}`);
+      entries.push(`${event.call.name}\n${event.result.ok ? "OK" : "ERROR"}: ${event.result.output}\nInput: ${JSON.stringify(event.call.input)}`);
     } else if (event.type === "notice") entries.push(event.text);
   }
-  for (const call of pending.values()) entries.push(`Interrupted before a result was recorded: ${call}. Inspect actual state before retrying; do not automatically replay writes.`);
+  const interrupted = [...pending.values()].slice(-5).map((call) => call.slice(0, 240));
   let budget = Math.max(1000, maxHistoryChars);
   const recent: string[] = [];
   for (let index = entries.length - 1; index >= 0; index--) {
@@ -26,11 +30,12 @@ export function buildMessages(session: Session, instructions: string, maxHistory
     budget -= Math.min(text.length, budget);
     if (budget <= 0) break;
   }
-  const firstTask = conversation[0];
+  const task = currentTask ?? conversation[0];
   const turns = conversation.slice(-8);
-  if (firstTask && !turns.includes(firstTask)) turns.unshift(firstTask);
+  if (task && !turns.includes(task)) turns.unshift(task);
   const state = projectSession(session);
   const facts = [
+    interrupted.length ? `Interrupted before a result was recorded. Inspect actual state before retrying; do not automatically replay writes.\n${interrupted.join("\n")}` : "",
     state.files.length ? `Changed files: ${state.files.slice(-20).join(", ")}` : "",
     state.plan.length ? `Current plan: ${state.plan.map((item) => `${item.status}: ${item.text}`).join("; ")}` : "",
     state.changed ? `Current changes verified: ${state.verified}` : "",

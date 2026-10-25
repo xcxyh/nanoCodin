@@ -25,6 +25,7 @@ export function ConsoleMessagePane({ view, busy, pendingTool, waitingForUser = f
       <Text color="white">❯ {turn.user}</Text>
       {turn.answer ? <Text color={turn.status === "complete" ? BRAND_COLOR : turn.status === "error" ? "red" : "yellow"}>⏺ {turn.answer}</Text> : null}
     </Box>)}
+    {view.warnings.map((warning) => <Text key={warning} color="yellow">⏺ {warning}</Text>)}
     {busy ? <Box flexDirection="column">
       {view.activity.map((entry, index) => <Box key={index} flexDirection="column" marginBottom={1}>
         <Text color={entry.failed ? "yellow" : "gray"}>⏺ {entry.text}</Text>

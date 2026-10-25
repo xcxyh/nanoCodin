@@ -22,6 +22,11 @@ export class FileSessionStore {
     if (!validId(selected)) return null;
     try {
       const data = JSON.parse(await readFile(path.join(this.directory, `${selected}.json`), "utf8")) as Session;
+      if (Array.isArray(data.events)) {
+        const invalidUsage = data.events.filter((event) => event?.type === "usage" && !validEvent(event));
+        data.events = data.events.filter((event) => event?.type !== "usage" || validEvent(event));
+        if (invalidUsage.length) data.events.push({ at: Date.now(), type: "notice", text: `忽略 ${invalidUsage.length} 条无效 token 用量记录；其他会话记录已保留。` });
+      }
       if (data.version !== 1 || data.id !== selected || path.resolve(data.cwd) !== path.resolve(this.cwd) || !Array.isArray(data.events) || !data.events.every(validEvent)) return null;
       return data;
     } catch { return null; }
@@ -39,7 +44,7 @@ function validEvent(raw: unknown): raw is AgentEvent {
   if (typeof event.at !== "number" || !eventTypes.has(event.type)) return false;
   if (event.type === "user" || event.type === "notice") return typeof event.text === "string";
   if (event.type === "finish") return ["complete", "incomplete", "error", "cancelled"].includes(event.status) && typeof event.answer === "string";
-  if (event.type === "usage") return event.usage && typeof event.usage.totalTokens === "number";
+  if (event.type === "usage") return event.usage && [event.usage.promptTokens, event.usage.completionTokens, event.usage.totalTokens].every((value) => typeof value === "number" && Number.isFinite(value) && value >= 0) && ["actual", "estimated", "mixed"].includes(event.usage.source);
   return typeof event.callId === "string" && event.call && typeof event.call.name === "string" && (event.type === "tool_start" || (event.result && typeof event.result.ok === "boolean" && typeof event.result.output === "string"));
 }
 async function atomicWrite(file: string, data: string): Promise<void> {

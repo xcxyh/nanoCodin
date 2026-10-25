@@ -84,6 +84,20 @@ describe("restored keyboard interactions through Ink", () => {
     const ui = mount(<App makeAgent={() => createAgent({ cwd: `/very/long/${"workspace/".repeat(12)}`, model: { async generate() { return { text: "unused" }; } } })} modelName="test" version="test" />);
     await vi.waitFor(() => expect(ui.frame()).toContain("███╗   ██╗ █████╗ ███╗   ██╗ ██████╗"));
   });
+  it("retains storage failures after completion and clears them with a new session", async () => {
+    const ui = mount(<App task="task" modelName="fixture" version="fixture" makeAgent={() => createAgent({
+      model: { async generate() { return { text: "done" }; } },
+      save: async () => { throw new Error("disk full"); }
+    })} />);
+    await vi.waitFor(() => {
+      expect(ui.frame()).toContain("⏺ done");
+      expect(ui.frame()).toContain("Enter 执行");
+      expect(ui.frame()).toContain("会话保存失败：disk full");
+    });
+    await ui.key("/clear "); await ui.key("\r");
+    await vi.waitFor(() => expect(ui.frame()).not.toContain("disk full"));
+    expect(ui.frame()).not.toContain("⏺ done");
+  });
   it("keeps the previous double-Ctrl+C exit behavior", async () => {
     const ui = mount(<App makeAgent={() => createAgent({ model: { async generate() { return { text: "unused" }; } } })} modelName="test" version="test" />);
     await new Promise((resolve) => setTimeout(resolve, 20));

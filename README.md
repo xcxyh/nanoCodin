@@ -103,6 +103,10 @@ Default tools from `nano-codin/tools`: `ls`, `grep`, `view`, `create`, `str_repl
 
 `ToolResult.effects` declares edits, plans and command evidence. The CLI's replaceable `requireVerification` hook checks successful validation after the latest declared edit. Custom tools and shell edits must declare effects accurately; this is not a complete filesystem-change detector or proof of test coverage.
 
+A regular `run()` starts acceptance for a new task. Use `run(task, { continuation: true })` to retain the current plan and check requirements; CLI `continue` / `继续` and `--resume` use continuation semantics. Review retains changes across the full session.
+
+Default bash verification requires a standalone command without edits. Run edits and checks separately; compound commands, pipelines and checks followed by edits do not establish verification. Under the default approval policy, utilities such as `find`, `sed`, `awk` and `tree` require confirmation. An explicit `allow` policy remains available. Cancellation and timeout terminate shell children and retain captured output. Resuming an unfinished write requires fresh verification and never automatically replays the write.
+
 Optional adapters: `FileSessionStore` from `nano-codin/session`; `loadProjectInstructions` and skill discovery from `nano-codin/context`.
 
 ## Optional Handlebars prompts
