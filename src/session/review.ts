@@ -1,6 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
-import type { Session } from "./types.js";
-import { projectSession } from "./project.js";
+import type { Session } from "../agent/session.js";
+import { projectSession } from "../coding/verification.js";
 
 export function formatSessionReview(session: Session): string {
   const state = projectSession(session);

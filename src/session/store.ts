@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
+import { appendEvent, assertWriterAvailable, publish, replay, startSegment } from "./journal.js";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import type { AgentEvent, Session } from "./types.js";
-import { canonicalPath } from "../core/paths.js";
+import { SessionConflictError, type AppendEvent, type AgentEvent, type Session } from "../agent/session.js";
+import { canonicalPath } from "../agent/workspace.js";
 import { resolveNanoCodinPaths } from "../config/paths.js";
 
 const eventTypes = new Set(["user", "model_start", "model_end", "usage", "tool_start", "tool_end", "notice", "finish"]);
@@ -15,11 +16,94 @@ export class FileSessionStore {
     this.cwd = canonicalPath(cwd);
     this.directory = path.join(resolveNanoCodinPaths(this.cwd).workspaceStateDir, "sessions");
   }
-  async save(session: Session): Promise<void> {
+  private base(id: string) { return path.join(this.directory, `${id}.json`); }
+  private journal(id: string) { return path.join(this.directory, `${id}.journal`); }
+  private latest(id: string) { return publish(path.join(this.directory, "latest"), id, true); }
+
+  private async initialize(session: Session) {
     if (!validId(session.id) || canonicalPath(session.cwd) !== this.cwd) throw new Error("Session does not belong to this workspace.");
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
-    await atomicWrite(path.join(this.directory, `${session.id}.json`), `${JSON.stringify(session, null, 2)}\n`);
-    await atomicWrite(path.join(this.directory, "latest"), session.id);
+    try {
+      await publish(this.base(session.id), JSON.stringify(session) + "\n");
+      return true;
+    } catch (error) {
+      if (error instanceof SessionConflictError) return false;
+      throw error;
+    }
+  }
+
+  private async head(id: string) {
+    const base = JSON.parse(await readFile(this.base(id), "utf8"));
+    const validated = validate(base, id, this.cwd);
+    if (validated.status !== "ok") return validated;
+    const head = await replay(this.journal(id), validated.session);
+    const result = validate(head.session, id, this.cwd);
+    if (result.status !== "ok") return result;
+    return { ...head, ...result };
+  }
+
+  /** The snapshot API continues to accept complete or replaced histories. */
+  async save(session: Session): Promise<void> {
+    if (!await this.initialize(session)) {
+      const head = await this.head(session.id);
+      if (head.status !== "ok") throw new Error(head.message);
+      assertWriterAvailable(head.owner);
+      const start = head.session.events.length;
+      const extendsHistory = head.session.createdAt === session.createdAt && matchesStored(head.session.events, session.events.slice(0, start));
+      if (!extendsHistory || session.events.length !== start) {
+        await startSegment(this.journal(session.id), head.revision, {
+          version: 1, owner: null, start, ...(extendsHistory ? {} : { snapshot: session })
+        }, extendsHistory ? session.events.slice(start) : []);
+      }
+    }
+    await this.latest(session.id);
+  }
+
+  /** One callback per Agent. Check the starting history once, then append only new events. */
+  writer(): AppendEvent {
+    let file: string | undefined;
+    let interrupted = false;
+    const append: AppendEvent = async (session, event) => {
+      if (event.type === "user") {
+        file = undefined;
+        interrupted = false;
+        const prior = { ...session, events: session.events.slice(0, -1) };
+        // Publish a v1 base only for a new ID. Legacy snapshots stay intact.
+        const initialized = await this.initialize({ ...prior, events: [] });
+        const head = await this.head(session.id);
+        if (head.status !== "ok") throw new Error(head.message);
+        assertWriterAvailable(head.owner);
+        if (initialized ? head.revision !== 0 : !matchesStored(head.session, prior)) throw new SessionConflictError();
+        const initial = initialized ? [...prior.events, event] : [event];
+        file = await startSegment(this.journal(session.id), head.revision, {
+          version: 1, start: head.session.events.length, owner: process.pid
+        }, initial);
+        await this.latest(session.id);
+      } else {
+        if (!file) throw new Error("Session writer has no active run.");
+        // A failed append can leave a partial line. Release this segment only once
+        // the agent has stopped, so a concurrent resume cannot race a running tool.
+        if (interrupted) {
+          if (event.type === "finish") await publish(file + ".closed", "");
+          return;
+        }
+        await appendEvent(file, event);
+        if (event.type === "finish") {
+          file = undefined;
+          await this.latest(session.id);
+        }
+      }
+    };
+    return async (session, event) => {
+      try { await append(session, event); }
+      catch (error) {
+        if (!interrupted && file && event.type === "finish") {
+          await publish(file + ".closed", "").catch(() => {});
+        }
+        interrupted = true;
+        throw error;
+      }
+    };
   }
   async load(id?: string): Promise<Session | null> {
     const result = await this.loadResult(id);
@@ -30,17 +114,8 @@ export class FileSessionStore {
     try {
       selected ??= (await readFile(path.join(this.directory, "latest"), "utf8")).trim();
       if (!validId(selected)) return { status: "invalid_id", message: "Invalid session ID or latest pointer." };
-      const data = JSON.parse(await readFile(path.join(this.directory, `${selected}.json`), "utf8")) as Session;
-      if (!data || typeof data !== "object") return { status: "corrupt", message: "Session record is not an object." };
-      if (data.version !== 1) return { status: "incompatible", message: `Unsupported session version: ${data.version}` };
-      if (typeof data.cwd !== "string" || !Array.isArray(data.events) || data.id !== selected || !Number.isFinite(data.createdAt)) return { status: "corrupt", message: "Session header or event list is invalid." };
-      if (canonicalPath(data.cwd) !== this.cwd) return { status: "wrong_workspace", message: "Session belongs to another workspace." };
-      if (data.events.some((event) => event && !eventTypes.has(event.type))) return { status: "incompatible", message: "Session contains unsupported event types." };
-      const invalidUsage = data.events.filter((event) => event?.type === "usage" && !validEvent(event));
-      data.events = data.events.filter((event) => event?.type !== "usage" || validEvent(event));
-      if (!data.events.every(validEvent)) return { status: "corrupt", message: "Session contains invalid event data." };
-      if (invalidUsage.length) data.events.push({ at: Date.now(), type: "notice", text: `忽略 ${invalidUsage.length} 条无效 token 用量记录；其他会话记录已保留。` });
-      return { status: "ok", session: { ...data, cwd: this.cwd } };
+      const head = await this.head(selected);
+      return head.status === "ok" ? { status: "ok", session: head.session } : head;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "not_found", message: `Session not found: ${selected ?? "latest"}` };
       if (error instanceof SyntaxError) return { status: "corrupt", message: "Session JSON is damaged." };
@@ -77,8 +152,20 @@ function validEvent(raw: unknown): raw is AgentEvent {
   const cmd = effect.command;
   return cmd === undefined || (cmd && typeof cmd.command === "string" && (cmd.exitCode === null || Number.isInteger(cmd.exitCode)) && typeof cmd.stdout === "string" && typeof cmd.stderr === "string" && finite(cmd.durationMs) && typeof cmd.verification === "boolean");
 }
-async function atomicWrite(file: string, data: string): Promise<void> {
-  const temporary = `${file}.${randomUUID()}.tmp`;
-  try { await writeFile(temporary, data, { encoding: "utf8", mode: 0o600 }); await rename(temporary, file); }
-  finally { await rm(temporary, { force: true }); }
+function validate(data: Session, selected: string, cwd: string): SessionLoadResult {
+  if (!data || typeof data !== "object") return { status: "corrupt", message: "Session record is not an object." };
+  if (data.version !== 1) return { status: "incompatible", message: `Unsupported session version: ${data.version}` };
+  if (typeof data.cwd !== "string" || !Array.isArray(data.events) || data.id !== selected || !Number.isFinite(data.createdAt)) return { status: "corrupt", message: "Session header or event list is invalid." };
+  if (canonicalPath(data.cwd) !== cwd) return { status: "wrong_workspace", message: "Session belongs to another workspace." };
+  if (data.events.some((event) => event && !eventTypes.has(event.type))) return { status: "incompatible", message: "Session contains unsupported event types." };
+  const invalidUsage = data.events.filter((event) => event?.type === "usage" && !validEvent(event));
+  data.events = data.events.filter((event) => event?.type !== "usage" || validEvent(event));
+  if (!data.events.every(validEvent)) return { status: "corrupt", message: "Session contains invalid event data." };
+  if (invalidUsage.length) data.events.push({ at: data.createdAt, type: "notice", text: `忽略 ${invalidUsage.length} 条无效 token 用量记录；其他会话记录已保留。` });
+  return { status: "ok", session: { ...data, cwd } };
+}
+
+// Optional properties with value undefined disappear in the on-disk JSON.
+function matchesStored(stored: unknown, live: unknown) {
+  return isDeepStrictEqual(stored, JSON.parse(JSON.stringify(live)));
 }
