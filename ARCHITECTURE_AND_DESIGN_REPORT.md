@@ -1,4 +1,6 @@
-# Nano Codin 项目架构与设计风格报告
+# 历史归档 · LangGraph 版架构报告
+
+本文记录早期实现。当前代码请从[任务执行与架构导读](docs/ARCHITECTURE.md)开始阅读。
 
 ## 1. 项目概览
 
