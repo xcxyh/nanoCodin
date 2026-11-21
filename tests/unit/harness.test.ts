@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createAgent, defineTool, projectSession, requireVerification, ToolRegistry, type AgentEvent, type Model, type ModelResponse, type Tool } from "../../src/api.js";
-import { buildMessages } from "../../src/agent/context.js";
+import { buildMessages } from "../../src/agent/history.js";
 import { parseTextAction } from "../../src/agent/protocol.js";
 
 const call = (name: string, input: unknown = {}): ModelResponse => ({ text: "", toolCalls: [{ name, input }] });

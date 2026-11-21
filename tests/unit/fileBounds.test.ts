@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, readFile, mkdir, symlink, rm } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { ToolRegistry } from "../../src/tools/registry.js";
+import { ToolRegistry } from "../../src/agent/tools.js";
 import { fileTools } from "../../src/tools/files.js";
 import { MAX_FILE_BYTES } from "../../src/tools/fileIO.js";
 const dirs: string[] = [];

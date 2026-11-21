@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runModelRequest } from "../../src/model/request.js";
 import { createModelProvider } from "../../src/model/provider.js";
-import type { ResolvedModelConfig } from "../../src/core/runtimeConfig.js";
+import type { ResolvedModelConfig } from "../../src/config/types.js";
 import { ModelRequestError } from "../../src/api.js";
 const config: ResolvedModelConfig = { provider: "openai", name: "fixture", apiKey: "fixture", baseUrl: "https://fixture.invalid/v1", requestTimeoutMs: 500, idleTimeoutMs: 80, maxRetries: 0 };
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -56,9 +56,11 @@ describe("one observable model request budget", () => {
       expect(body.messages.map((m: any) => m.role)).toEqual(["user", "assistant", "user"]);
       return new Response(JSON.stringify({ error: { message: "tools unsupported but credentials denied" } }), { status: 401, headers: { "content-type": "application/json" } });
     });
-    vi.stubGlobal("fetch", fetch);
+    const globalFetch = vi.fn();
+    vi.stubGlobal("fetch", globalFetch);
     const provider = createModelProvider(config);
-    const error = await provider.generate([{ role: "user", content: "one" }, { role: "assistant", content: "answer" }, { role: "user", content: "two" }], { tools: [] }).catch((e) => e);
+    const error = await provider.generate([{ role: "user", content: "one" }, { role: "assistant", content: "answer" }, { role: "user", content: "two" }], { tools: [], fetch }).catch((e) => e);
+    expect(globalFetch).not.toHaveBeenCalled();
     expect(error.failure.kind).toBe("auth"); expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
@@ -76,7 +78,7 @@ it("keeps provider-required continuation private and replays it for native DeepS
   const provider = createModelProvider({ ...config, baseUrl: "https://api.deepseek.com", requestTimeoutMs: 2000 });
   const result = await createAgent({ model: provider, tools: [{ name: "echo", description: "fixture", schema: z.object({}), async execute() { return { ok: true, output: "echo" }; } }] }).run("task");
   expect(result.status).toBe("complete"); expect(bodies).toHaveLength(2);
-  const { buildMessages } = await import("../../src/agent/context.js");
+  const { buildMessages } = await import("../../src/agent/history.js");
   expect(JSON.stringify(buildMessages(result.session, "rules"))).not.toContain("PROTOCOL_ONLY");
   expect(result.session.events.some((event) => event.type === "model_end" && event.providerData)).toBe(true);
 });

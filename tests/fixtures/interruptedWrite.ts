@@ -1,10 +1,10 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { createAgent } from "../../src/api.js";
+import { createAgentRuntime } from "../../src/agent/run.js";
 import { FileSessionStore } from "../../src/session/store.js";
 import { createDefaultTools } from "../../src/tools/index.js";
-import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/config/types.js";
 
 const cwd = process.argv[2];
 const store = new FileSessionStore(cwd);
@@ -21,6 +21,6 @@ const calls = [
   { name: "bash", input: { command: "node --check source.js", purpose: "verify" } },
   { name: "interrupted_write", input: {} }
 ];
-await createAgent({ cwd, tools, save: (current) => store.save(current), model: {
+await createAgentRuntime({ cwd, tools, model: {
   async generate() { return { text: "", toolCalls: [calls[round++]] }; }
-} }).run("edit and check");
+} }, { append: store.writer() }).run("edit and check");

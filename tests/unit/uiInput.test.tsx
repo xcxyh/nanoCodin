@@ -1,8 +1,8 @@
 import React from "react";
 import { z } from "zod";
 import { createShellTool } from "../../src/tools/shell.js";
-import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
-import type { Session } from "../../src/session/types.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/config/types.js";
+import type { Session } from "../../src/agent/session.js";
 import { PassThrough } from "node:stream";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";

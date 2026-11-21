@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAgent, projectSession, requireVerification, type Session } from "../../src/api.js";
-import { buildMessages } from "../../src/agent/context.js";
+import { buildMessages } from "../../src/agent/history.js";
 import { createModelProvider } from "../../src/model/provider.js";
 import { FileSessionStore } from "../../src/session/store.js";
 import { formatSessionReview } from "../../src/session/review.js";

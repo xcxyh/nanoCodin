@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createAgent, projectSession } from "../../src/api.js";
-import { ToolRegistry } from "../../src/tools/registry.js";
+import { ToolRegistry } from "../../src/agent/tools.js";
 import { createDefaultTools } from "../../src/tools/index.js";
 import { createShellTool, decidePolicy, isWriteCommand } from "../../src/tools/shell.js";
-import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
-import type { ToolContext } from "../../src/core/toolTypes.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/config/types.js";
+import type { ToolContext } from "../../src/agent/tools.js";
 
 async function fixture() {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-tools-"));

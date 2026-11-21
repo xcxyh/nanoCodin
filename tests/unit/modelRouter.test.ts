@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ToolRegistry } from "../../src/tools/registry.js";
+import { ToolRegistry } from "../../src/agent/tools.js";
 
 const hoisted = vi.hoisted(() => ({
   generateTextSpy: vi.fn(),
@@ -195,4 +195,27 @@ describe("modelRouter token usage", () => {
       ANTHROPIC_MODEL: "claude-sonnet"
     } as NodeJS.ProcessEnv)).toBe("claude-sonnet");
   });
+});
+
+it("uses just the native history for a structured response with actual usage", async () => {
+  const { requestAction } = await import("../../src/agent/model.js");
+  const { createModelProviderFromEnv } = await import("../../src/model/provider.js");
+  const provider = createModelProviderFromEnv({ MODEL_PROVIDER: "openai", MODEL_NAME: "fixture", MODEL_API_KEY: "fixture" });
+  hoisted.generateTextSpy.mockResolvedValue({ text: "done", usage: { promptTokens: 2, completionTokens: 1, totalTokens: 3 } });
+  const history = () => ({
+    get messages(): never { throw new Error("unexpected text encoding"); },
+    nativeMessages: [{ role: "user" as const, content: "task" }]
+  });
+  const action = await requestAction(provider, history, { tools: [] }, 1, async () => {});
+  expect(action).toEqual({ type: "final", answer: "done", incomplete: false });
+});
+
+it("preserves an embedding application's override of provider.generate", async () => {
+  const { createAgent } = await import("../../src/api.js");
+  const { createModelProviderFromEnv } = await import("../../src/model/provider.js");
+  const provider = createModelProviderFromEnv({ MODEL_PROVIDER: "openai", MODEL_NAME: "fixture", MODEL_API_KEY: "fixture" });
+  provider.generate = vi.fn(async () => ({ text: "override" }));
+  const result = await createAgent({ model: provider }).run("task");
+  expect(result.answer).toBe("override");
+  expect(provider.generate).toHaveBeenCalledOnce();
 });
