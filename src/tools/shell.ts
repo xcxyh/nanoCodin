@@ -1,10 +1,9 @@
 import { outputTail, runShell } from "./process.js";
 import { isSingleCommand, splitCommandList, splitSingleCommand } from "./shellCommand.js";
 import { z } from "zod";
-import type { SandboxConfig } from "../core/runtimeConfig.js";
-import type { Tool } from "../core/toolTypes.js";
-import { defineTool } from "./define.js";
-import { isVerificationCommand } from "../workflows/verification.js";
+import type { SandboxConfig } from "../config/types.js";
+import { defineTool, type Tool } from "../agent/tools.js";
+import { isVerificationCandidate } from "../coding/verification.js";
 
 type ShellEffect = "read" | "write" | "unknown";
 function commandEffect(command: string): ShellEffect {
@@ -72,7 +71,7 @@ export function createShellTool(config: SandboxConfig): Tool {
       const started = Date.now();
       const policy = decidePolicy(input.command, config);
       const effect = commandEffect(input.command);
-      const verification = input.purpose !== "edit" && effect !== "write" && isSingleCommand(input.command) && (input.purpose === "verify" || isVerificationCommand(input.command));
+      const verification = isVerificationCandidate(input.command, input.purpose, effect === "write");
       const uncertainChanges = input.purpose === "edit" || effect === "write" || (effect === "unknown" && !verification);
       const evidence = (exitCode: number | null, stdout = "", stderr = "") => ({ command: input.command, exitCode, stdout, stderr, durationMs: Date.now() - started, verification });
       if (policy === "deny") return { ok: false, reason: "denied", output: "Command denied by policy.", effects: { command: evidence(null) } };

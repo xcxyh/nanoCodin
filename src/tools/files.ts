@@ -1,9 +1,8 @@
 import { mkdir, opendir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { ToolExecutionError } from "../core/toolTypes.js";
+import { defineTool, ToolExecutionError } from "../agent/tools.js";
 import { fileHash, MAX_FILE_BYTES, readTextFile, replaceTextFile } from "./fileIO.js";
-import { defineTool } from "./define.js";
 
 const ignored = new Set([".git", "node_modules", "dist", ".next", "coverage", "build"]);
 const filePath = z.string().min(1);

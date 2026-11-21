@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useInput } from "ink";
 import { AskUserQuestionBox } from "./components/AskUserQuestionBox.js";
-import type { AskUserQuestionRequest } from "../core/askUserQuestion.js";
+import type { AskUserQuestionRequest } from "../agent/question.js";
 
 export function Question({ request, choose }: { request: AskUserQuestionRequest; choose: (choice: string) => void }) {
   const [selected, setSelected] = useState(Math.max(0, Math.min(request.defaultIndex ?? 0, request.options.length - 1)));

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineTool } from "./define.js";
+import { defineTool } from "../agent/tools.js";
 
 export const todo = defineTool({
   name: "todo", description: "Optionally replace the short plan for a multi-step task. Never required before edits.",

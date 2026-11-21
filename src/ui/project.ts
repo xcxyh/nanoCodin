@@ -1,7 +1,7 @@
 import { stripVTControlCharacters } from "node:util";
-import type { ToolCall } from "../core/messageTypes.js";
-import type { ToolResult } from "../core/toolTypes.js";
-import type { AgentEvent, Session } from "../session/types.js";
+import type { ToolCall } from "../agent/messages.js";
+import type { ToolResult } from "../agent/tools.js";
+import type { AgentEvent, Session } from "../agent/session.js";
 
 export interface UiActivity {
   id: string;

@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { PlanItem } from "../../core/toolTypes.js";
+import type { PlanItem } from "../../agent/tools.js";
 import { BRAND_COLOR } from "./ConsoleHeader.js";
 
 export function ConsoleTodoPane({ items, visible }: { items: PlanItem[]; visible: boolean }) {

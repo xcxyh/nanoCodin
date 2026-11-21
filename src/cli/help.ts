@@ -3,7 +3,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ParsedCliArgs } from "./parseArgs.js";
-import type { ResolvedRuntimeConfigResult } from "../core/runtimeConfig.js";
+import type { ResolvedRuntimeConfigResult } from "../config/types.js";
 
 const packageJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../package.json");
 
