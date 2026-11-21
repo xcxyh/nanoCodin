@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolCall } from "../core/messageTypes.js";
+import type { ToolCall } from "./messages.js";
 
 export const finalToolSchema = z.object({
   answer: z.string().trim().min(1),

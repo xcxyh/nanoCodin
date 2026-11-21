@@ -1,13 +1,17 @@
 // Importing the Harness does not load Ink, model providers, shell tools, or user config.
-export { createAgent } from "./agent/run.js";
+import { createAgentRuntime, type AgentOptions } from "./agent/run.js";
+import { codingHistoryHints, requireVerification } from "./coding/verification.js";
+
+export function createAgent(options: AgentOptions) {
+  return createAgentRuntime(options, {
+    historyHints: options.beforeFinish === requireVerification ? codingHistoryHints : undefined
+  });
+}
 export type { Agent, AgentOptions, Model, RunOptions, RunResult } from "./agent/run.js";
-export { ToolRegistry } from "./tools/registry.js";
-export type { Tool, ToolContext, ToolResult, ToolOutput, PlanItem, CommandEvidence } from "./core/toolTypes.js";
-export type { Message, ModelResponse, ModelFailure, RequestInfo, TokenUsage, ToolCall } from "./core/messageTypes.js";
-export type { Session, AgentEvent, ToolOutputEvent, RunStatus } from "./session/types.js";
-export type { AskUserQuestionRequest } from "./core/askUserQuestion.js";
-export { projectSession } from "./session/project.js";
-export { requireVerification } from "./workflows/verification.js";
-export { ModelRequestError } from "./core/messageTypes.js";
-export { ToolExecutionError } from "./core/toolTypes.js";
-export { defineTool } from "./tools/define.js";
+export { defineTool, ToolExecutionError, ToolRegistry } from "./agent/tools.js";
+export type { Tool, ToolContext, ToolResult, ToolOutput, PlanItem, CommandEvidence } from "./agent/tools.js";
+export type { Message, ModelResponse, ModelFailure, RequestInfo, TokenUsage, ToolCall } from "./agent/messages.js";
+export type { Session, AgentEvent, ToolOutputEvent, RunStatus } from "./agent/session.js";
+export type { AskUserQuestionRequest } from "./agent/question.js";
+export { projectSession, requireVerification } from "./coding/verification.js";
+export { ModelRequestError } from "./agent/messages.js";

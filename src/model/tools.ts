@@ -1,6 +1,6 @@
 import type { ToolSet } from "ai";
 import { finalToolSchema } from "../agent/protocol.js";
-import type { Tool } from "../core/toolTypes.js";
+import type { Tool } from "../agent/tools.js";
 
 export const FINAL_TOOL_NAME = "final";
 
