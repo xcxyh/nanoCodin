@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { DEFAULT_RUNTIME_CONFIG, type ModelProviderName, type ResolvedModelConfig, type ResolvedRuntimeConfig, type ResolvedRuntimeConfigResult } from "../core/runtimeConfig.js";
+import { DEFAULT_RUNTIME_CONFIG, type ModelProviderName, type ResolvedModelConfig, type ResolvedRuntimeConfig, type ResolvedRuntimeConfigResult } from "./types.js";
 import { resolveContextFilePaths } from "../context/project.js";
 import { resolveNanoCodinPaths } from "./paths.js";
 import { applyModelPatch, resolveModelConfigFromEnv } from "./model.js";
@@ -52,9 +52,7 @@ export function parseCliOverrides(argv: string[]): Record<string, string> {
   }));
 }
 
-export function isModelConfigComplete(model: ResolvedModelConfig): boolean {
-  return Boolean(model.provider && model.name && model.apiKey);
-}
+export { isModelConfigComplete } from "./model.js";
 
 export function serializeConfigYaml(config: ResolvedRuntimeConfig): string {
   return `${stringifySimpleYaml({ model: { ...config.model }, agent: { ...config.agent }, sandbox: { ...config.sandbox } })}\n`;
@@ -64,7 +62,7 @@ export function normalizeModelProvider(value: string | undefined, fallback: Mode
   return value === "anthropic" || value === "openai" ? value : fallback;
 }
 
-export function loadRuntimeConfig(cwd: string, argv: string[] = process.argv.slice(2)): ResolvedRuntimeConfigResult {
+export function loadRuntimeConfig(cwd: string, overrides: Record<string, string> | string[] = process.argv.slice(2)): ResolvedRuntimeConfigResult {
   const config: ResolvedRuntimeConfig = structuredClone(DEFAULT_RUNTIME_CONFIG);
   const paths = resolveNanoCodinPaths(cwd);
   const contextPaths = resolveContextFilePaths(cwd);
@@ -75,7 +73,7 @@ export function loadRuntimeConfig(cwd: string, argv: string[] = process.argv.sli
   if (env.AGENT_MAX_STEPS && /^\d+$/.test(env.AGENT_MAX_STEPS) && Number(env.AGENT_MAX_STEPS) > 0) {
     applyPatch(config, { agent: { maxSteps: Number(env.AGENT_MAX_STEPS) } });
   }
-  const cli = parseCliOverrides(argv);
+  const cli = Array.isArray(overrides) ? parseCliOverrides(overrides) : overrides;
   for (const [flag, value] of Object.entries(cli)) {
     if (flag === "max-steps") {
       if (!/^\d+$/.test(value) || Number(value) < 1) throw new Error("--max-steps must be a positive integer.");
