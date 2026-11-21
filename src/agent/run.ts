@@ -38,6 +38,7 @@ const DEFAULT_INSTRUCTIONS = "Complete the user's task using the available tools
 
 export interface RuntimeAdapters {
   append?: AppendEvent;
+  budgetSummary?: (session: Session) => string;
   historyHints?: (session: Session) => HistoryHints;
 }
 
@@ -97,7 +98,9 @@ export function createAgentRuntime(options: AgentOptions, adapters: RuntimeAdapt
             run.signal?.throwIfAborted();
           }
         }
-        return await finish("incomplete", `已达到 ${maxSteps} 轮执行上限，任务尚未完成。可提高 --max-steps，或恢复会话继续。`);
+        const summary = adapters.budgetSummary?.(session);
+        const stop = `已达到 ${maxSteps} 轮执行上限，本次运行尚未完成。`;
+        return await finish("incomplete", [stop, summary, "可提高 --max-steps，或恢复会话继续。"].filter(Boolean).join("\n"));
       } catch (error) {
         return await finish(wasCancelled(error, run.signal) ? "cancelled" : "error", errorMessage(error).slice(0, 600), error instanceof ModelRequestError ? error.failure : undefined);
       } finally { running = false; }

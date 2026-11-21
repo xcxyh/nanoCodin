@@ -10,7 +10,7 @@ import { createModelProvider, getConfiguredModelName } from "../model/provider.j
 import { FileSessionStore } from "../session/store.js";
 import { formatSessionReview } from "../session/review.js";
 import { createDefaultTools } from "../tools/index.js";
-import { codingHistoryHints, requireVerification } from "../coding/verification.js";
+import { budgetSummary, codingHistoryHints, requireVerification } from "../coding/verification.js";
 import { formatConfigText, formatHelpText, getCliVersion } from "./help.js";
 import { parseCliArgs } from "./parseArgs.js";
 
@@ -56,7 +56,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
       maxSteps: runtime.config.agent.maxSteps, maxHistoryChars: runtime.config.agent.maxHistoryChars,
       instructions,
       ask, beforeFinish: requireVerification
-    }, { historyHints: codingHistoryHints, append: store.writer() });
+    }, { historyHints: codingHistoryHints, budgetSummary, append: store.writer() });
   };
   if (print) {
     const abort = new AbortController();

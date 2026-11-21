@@ -1,11 +1,10 @@
 // Importing the Harness does not load Ink, model providers, shell tools, or user config.
 import { createAgentRuntime, type AgentOptions } from "./agent/run.js";
-import { codingHistoryHints, requireVerification } from "./coding/verification.js";
+import { budgetSummary, codingHistoryHints, requireVerification } from "./coding/verification.js";
 
 export function createAgent(options: AgentOptions) {
-  return createAgentRuntime(options, {
-    historyHints: options.beforeFinish === requireVerification ? codingHistoryHints : undefined
-  });
+  return createAgentRuntime(options, options.beforeFinish === requireVerification
+    ? { historyHints: codingHistoryHints, budgetSummary } : undefined);
 }
 export type { Agent, AgentOptions, Model, RunOptions, RunResult } from "./agent/run.js";
 export { defineTool, ToolExecutionError, ToolRegistry } from "./agent/tools.js";

@@ -229,3 +229,15 @@ describe("review regressions: shell boundaries", () => {
     await expect(readFile(path.join(cwd, "late.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   }, 6000);
 });
+
+it("explains to the model how to correct the wrapped check from the PR session", async () => {
+  const { cwd, context } = await fixture();
+  await writeFile(path.join(cwd, "package.json"), JSON.stringify({ scripts: { typecheck: "exit 7" } }));
+  const tool = createShellTool({ ...shellConfig(), defaultPolicy: "allow" });
+  const wrapped = await tool.execute({ command: 'cd . && npm run typecheck 2>&1 | tail -2', purpose: "verify" }, context);
+  expect(wrapped.effects?.command?.verification).toBe(false);
+  expect(wrapped.output).toContain("单独运行 npm run typecheck");
+  const independent = await tool.execute({ command: "npm run typecheck", purpose: "verify" }, context);
+  expect(independent.output).toContain("exit=7");
+  expect(independent.ok).toBe(false);
+});
