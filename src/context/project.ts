@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { Session } from "../session/types.js";
+import type { Session } from "../agent/session.js";
 import { resolveNanoCodinPaths } from "../config/paths.js";
 import { formatSkillsForPrompt, loadSkills } from "./skills.js";
 

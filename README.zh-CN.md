@@ -2,7 +2,7 @@
 
 一个可以读懂、修改、嵌入自己程序的 TypeScript coding-agent Harness，也提供终端 CLI。
 
-[English](./README.md) · [功能取舍与重构方案](./docs/REFACTOR.md)
+[English](./README.md) · [跟读一次任务与项目架构](./docs/ARCHITECTURE.md)
 
 ## 核心能力
 
@@ -120,7 +120,7 @@ node --import tsx examples/custom-agent.ts
 | 接口 | 用途 |
 | --- | --- |
 | `model` | 自定义模型请求及响应；工具结果执行由 Harness 负责 |
-| `tools` / `defineTool` | schema、描述、执行函数；工具上下文只有 cwd、sessionId、signal、ask |
+| `tools` / `defineTool` | schema、描述、执行函数；工具上下文提供 cwd、sessionId、signal、ask 和实时输出 onOutput |
 | `instructions` | 字符串或每次任务生成指令的异步函数 |
 | `beforeFinish(session)` | 返回原因则继续工作；不传就没有 coding 专用门禁 |
 | `ask(request, signal)` | 接入自己的权限与提问 UI；应响应取消信号 |
@@ -184,7 +184,7 @@ Skill {{name}}：
 - 通过 `$skill-name` 或 `/skill-name` 显式调用，加载匹配 `SKILL.md` 正文。
 - 不自动写长期记忆，不维护仓库索引，不启动子 Agent。
 
-会话文件：`~/.nanocodin/workspaces/<workspace-id>/sessions/<id>.json`。成功、错误、取消和限额停止都保留。恢复提供已有事实与中断提示，不自动重放写操作。
+会话保存在 `~/.nanocodin/workspaces/<workspace-id>/sessions/`。备份时同时复制 `<id>.json` 基础快照和 `<id>.journal/` 追加日志目录。已有 v1 JSON 会话可直接续接。成功、错误、取消和限额停止都保留。恢复提供已有事实与中断提示，不自动重放写操作。
 
 旧版 `phaseLimits`、`recursionLimit`、`repoIndex`、`recovery`、`compression` 配置不再生效；对应旧 CLI 参数给出弃用提示。旧 checkpoint 不自动迁移为新事件记录，旧文件保留。
 
@@ -204,10 +204,10 @@ npm pack --dry-run
 src/
   api.ts           公开 Harness API
   agent/           执行循环、协议和有限上下文
-  tools/           文件、shell、交互工具与注册校验
+  tools/           默认文件、shell 和交互工具
   model/           可选模型适配器
-  session/         事件格式、派生视图和可选文件存储
-  workflows/       可替换的 coding 验证规则
+  session/         会话追加写入、恢复与回顾
+  coding/          项目指令与默认验收规则
   context/         项目规则与 skills
   config/          CLI 配置与路径
   cli/  ui/        默认终端应用

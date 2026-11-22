@@ -12,8 +12,12 @@ describe("parseCliArgs", () => {
     expect(result.args).toMatchObject({
       cwd: "/repo/examples",
       prompt: "fix tests",
-      configArgv: ["--max-steps=9", "--sandbox-policy=deny"]
+      configOverrides: { "max-steps": "9", "sandbox-policy": "deny" }
     });
+  });
+
+  it("preserves equals signs inside option values", () => {
+    expect(parseCliArgs(["--prompt=x=y"], "/repo").args?.prompt).toBe("x=y");
   });
 
   it("prefers --prompt over positional input", () => {

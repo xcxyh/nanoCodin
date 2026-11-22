@@ -1,23 +1,18 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { createAgent } from "../agent/run.js";
-import { runBootstrap } from "../bootstrap/runBootstrap.js";
+import { codingInstructions } from "../coding/instructions.js";
+import { createAgentRuntime } from "../agent/run.js";
+import { runBootstrap } from "../config/bootstrap.js";
 import { loadRuntimeConfig, isModelConfigComplete } from "../config/load.js";
 import { loadSkills } from "../context/skills.js";
 import { buildSlashCommands } from "../ui/utils/slashCommands.js";
 import { loadFileSuggestions } from "../ui/fileSuggestions.js";
-import { loadProjectContext } from "../context/project.js";
-import type { ToolContext } from "../core/toolTypes.js";
+import type { ToolContext } from "../agent/tools.js";
 import { createModelProvider, getConfiguredModelName } from "../model/provider.js";
 import { FileSessionStore } from "../session/store.js";
 import { formatSessionReview } from "../session/review.js";
 import { createDefaultTools } from "../tools/index.js";
-import { requireVerification } from "../workflows/verification.js";
+import { budgetSummary, codingHistoryHints, requireVerification } from "../coding/verification.js";
 import { formatConfigText, formatHelpText, getCliVersion } from "./help.js";
 import { parseCliArgs } from "./parseArgs.js";
-import { resolveNanoCodinHome } from "../config/paths.js";
-import { createTemplateInstructions } from "../templates/index.js";
 
 export interface CliIo { stdout(message: string): void; stderr(message: string): void }
 const defaultIo: CliIo = { stdout: (text) => process.stdout.write(`${text}\n`), stderr: (text) => process.stderr.write(`${text}\n`) };
@@ -35,14 +30,14 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     if (loaded.status !== "ok") { io.stderr(`找不到或无法读取会话记录 [${loaded.status}]：${loaded.message}`); return 1; }
     io.stdout(formatSessionReview(loaded.session)); return 0;
   }
-  let runtime = loadRuntimeConfig(args.cwd, args.configArgv);
+  let runtime = loadRuntimeConfig(args.cwd, args.configOverrides);
   if (args.printConfig) { io.stdout(formatConfigText(runtime, args)); return 0; }
   const print = args.printResult || !interactive;
   if (print && !args.prompt && !args.resume.enabled) { io.stderr("请提供任务，或使用 --resume。交互模式请在终端运行 nano-codin。"); return 1; }
   if (!isModelConfigComplete(runtime.config.model)) {
     if (print) { io.stderr("模型配置不完整。请设置 MODEL_PROVIDER、MODEL_NAME、MODEL_API_KEY，或在终端运行配置向导。"); return 1; }
     await runBootstrap(runtime.config, args.cwd, io);
-    runtime = loadRuntimeConfig(args.cwd, args.configArgv);
+    runtime = loadRuntimeConfig(args.cwd, args.configOverrides);
   }
   const loaded = args.resume.enabled ? await store.loadResult(args.resume.sessionId ?? undefined) : null;
   const restored = loaded?.status === "ok" ? loaded.session : null;
@@ -52,23 +47,16 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     io.stderr(`Checkpoint not found: ${args.resume.sessionId ?? "latest"}${sessions.length ? `\n${sessions.map((item) => `${item.id} ${item.task}`).join("\n")}` : "\nNo resumable sessions found."}`); return 1;
   }
   const model = createModelProvider(runtime.config.model);
-  const templateFile = [
-    path.join(args.cwd, ".nanocodin", "prompts", "system.hbs"),
-    path.join(resolveNanoCodinHome(), "prompts", "system.hbs")
-  ].find((file) => existsSync(file)) ?? fileURLToPath(new URL("../prompts/system.hbs", import.meta.url));
-  const instructions = createTemplateInstructions({
-    file: templateFile,
-    data: (task, current) => loadProjectContext(args.cwd, task, current)
-  });
+  const instructions = codingInstructions(args.cwd);
   let initialSession = restored;
   const makeAgent = (ask?: ToolContext["ask"]) => {
     const session = initialSession ?? undefined; initialSession = null;
-    return createAgent({
+    return createAgentRuntime({
       model, tools: createDefaultTools(runtime.config.sandbox), cwd: args.cwd, session,
       maxSteps: runtime.config.agent.maxSteps, maxHistoryChars: runtime.config.agent.maxHistoryChars,
       instructions,
-      ask, save: (current) => store.save(current), beforeFinish: requireVerification
-    });
+      ask, beforeFinish: requireVerification
+    }, { historyHints: codingHistoryHints, budgetSummary, append: store.writer() });
   };
   if (print) {
     const abort = new AbortController();
@@ -76,7 +64,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo, baseCwd = pr
     try {
       const result = await makeAgent().run(args.prompt ?? "continue", { signal: abort.signal, continuation: args.resume.enabled });
       io.stdout(result.answer);
-      if (result.failure && ["timeout", "network", "rate_limit", "provider"].includes(result.failure.kind)) io.stderr(`会话已保留。可使用 nano-codin --resume ${result.session.id} 继续；不会自动重放已记录的写操作。`);
+      if (!result.persistenceError && result.failure && ["timeout", "network", "rate_limit", "provider"].includes(result.failure.kind)) io.stderr(`会话已保留。可使用 nano-codin --resume ${result.session.id} 继续；不会自动重放已记录的写操作。`);
       if (result.persistenceError) io.stderr(`会话保存失败：${result.persistenceError}`);
       return result.status === "complete" ? 0 : result.status === "incomplete" ? 2 : result.status === "cancelled" ? 130 : 1;
     } finally { process.removeListener("SIGINT", cancel); }

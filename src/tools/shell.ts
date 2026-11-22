@@ -1,10 +1,11 @@
 import { outputTail, runShell } from "./process.js";
 import { isSingleCommand, splitCommandList, splitSingleCommand } from "./shellCommand.js";
 import { z } from "zod";
-import type { SandboxConfig } from "../core/runtimeConfig.js";
-import type { Tool } from "../core/toolTypes.js";
-import { defineTool } from "./define.js";
-import { isVerificationCommand } from "../workflows/verification.js";
+import type { SandboxConfig } from "../config/types.js";
+import { defineTool, type Tool } from "../agent/tools.js";
+import { repositoryCommand } from "../coding/pullRequest.js";
+import { checkFeedback } from "../coding/checkFeedback.js";
+import { isVerificationCandidate } from "../coding/verification.js";
 
 type ShellEffect = "read" | "write" | "unknown";
 function commandEffect(command: string): ShellEffect {
@@ -66,14 +67,15 @@ export function decidePolicy(command: string, config: SandboxConfig): "allow" | 
 export function createShellTool(config: SandboxConfig): Tool {
   let approvedSession: string | undefined | null = null;
   return defineTool({
-    name: "bash", mutates: true, description: "Execute a shell command. Mark purpose=edit for changes and purpose=verify for checks. Commands can time out, require approval, or be cancelled. Verification requires a single command without edits; run checks separately from changes.",
+    name: "bash", mutates: true, description: "Execute in the workspace cwd; omit cd. Mark purpose=edit for changes and purpose=verify for checks. Commands can time out, require approval, or be cancelled. Verification requires a single command without edits; run checks separately from changes.",
     schema: z.object({ command: z.string().min(1), purpose: z.enum(["inspect", "edit", "verify"]).optional(), timeoutMs: z.number().int().min(1000).max(120000).optional() }),
     async execute(input, context) {
       const started = Date.now();
       const policy = decidePolicy(input.command, config);
       const effect = commandEffect(input.command);
-      const verification = input.purpose !== "edit" && effect !== "write" && isSingleCommand(input.command) && (input.purpose === "verify" || isVerificationCommand(input.command));
-      const uncertainChanges = input.purpose === "edit" || effect === "write" || (effect === "unknown" && !verification);
+      const repository = repositoryCommand(input.command, context.cwd);
+      const verification = !repository && isVerificationCandidate(input.command, input.purpose, effect === "write");
+      const uncertainChanges = !repository && (input.purpose === "edit" || effect === "write" || (effect === "unknown" && !verification));
       const evidence = (exitCode: number | null, stdout = "", stderr = "") => ({ command: input.command, exitCode, stdout, stderr, durationMs: Date.now() - started, verification });
       if (policy === "deny") return { ok: false, reason: "denied", output: "Command denied by policy.", effects: { command: evidence(null) } };
       if (policy === "ask" && approvedSession !== context.sessionId) {
@@ -98,8 +100,11 @@ export function createShellTool(config: SandboxConfig): Tool {
         const error = result.failed && result.exitCode === undefined && !stopped ? result.shortMessage : "";
         const log = evidence(stopped ? null : result.exitCode ?? null, tail(stdout), tail([stderr, diagnostic, error].filter(Boolean).join("\n")));
         const output = `exit=${log.exitCode}\n${log.stdout}${log.stderr ? `\nstderr:\n${log.stderr}` : ""}`;
-        return { ok: !stopped && !result.failed && result.exitCode === 0, reason: stopped === "cancelled" ? "cancelled" : stopped === "timed out" ? "timeout" : undefined,
-          output: stopped === "cancelled" ? `Command cancelled.${stdout || stderr ? `\n${output}` : ""}` : output,
+        const reason = stopped === "cancelled" ? "cancelled" : stopped === "timed out" ? "timeout" : undefined;
+        const feedback = repository && input.purpose === "verify" ? "Git/PR 命令仅用于交付核对。"
+          : (input.purpose === "verify" || verification) ? checkFeedback(log, reason) : undefined;
+        return { ok: !stopped && !result.failed && result.exitCode === 0, reason,
+          output: stopped === "cancelled" ? `Command cancelled.${stdout || stderr ? `\n${output}` : ""}` : [output, feedback].filter(Boolean).join("\n"),
           effects: { uncertainChanges, command: log } };
       } catch (error) {
         if (context.signal?.aborted) return { ok: false, reason: "cancelled", output: "Command cancelled.", effects: { uncertainChanges, command: evidence(null) } };

@@ -2,7 +2,7 @@
 
 A small TypeScript coding-agent Harness you can read, customize and embed. A terminal CLI is included.
 
-[中文](./README.zh-CN.md) · [Feature decisions and architecture](./docs/REFACTOR.md)
+[中文](./README.zh-CN.md) · [Architecture walkthrough (中文)](./docs/ARCHITECTURE.md)
 
 ## Why this project
 
@@ -147,7 +147,7 @@ Variables: `task`, `cwd`, `session`, `projectRules`, `projectContext`, `workspac
 
 Project `AGENTS.md` is loaded verbatim. Optional `context.md` and `memory.md` under the workspace state directory are read-only notes. Skills are discovered in project `.agents/skills/`, `~/.nanocodin/skills/`, then `~/.agents/skills/`. Invoke `$skill-name` or `/skill-name` to load its body.
 
-Session events live at `~/.nanocodin/workspaces/<workspace-id>/sessions/<id>.json`. Completion, errors, cancellation and budget stops are retained. Resume supplies recorded context and interrupted-call warnings; it never automatically replays writes. `--review` reads local evidence without calling a model.
+The workspace sessions directory stores a version 1 base snapshot (`<id>.json`) and numbered append-only run logs (`<id>.journal/`). Back up both together. Existing v1 snapshots can be resumed directly. Completion, errors, cancellation and budget stops are retained. Resume supplies recorded context and interrupted-call warnings; it never automatically replays writes. `--review` reads local evidence without calling a model.
 
 Removed config keys (`phaseLimits`, `recursionLimit`, `repoIndex`, `recovery`, `compression`) are ignored; old CLI controls warn that they are deprecated. Legacy checkpoint files are preserved but not imported as new event sessions.
 
@@ -162,7 +162,7 @@ npm run build
 npm pack --dry-run
 ```
 
-Core: `src/api.ts`, `src/agent/`, `src/tools/registry.ts`. Optional adapters: `src/model/`, `src/session/store.ts`, `src/context/`. CLI/UI: `src/cli/`, `src/ui/`. Coding policy: `src/workflows/`.
+Start with `examples/custom-agent.ts` and follow `src/agent/run.ts`. The CLI composes the same loop with providers, default tools, file storage and the verification rules in `src/coding/`.
 
 Build clears obsolete output before compilation. `frontend/` is an independent landing page. Releases continue through `.github/workflows/release.yml` and `release/*` branches; this refactor does not publish automatically.
 

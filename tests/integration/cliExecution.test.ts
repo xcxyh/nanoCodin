@@ -1,10 +1,12 @@
 import { createServer, type Server } from "node:http";
-import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { once } from "node:events";
 import { execa } from "execa";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import { FileSessionStore } from "../../src/session/store.js";
 
 interface Reply { calls?: Array<{ name: string; input: unknown }>; text?: string; unsupported?: boolean }
 
@@ -66,10 +68,10 @@ describe("real CLI and OpenAI-compatible HTTP transport", () => {
       expect(result.stdout).toBe("已创建加法函数，语法检查通过。");
       expect(result.stderr).toBe("");
       expect(await readFile(path.join(cwd, "solution.js"), "utf8")).toContain("a + b");
-      const workspaceId = (await readdir(path.join(home, "workspaces")))[0];
-      const directory = path.join(home, "workspaces", workspaceId, "sessions");
-      const id = (await readFile(path.join(directory, "latest"), "utf8")).trim();
-      const saved = JSON.parse(await readFile(path.join(directory, `${id}.json`), "utf8"));
+      vi.stubEnv("NANOCODIN_HOME", home);
+      const store = new FileSessionStore(cwd);
+      vi.unstubAllEnvs();
+      const saved = (await store.load())!;
       expect(saved.events.at(-1)).toMatchObject({ type: "finish", status: "complete" });
       const command = saved.events.find((event: any) => event.type === "tool_end" && event.result.effects?.command);
       expect(command.result.effects.command.exitCode).toBe(0);

@@ -1,6 +1,6 @@
 import { displayEndpoint } from "../config/model.js";
-import { ModelRequestError, type ModelFailure, type ModelResponse, type RequestInfo } from "../core/messageTypes.js";
-import { DEFAULT_MODEL_REQUEST_POLICY, type ResolvedModelConfig } from "../core/runtimeConfig.js";
+import { ModelRequestError, type ModelFailure, type ModelResponse, type RequestInfo } from "../agent/messages.js";
+import { DEFAULT_MODEL_REQUEST_POLICY, type ResolvedModelConfig } from "../config/types.js";
 
 export const DEFAULT_REQUEST_POLICY = DEFAULT_MODEL_REQUEST_POLICY;
 export function requestPolicy(config: Partial<ResolvedModelConfig>) {
@@ -14,7 +14,7 @@ export function requestPolicy(config: Partial<ResolvedModelConfig>) {
 
 /** One logical request owns the budget across fallback and transport retries. No tools execute here. */
 export async function runModelRequest(config: ResolvedModelConfig, parent: AbortSignal | undefined,
-  generate: (transport: { signal: AbortSignal; fetch: typeof fetch }) => Promise<ModelResponse>): Promise<ModelResponse> {
+  generate: (transport: { signal: AbortSignal; fetch: typeof fetch }) => Promise<ModelResponse>, send: typeof fetch = globalThis.fetch): Promise<ModelResponse> {
   const policy = requestPolicy(config);
   const started = Date.now();
   const controller = new AbortController();
@@ -35,7 +35,7 @@ export async function runModelRequest(config: ResolvedModelConfig, parent: Abort
   const transportFetch: typeof fetch = async (input, init) => {
     controller.signal.throwIfAborted(); info.attempts++; info.httpStatus = undefined; info.requestId = undefined; touch();
     const signal = init?.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal;
-    const response = await globalThis.fetch(input, { ...init, signal });
+    const response = await send(input, { ...init, signal });
     info.httpStatus = response.status;
     info.requestId = response.headers.get("x-request-id") ?? response.headers.get("request-id") ?? undefined;
     info.firstResponseMs ??= Date.now() - started; touch();

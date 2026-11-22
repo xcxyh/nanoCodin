@@ -2,8 +2,8 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
-import { runBootstrap } from "../../src/bootstrap/runBootstrap.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/config/types.js";
+import { runBootstrap } from "../../src/config/bootstrap.js";
 
 const originalEnv = { ...process.env };
 

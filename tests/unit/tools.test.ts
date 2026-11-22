@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createAgent, projectSession } from "../../src/api.js";
-import { ToolRegistry } from "../../src/tools/registry.js";
+import { ToolRegistry } from "../../src/agent/tools.js";
 import { createDefaultTools } from "../../src/tools/index.js";
 import { createShellTool, decidePolicy, isWriteCommand } from "../../src/tools/shell.js";
-import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
-import type { ToolContext } from "../../src/core/toolTypes.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/config/types.js";
+import type { ToolContext } from "../../src/agent/tools.js";
 
 async function fixture() {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "nanocodin-tools-"));
@@ -228,4 +228,16 @@ describe("review regressions: shell boundaries", () => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await expect(readFile(path.join(cwd, "late.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   }, 6000);
+});
+
+it("explains to the model how to correct the wrapped check from the PR session", async () => {
+  const { cwd, context } = await fixture();
+  await writeFile(path.join(cwd, "package.json"), JSON.stringify({ scripts: { typecheck: "exit 7" } }));
+  const tool = createShellTool({ ...shellConfig(), defaultPolicy: "allow" });
+  const wrapped = await tool.execute({ command: 'cd . && npm run typecheck 2>&1 | tail -2', purpose: "verify" }, context);
+  expect(wrapped.effects?.command?.verification).toBe(false);
+  expect(wrapped.output).toContain("单独运行 npm run typecheck");
+  const independent = await tool.execute({ command: "npm run typecheck", purpose: "verify" }, context);
+  expect(independent.output).toContain("exit=7");
+  expect(independent.ok).toBe(false);
 });

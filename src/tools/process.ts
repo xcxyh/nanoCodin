@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import type { ToolContext } from "../core/toolTypes.js";
+import type { ToolContext } from "../agent/tools.js";
 import { execa } from "execa";
 
 // execa skips exit cleanup for detached processes. Share hooks only while groups

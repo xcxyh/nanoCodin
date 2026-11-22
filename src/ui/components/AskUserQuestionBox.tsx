@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { AskUserQuestionRequest } from "../../core/askUserQuestion.js";
+import type { AskUserQuestionRequest } from "../../agent/question.js";
 
 export function AskUserQuestionBox({
   request,

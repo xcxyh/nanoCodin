@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { buildAiSdkToolSet, FINAL_TOOL_NAME } from "../../src/model/tools.js";
-import { ToolRegistry } from "../../src/tools/registry.js";
+import { ToolRegistry } from "../../src/agent/tools.js";
 
 describe("buildAiSdkToolSet", () => {
   it("maps nano tools to AI SDK tools without execute functions", () => {

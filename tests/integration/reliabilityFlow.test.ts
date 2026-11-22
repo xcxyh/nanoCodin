@@ -7,7 +7,7 @@ import { afterEach, expect, it } from "vitest";
 import { createAgent, projectSession, requireVerification } from "../../src/api.js";
 import { createModelProvider } from "../../src/model/provider.js";
 import { createDefaultTools } from "../../src/tools/index.js";
-import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/config/types.js";
 import { FileSessionStore } from "../../src/session/store.js";
 const oldHome = process.env.NANOCODIN_HOME;
 afterEach(() => { if (oldHome === undefined) delete process.env.NANOCODIN_HOME; else process.env.NANOCODIN_HOME = oldHome; });

@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { open, lstat, writeFile, rename, rm, chmod } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
-import { ToolExecutionError } from "../core/toolTypes.js";
+import { ToolExecutionError } from "../agent/tools.js";
 
 export const MAX_FILE_BYTES = 8 * 1024 * 1024;
 export const fileHash = (text: string | Uint8Array) => createHash("sha256").update(text).digest("hex");

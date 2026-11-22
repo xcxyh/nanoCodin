@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import Handlebars from "handlebars";
-import type { Session } from "../session/types.js";
+import type { Session } from "../agent/session.js";
 
 export interface TemplateOptions {
   helpers?: Record<string, Handlebars.HelperDelegate>;

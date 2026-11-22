@@ -1,10 +1,10 @@
-import { defaultModelName } from "../config/model.js";
+import { defaultModelName } from "./model.js";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import type { ResolvedRuntimeConfig } from "../core/runtimeConfig.js";
-import { serializeConfigYaml } from "../config/load.js";
-import { resolveNanoCodinPaths } from "../config/paths.js";
+import type { ResolvedRuntimeConfig } from "./types.js";
+import { serializeConfigYaml } from "./load.js";
+import { resolveNanoCodinPaths } from "./paths.js";
 
 export interface BootstrapIo {
   stdout(message: string): void;

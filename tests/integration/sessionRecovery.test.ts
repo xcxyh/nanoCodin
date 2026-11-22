@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { createAgent, projectSession, requireVerification } from "../../src/api.js";
+import { projectSession, requireVerification } from "../../src/api.js";
+import { createAgentRuntime } from "../../src/agent/run.js";
 import { FileSessionStore } from "../../src/session/store.js";
 
 it("recovers a real crash after a write without trusting old checks or replaying the write", async () => {
@@ -26,16 +27,24 @@ it("recovers a real crash after a write without trusting old checks or replaying
       child.once("exit", (code) => reject(new Error(`Unexpected child exit ${code}: ${stderr}`)));
       deadline = setTimeout(() => reject(new Error("Crash fixture did not reach its write.")), 5000);
     });
-    const exited = once(child, "exit"); child.kill("SIGKILL"); await exited;
     process.env.NANOCODIN_HOME = home;
     const store = new FileSessionStore(cwd);
+    const running = (await store.load())!;
+    let calls = 0;
+    const contender = createAgentRuntime({ session: running, model: {
+      async generate() { calls++; return { text: "unexpected" }; }
+    } }, { append: store.writer() });
+    expect((await contender.run("continue", { continuation: true })).status).toBe("error");
+    expect(calls).toBe(0);
+    const exited = once(child, "exit"); child.kill("SIGKILL"); await exited;
     const session = await store.load();
     expect(session).not.toBeNull();
     expect(projectSession(session!)).toMatchObject({ changed: true, verified: false, pending: { mutates: true } });
-    const result = await createAgent({ session: session!, beforeFinish: requireVerification, maxSteps: 1,
+    const result = await createAgentRuntime({ session: session!, beforeFinish: requireVerification, maxSteps: 1,
       model: { async generate() { return { text: "done" }; } }
-    }).run("continue", { continuation: true });
+    }, { append: store.writer() }).run("continue", { continuation: true });
     expect(result.status).toBe("incomplete");
+    expect(await store.load()).toEqual(result.session);
     expect(await readFile(path.join(cwd, "source.js"), "utf8")).toBe("export const = BROKEN");
     expect(result.session.events.filter((event) => event.type === "tool_start")).toHaveLength(3);
   } finally {

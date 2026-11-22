@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { TokenUsage } from "../../core/messageTypes.js";
+import type { TokenUsage } from "../../agent/messages.js";
 
 export function formatTotalTokenUsageText(usage: TokenUsage | null): string {
   if (!usage?.totalTokens) return "0";

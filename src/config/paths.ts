@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canonicalPath } from "../core/paths.js";
+import { canonicalPath } from "../agent/workspace.js";
 import os from "node:os";
 import path from "node:path";
 

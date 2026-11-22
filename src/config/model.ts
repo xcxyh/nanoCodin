@@ -1,4 +1,4 @@
-import { DEFAULT_RUNTIME_CONFIG, type ModelProviderName, type ResolvedModelConfig } from "../core/runtimeConfig.js";
+import { DEFAULT_RUNTIME_CONFIG, type ModelProviderName, type ResolvedModelConfig } from "./types.js";
 
 export function defaultModelName(provider: ModelProviderName): string {
   return provider === "anthropic" ? "claude-haiku-4-5" : "gpt-4o-mini";
@@ -29,4 +29,18 @@ export function displayEndpoint(value: string | null): string {
   if (!value) return "(default)";
   try { const url = new URL(value); url.username = ""; url.password = ""; url.search = ""; return url.toString(); }
   catch { return "(invalid URL)"; }
+}
+
+export type CompleteModelConfig = ResolvedModelConfig & {
+  provider: ModelProviderName;
+  name: string;
+  apiKey: string;
+};
+
+export function isModelConfigComplete(config: ResolvedModelConfig): config is CompleteModelConfig {
+  return (config.provider === "openai" || config.provider === "anthropic")
+    && typeof config.name === "string"
+    && config.name.length > 0
+    && typeof config.apiKey === "string"
+    && config.apiKey.length > 0;
 }

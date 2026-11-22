@@ -14,7 +14,7 @@ const CONFIG_FLAGS_WITH_VALUES = new Set([
 
 export interface ParsedCliArgs {
   cwd: string;
-  configArgv: string[];
+  configOverrides: Record<string, string>;
   prompt: string | null;
   resume: { enabled: boolean; sessionId: string | null };
   newSession: boolean;
@@ -45,7 +45,7 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
   let printResult = false;
   const review: ParsedCliArgs["review"] = { enabled: false, sessionId: null };
   const warnings: string[] = [];
-  const configArgv: string[] = [];
+  const configOverrides: Record<string, string> = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const rawArg = argv[index];
@@ -110,7 +110,7 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
     if (rawArg === "--resume" || rawArg.startsWith("--resume=")) {
       resumeEnabled = true;
       if (rawArg.includes("=")) {
-        const [, value = ""] = rawArg.split("=", 2);
+        const value = rawArg.slice(rawArg.indexOf("=") + 1);
         resumeSessionId = value.trim() || null;
         continue;
       }
@@ -132,7 +132,7 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
       if (normalizedFlag === "recursion-limit" || normalizedFlag === "verify-keywords" || normalizedFlag === "compression-threshold") {
         warnings.push(`--${normalizedFlag} is deprecated and ignored; execution uses --max-steps and actual edit/check results.`);
       } else {
-        configArgv.push(`--${normalizedFlag}=${value.value}`);
+        configOverrides[normalizedFlag] = value.value;
       }
       index += value.consumedNext ? 1 : 0;
       continue;
@@ -160,7 +160,7 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
     ok: true,
     args: {
       cwd,
-      configArgv,
+      configOverrides,
       prompt: resumeEnabled ? null : prompt,
       resume: { enabled: resumeEnabled, sessionId: resumeSessionId },
       newSession: resumeEnabled ? false : newSession,
@@ -177,7 +177,7 @@ export function parseCliArgs(argv: string[], baseCwd: string): ParseCliResult {
 function readFlagValue(argv: string[], index: number, flagName: string) {
   const rawArg = argv[index] ?? "";
   if (rawArg.includes("=")) {
-    const [, value = ""] = rawArg.split("=", 2);
+    const value = rawArg.slice(rawArg.indexOf("=") + 1);
     if (value.length === 0) {
       return { ok: false as const, error: `Missing value for --${flagName}.` };
     }

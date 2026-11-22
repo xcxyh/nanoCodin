@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadRuntimeConfig, serializeConfigYaml } from "../../src/config/load.js";
 import { parseSimpleYaml, stringifySimpleYaml } from "../../src/config/yaml.js";
-import { DEFAULT_RUNTIME_CONFIG } from "../../src/core/runtimeConfig.js";
+import { DEFAULT_RUNTIME_CONFIG } from "../../src/config/types.js";
 
 const originalEnv = { ...process.env };
 afterEach(() => { process.env = { ...originalEnv }; });

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, useApp, useInput, useStdout } from "ink";
 import type { Agent } from "../agent/run.js";
-import type { AskUserQuestionRequest } from "../core/askUserQuestion.js";
-import type { ToolContext } from "../core/toolTypes.js";
-import { projectSession } from "../session/project.js";
+import type { AskUserQuestionRequest } from "../agent/question.js";
+import type { ToolContext } from "../agent/tools.js";
+import { projectSession } from "../coding/verification.js";
 import { Input, type InputProps } from "./Input.js";
 import { Question } from "./Question.js";
 import { activityDetails, projectUi } from "./project.js";
