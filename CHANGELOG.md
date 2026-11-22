@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
+### Changed
+- Reorganized internal modules along clear responsibility boundaries (`src/agent/`, `src/config/`, `src/session/`, `src/coding/`, and `src/model/protocol.ts`) while keeping the public Harness API and CLI behavior stable.
+- Upgraded file session persistence to store an immutable v1 base snapshot (`<id>.json`) alongside numbered append-only JSONL run segments (`<id>.journal/`), tolerating truncated trailing crash lines and detecting active writer PID conflicts.
+- Unified verification, plan projection, and instruction assembly under `src/coding/` by deriving views directly from session events.
+- Added `docs/ARCHITECTURE.md` walkthrough and redesigned the independent `frontend/` landing page.
+
+### Added
+- End-to-end PR delivery verification (`src/coding/pullRequest.ts`) checking that the remote PR is `OPEN`, targets the expected branches, and matches local `git rev-parse HEAD`.
+- Structured max-step budget summary (`budgetSummary`) and clearer verification feedback (`src/coding/checkFeedback.ts`) when runs stop or require follow-up checks.
+
+### Fixed
+- Separated verification scope from shell authorization so repository inspection commands do not falsely satisfy source-code verification or trigger spurious edit warnings.
+- Improved session recovery diagnostics and test coverage for segmented journals, interrupted writes, and PR delivery flows.
+
 ## [0.2.0] - 2026-10-25
 
 ### Changed
